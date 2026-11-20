@@ -340,6 +340,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     var reviewing by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
     var deleteAll by remember { mutableStateOf(false) }
+    var restarting by remember { mutableStateOf(false) }
     var editPages by remember { mutableStateOf(false) }
     val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
 
@@ -366,6 +367,16 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     }
     if (history) { SessionsDialog(b.id, onDismiss = { history = false }); return }
     if (deleteAll) { DeleteReadingDialog(b.id, onDismiss = { deleteAll = false }); return }
+    if (restarting) {
+        AlertDialog(
+            onDismissRequest = { restarting = false }, containerColor = NB.surface2,
+            title = { Text("¿Reiniciar el libro?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = { Text("Vuelve al principio (0 %). Tus citas, marcadores y el tiempo leído se quedan.", color = NB.text2) },
+            confirmButton = { TextButton(onClick = { scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado"); onDismiss() }) { Text("Reiniciar", color = NB.text) } },
+            dismissButton = { TextButton(onClick = { restarting = false }) { Text("Cancelar", color = NB.text2) } },
+        )
+        return
+    }
     if (editPages) {
         var t by remember { mutableStateOf(if (b.pages > 0) b.pages.toString() else "") }
         AlertDialog(
@@ -430,6 +441,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 }
                 MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
                 if (!b.isEpub) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
+                if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel…") { editPages = true }
                 MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }

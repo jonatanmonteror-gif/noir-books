@@ -328,6 +328,18 @@ object Library {
         )
     }
 
+    /** Reiniciar: el libro vuelve al principio (las citas, marcadores y el tiempo leído se quedan). */
+    suspend fun restart(id: String) = update(id) { b ->
+        val now = System.currentTimeMillis()
+        val open = b.readings.any { it.end == 0L }
+        b.copy(
+            chapter = 0, fraction = 0f, anchor = "", manualProgress = 0f,
+            status = if (b.status == BookStatus.Read || b.status == BookStatus.Abandoned) BookStatus.Reading else b.status,
+            readings = if (open || b.status == BookStatus.ToRead || b.status == BookStatus.Next) b.readings else b.readings + Reading(now),
+            abandonReason = "",
+        )
+    }
+
     suspend fun moveToTrash(id: String) = update(id) { it.copy(deletedAt = System.currentTimeMillis()) }
     suspend fun restore(id: String) = update(id) { it.copy(deletedAt = 0L) }
 

@@ -5,7 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
-        Entry("1.0.14", "20 nov 2026", listOf("Ficha del libro más limpia: sin «Leer» (el libro se abre tocándolo)")),
+        Entry("1.0.15", "20 nov 2026", listOf(
+            "Al salir del libro, si te has movido, te pregunta si guardas por dónde vas (página y %) o lo dejas donde estaba",
+            "Reiniciar libro: empezarlo desde cero desde su ficha",
+            "Ficha del libro más limpia: sin «Leer» (el libro se abre tocándolo)",
+        )),
         Entry("1.0.13", "20 nov 2026", listOf("Nuevo icono en claro")),
         Entry("1.0.12", "20 nov 2026", listOf(
             "Apariencia clara u oscura para la app (o como el sistema), en Ajustes → Apariencia",

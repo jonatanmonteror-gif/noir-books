@@ -447,6 +447,21 @@ class ReaderController(
 
     private var saveJob: Job? = null
 
+    // Dónde estaba el libro al abrirlo, por si al salir no se quiere guardar la posición.
+    private val openChapter = startChapter
+    private val openFraction = startFraction
+    private val openAnchor = startAnchor
+    val openProgress: Float get() = book?.progressAt(openChapter, openFraction) ?: startProgress
+
+    /** ¿Te has movido de donde abriste el libro? */
+    fun movedSinceOpen(): Boolean = chapter != openChapter || kotlin.math.abs(fraction - openFraction) > 0.0005f
+
+    /** No guardar: el libro vuelve a donde estaba al abrirlo (el tiempo leído sí cuenta). */
+    suspend fun restoreOpenPosition() {
+        saveJob?.cancel()
+        Library.update(bookId) { it.copy(chapter = openChapter, fraction = openFraction, anchor = openAnchor) }
+    }
+
     private fun savePosition() {
         val ch = chapter
         val f = fraction

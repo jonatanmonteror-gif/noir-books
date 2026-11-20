@@ -172,9 +172,13 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     var dictionaryWord by remember { mutableStateOf<Pair<String, String>?>(null) }
     val cpm = remember { Stats.charsPerMinute() }
 
+    var askSave by remember { mutableStateOf(false) }
+    fun finishClose() {
+        if (c.sessionSeconds >= 60 && !summary) summary = true else onClose()
+    }
     fun requestClose() {
         c.pause()
-        if (c.sessionSeconds >= 60 && !summary) summary = true else onClose()
+        if (c.ready && c.movedSinceOpen()) askSave = true else finishClose()
     }
     BackHandler {
         when {
@@ -475,6 +479,34 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         )
     }
     dictionaryWord?.let { (w, _) -> DictionarySheet(w, onDismiss = { dictionaryWord = null }) }
+    if (askSave && book != null) {
+        val nowP = book.progressAt(c.chapter, c.fraction)
+        val openP = c.openProgress
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askSave = false; c.resume() },
+            containerColor = NB.surface2,
+            title = { Text("¿Guardar por dónde vas?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column {
+                    Text("Ahora", color = NB.text3, fontSize = 12.sp)
+                    Text("${book.printedPageLabel(nowP, c.printed, c.printedTotal)} · ${percentLabel(nowP)}", color = NB.text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    val ch = c.chapterTitle()
+                    if (ch.isNotBlank()) Text(ch, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Al abrirlo estabas en", color = NB.text3, fontSize = 12.sp)
+                    Text("${book.printedPageLabel(openP)} · ${percentLabel(openP)}", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(14.dp))
+                    MenuRow("Guardar aquí") { askSave = false; finishClose() }
+                    MenuRow("Dejarlo donde estaba") {
+                        askSave = false
+                        scope.launch { c.restoreOpenPosition(); finishClose() }
+                    }
+                    MenuRow("Seguir leyendo", color = NB.text2) { askSave = false; c.resume() }
+                }
+            },
+            confirmButton = {},
+        )
+    }
     if (summary) {
         SessionSummary(
             seconds = c.sessionSeconds.toLong(), pages = c.sessionPages,
