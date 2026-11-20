@@ -236,7 +236,6 @@ private fun ResultRow(r: FoundBook, onClick: () -> Unit) {
     }
 }
 
-@Composable
 private var lastFormat = BookFormat.Kindle
 private var lastUnit = ProgressUnit.Percent
 private var lastStatus = BookStatus.Reading
