@@ -35,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -214,6 +216,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         lifecycle.addObserver(obs)
         onDispose {
             lifecycle.removeObserver(obs)
+            c.ttsShutdown()
             c.pause()
         }
     }
@@ -369,6 +372,41 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             )
         }
 
+        // Lectura en voz alta: controles discretos abajo
+        AnimatedVisibility(c.ttsActive && !bars && c.selection == null, enter = fadeIn(), exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 34.dp)) {
+            Row(
+                Modifier.clip(RoundedCornerShape(50)).background(bg.copy(alpha = 0.96f))
+                    .border(1.dp, muted.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { if (c.ttsPlaying) c.ttsPause() else c.ttsResume() }, modifier = Modifier.size(40.dp)) {
+                    if (c.ttsPlaying) Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(2) { Box(Modifier.width(3.dp).height(14.dp).background(fg)) }
+                    } else Icon(Icons.Filled.PlayArrow, "Seguir", tint = fg)
+                }
+                val rates = listOf(0.8f, 1f, 1.2f, 1.5f, 2f)
+                Text(
+                    String.format(java.util.Locale("es", "ES"), "%.1f×", c.ttsRate), color = fg, fontSize = 13.sp, fontFamily = Inter,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable {
+                        c.ttsSetRate(rates[(rates.indexOfFirst { kotlin.math.abs(it - c.ttsRate) < 0.05f } + 1).mod(rates.size)])
+                    }.padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+                var sleepIdx by remember { mutableStateOf(0) }
+                val sleepOpts = listOf(0L, 15L, 30L, 60L)
+                if (c.ttsSleepAt == 0L && sleepIdx != 0) sleepIdx = 0
+                Text(
+                    if (sleepIdx > 0) "Dormir ${sleepOpts[sleepIdx]} min" else "Dormir", color = if (sleepIdx > 0) fg else muted,
+                    fontSize = 13.sp, fontFamily = Inter,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable {
+                        sleepIdx = (sleepIdx + 1) % sleepOpts.size
+                        c.ttsSleepAt = if (sleepIdx == 0) 0L else System.currentTimeMillis() + sleepOpts[sleepIdx] * 60_000L
+                    }.padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+                IconButton(onClick = { c.ttsStop() }, modifier = Modifier.size(40.dp)) { Icon(Icons.Filled.Close, "Parar", tint = muted) }
+            }
+        }
+
         // Volver a donde estabas (discreto)
         AnimatedVisibility(showBack && !bars && c.selection == null && !settings.focus, enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 12.dp, bottom = 30.dp)) {
@@ -409,6 +447,9 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                         Modifier.size(18.dp).clip(CircleShape).background(if (settings.focus) fg else Color.Transparent)
                             .border(1.5.dp, fg, CircleShape),
                     )
+                }
+                IconButton(onClick = { bars = false; if (c.ttsActive) c.ttsResume() else c.ttsStart() }) {
+                    Icon(Icons.Filled.PlayArrow, "Escuchar el libro", tint = fg)
                 }
                 IconButton(onClick = { sheet = Sheet.Search; bars = false }) { Icon(Icons.Filled.Search, "Buscar en el libro", tint = fg) }
                 val marked = c.currentBookmark() != null

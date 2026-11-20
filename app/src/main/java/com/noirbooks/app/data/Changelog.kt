@@ -5,7 +5,13 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
-        Entry("1.0.23", "20 nov 2026", listOf(
+        Entry("1.0.25", "20 nov 2026", listOf(
+            "Lectura en voz alta: botón ▶ arriba en el libro; frase resaltada, pasa de página y de capítulo sola, velocidad y temporizador para dormir",
+            "Escáner del código de barras (ISBN) al añadir un libro",
+            "Importar tu biblioteca de Goodreads (CSV): estados, valoraciones, fechas, opinión y portadas",
+            "Cita desde una foto de una página de papel (Citas → + Foto); el texto se lee en el móvil",
+        )),
+        Entry("1.0.24", "20 nov 2026", listOf(
             "Copia automática en Google Drive (carpeta privada de la app) y restaurar desde Drive en otro móvil. Se activará cuando esté configurada la cuenta de Google del proyecto",
             "En una biblioteca vacía, acceso directo a restaurar tu copia",
         )),

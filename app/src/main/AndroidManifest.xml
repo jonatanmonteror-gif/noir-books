@@ -13,6 +13,11 @@
         android:largeHeap="true"
         android:theme="@style/Theme.NoirBooks">
 
+        <!-- Descargar con la instalación las piezas de Google para escanear ISBN y leer texto de fotos -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui,ocr" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"

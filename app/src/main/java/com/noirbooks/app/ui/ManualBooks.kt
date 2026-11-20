@@ -120,6 +120,9 @@ fun AddBookScreen(onClose: () -> Unit) {
             onClose()
         }
     }
+    val goodreadsPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { AppState.importGoodreads(ctx, uri); AppState.toast("Importando de Goodreads…"); onClose() }
+    }
     val clipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             runCatching { Clippings.import(ctx, uri) }.onSuccess { r ->
@@ -160,6 +163,9 @@ fun AddBookScreen(onClose: () -> Unit) {
             OutlinedTextField(
                 value = query, onValueChange = { query = it },
                 placeholder = { Text("Título, autor o ISBN", color = NB.text3) },
+                trailingIcon = {
+                    TextButton(onClick = { scanIsbn(ctx) { query = it } }) { Text("Escanear", color = NB.text) }
+                },
                 singleLine = true, shape = RoundedCornerShape(12.dp), colors = field(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -169,11 +175,17 @@ fun AddBookScreen(onClose: () -> Unit) {
                     Text("Busca el libro que lees en Kindle, en papel o en audio y apunta tus lecturas aunque no lo leas en el móvil.",
                         color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
                     Spacer(Modifier.height(18.dp))
+                    MenuRow("Escanear el código de barras (ISBN)") { scanIsbn(ctx) { query = it } }
                     MenuRow("Escribirlo a mano") { picked = FoundBook("", "", null, 0, "", "", "", "", "") }
                     MenuRow("Importar EPUB desde el móvil") { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "application/zip")) }
                     MenuRow("Importar subrayados del Kindle (My Clippings.txt)") { clipPicker.launch(arrayOf("text/plain", "*/*")) }
+                    MenuRow("Importar tu biblioteca de Goodreads (CSV)") {
+                        goodreadsPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
+                    }
                     Spacer(Modifier.height(6.dp))
-                    Text("Conecta el Kindle por cable: el archivo está en la carpeta documents.", color = NB.text3, fontSize = 12.sp)
+                    Text("Kindle: conéctalo por cable; el archivo está en la carpeta documents.", color = NB.text3, fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Goodreads: en la web, Mis libros → Importar y exportar → Exportar biblioteca.", color = NB.text3, fontSize = 12.sp)
                 }
                 return@Column
             }
@@ -810,4 +822,24 @@ fun EditSessionDialog(s: com.noirbooks.app.data.Session, onDismiss: () -> Unit) 
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
     )
+}
+
+/** Escanea el código de barras de un libro con el escáner de Google (no necesita permiso de cámara). */
+fun scanIsbn(ctx: android.content.Context, onIsbn: (String) -> Unit) {
+    val opts = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+        .setBarcodeFormats(
+            com.google.mlkit.vision.barcode.common.Barcode.FORMAT_EAN_13,
+            com.google.mlkit.vision.barcode.common.Barcode.FORMAT_EAN_8,
+            com.google.mlkit.vision.barcode.common.Barcode.FORMAT_UPC_A,
+        )
+        .build()
+    com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(ctx, opts).startScan()
+        .addOnSuccessListener { b ->
+            val v = b.rawValue?.filter { it.isDigit() || it == 'X' }.orEmpty()
+            if (v.length == 10 || v.length == 13) onIsbn(v) else AppState.toast("Ese código no es un ISBN")
+        }
+        .addOnFailureListener { e ->
+            ErrorLog.note("Escanear ISBN", e)
+            AppState.toast("No se pudo abrir el escáner (necesita los servicios de Google Play)")
+        }
 }

@@ -89,4 +89,8 @@ dependencies {
     implementation("org.jsoup:jsoup:1.18.1")
     // Inicio de sesión con Google solo para la carpeta privada de la app en Drive (copias de seguridad).
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // Escáner de código de barras de Google (su propia pantalla, sin permiso de cámara)
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Reconocer el texto de una foto en el propio móvil (vía Google Play services)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 }

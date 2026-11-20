@@ -399,6 +399,8 @@ fun QuotesScreen() {
 
     val all = books.filter { !it.inTrash }.flatMap { b -> b.highlights.map { b to it } }.sortedByDescending { it.second.id }
     var search by rememberSaveable { mutableStateOf("") }
+    var photoQuote by remember { mutableStateOf(false) }
+    if (photoQuote) PhotoQuoteFlow(onDone = { photoQuote = false })
     val sq = fold(search.trim())
     val shown = all.filter { color < 0 || it.second.color == color }
         .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) || fold(b.author).contains(sq) }
@@ -408,6 +410,7 @@ fun QuotesScreen() {
 
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Citas") {
+            if (tab == 0) TextButton(onClick = { photoQuote = true }) { Text("+ Foto", color = NB.text, fontFamily = Inter) }
             if (tab == 0 && all.isNotEmpty()) {
                 TextButton(onClick = { shareText(ctx, "Mis citas — Noir Books", exportMarkdown(all)) }) {
                     Text("Exportar", color = NB.text, fontFamily = Inter)
@@ -422,7 +425,7 @@ fun QuotesScreen() {
         if (tab == 0) {
             if (all.isEmpty()) {
                 Text(
-                    "Mientras lees, mantén pulsada una palabra y arrastra para seleccionar. Elige un color y la cita aparecerá aquí.\n\nCada color puede tener un sentido: amarillo, frase bonita; azul, idea; verde, para recordar; rosa, duda.",
+                    "Mientras lees, mantén pulsada una palabra y arrastra para seleccionar. Elige un color y la cita aparecerá aquí. De un libro de papel, usa «+ Foto».\n\nCada color puede tener un sentido: amarillo, frase bonita; azul, idea; verde, para recordar; rosa, duda.",
                     color = NB.text3, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = Inter, modifier = Modifier.padding(20.dp),
                 )
                 return@Column

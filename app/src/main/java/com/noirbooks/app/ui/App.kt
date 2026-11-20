@@ -2,6 +2,7 @@ package com.noirbooks.app.ui
 
 import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -62,6 +63,27 @@ object AppState {
     val timer = mutableStateOf<Pair<String, Long>?>(null)
     /** Lectura que se está apuntando: libro y, si viene del cronómetro, inicio y fin. */
     val logSession = mutableStateOf<LogRequest?>(null)
+
+    /** Tareas largas que no deben pararse al cerrar una pantalla (importar de Goodreads…). */
+    val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+
+    fun importGoodreads(ctx: Context, uri: Uri) {
+        background.launch {
+            importing.intValue = 1
+            runCatching {
+                com.noirbooks.app.data.GoodreadsImport.import(ctx.applicationContext, uri) { done, total ->
+                    importing.intValue = (total - done).coerceAtLeast(if (done < total) 1 else 0)
+                }
+            }.onSuccess { r ->
+                toast(if (r.added == 0) "No había libros nuevos que importar" else
+                    "Importados ${r.added} libros de Goodreads" + if (r.skipped > 0) " (${r.skipped} ya estaban)" else "")
+            }.onFailure {
+                com.noirbooks.app.data.ErrorLog.note("Importar de Goodreads", it)
+                toast(it.message ?: "No se pudo importar")
+            }
+            importing.intValue = 0
+        }
+    }
 
     /** La lectura sin guardar de una sesión anterior solo se pregunta una vez al arrancar la app. */
     var pendingChecked = false

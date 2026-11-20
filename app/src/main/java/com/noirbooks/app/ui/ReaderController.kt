@@ -7,6 +7,8 @@ import android.graphics.Rect
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -250,6 +252,128 @@ class ReaderController(
         web = this
         // Cargar solo cuando el WebView ya tiene tamaño (con 0 de alto, cada página sería una línea).
         doOnLayout { loadChapter(chapter, target) }
+    }
+
+    // ---- Lectura en voz alta (voz del sistema, frase a frase) ----
+
+    /** Hay lectura en voz alta en curso (sonando o en pausa). */
+    var ttsActive by mutableStateOf(false)
+        private set
+    var ttsPlaying by mutableStateOf(false)
+        private set
+    var ttsRate by mutableStateOf(Prefs.ttsRate)
+        private set
+    /** Hora a la que se para sola (0 = sin temporizador). */
+    var ttsSleepAt by mutableStateOf(0L)
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var sentences: List<Pair<String, String>> = emptyList()
+    private var sIndex = 0
+    private var ttsNextChapter = false
+
+    private val ttsListener = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) {}
+        override fun onDone(utteranceId: String?) { main.post { ttsAdvance(utteranceId) } }
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) { main.post { ttsAdvance(utteranceId) } }
+    }
+
+    fun ttsStart() {
+        ttsActive = true
+        ttsEnsure { ttsFetch(fromHere = true) }
+    }
+
+    private fun ttsEnsure(then: () -> Unit) {
+        if (tts != null && ttsReady) { then(); return }
+        tts?.shutdown()
+        tts = TextToSpeech(app) { status ->
+            main.post {
+                if (status == TextToSpeech.SUCCESS) {
+                    ttsReady = true
+                    val loc = java.util.Locale.forLanguageTag(epub.language.ifBlank { "es-ES" })
+                    val ok = tts?.setLanguage(loc) ?: TextToSpeech.LANG_NOT_SUPPORTED
+                    if (ok < 0) tts?.setLanguage(java.util.Locale("es", "ES"))
+                    tts?.setOnUtteranceProgressListener(ttsListener)
+                    then()
+                } else {
+                    ttsActive = false
+                    AppState.toast("No hay ninguna voz instalada en el móvil (Ajustes → Texto a voz)")
+                }
+            }
+        }
+    }
+
+    /** Pide al lector las frases del capítulo (desde la página visible o desde el principio). */
+    private fun ttsFetch(fromHere: Boolean) {
+        val w = web ?: return ttsStop()
+        w.evaluateJavascript("window.noir ? noir.ttsSentences($fromHere) : '[]'") { raw ->
+            val list = runCatching {
+                val arr = JSONArray(org.json.JSONTokener(raw).nextValue() as String)
+                (0 until arr.length()).map { i -> arr.getJSONObject(i).let { it.getString("t") to it.getJSONObject("r").toString() } }
+            }.getOrDefault(emptyList())
+            sentences = list
+            sIndex = 0
+            if (!ttsActive) return@evaluateJavascript
+            if (list.isEmpty()) ttsChapterEnd() else ttsSpeak()
+        }
+    }
+
+    private fun ttsSpeak() {
+        val (text, range) = sentences.getOrNull(sIndex) ?: return ttsChapterEnd()
+        js("window.noir && noir.ttsMark(${JSONObject.quote(range)})")
+        tts?.setSpeechRate(ttsRate)
+        tts?.speak(text.take(3900), TextToSpeech.QUEUE_FLUSH, null, "s$sIndex")
+        ttsPlaying = true
+    }
+
+    private fun ttsAdvance(id: String?) {
+        if (!ttsActive || !ttsPlaying || id != "s$sIndex") return
+        if (ttsSleepAt in 1..System.currentTimeMillis()) { ttsSleepAt = 0L; ttsPause(); return }
+        sIndex++
+        if (sIndex < sentences.size) ttsSpeak() else ttsChapterEnd()
+    }
+
+    private fun ttsChapterEnd() {
+        if (chapter < epub.spine.lastIndex) {
+            ttsNextChapter = true
+            closePage(turned = true)
+            loadChapter(chapter + 1, START)
+        } else {
+            ttsStop()
+            endReached = true
+        }
+    }
+
+    fun ttsPause() {
+        ttsPlaying = false
+        tts?.stop()
+    }
+
+    fun ttsResume() {
+        if (!ttsActive) return ttsStart()
+        if (sentences.isEmpty()) ttsFetch(fromHere = true) else ttsSpeak()
+    }
+
+    fun ttsStop() {
+        ttsActive = false
+        ttsPlaying = false
+        ttsNextChapter = false
+        ttsSleepAt = 0L
+        tts?.stop()
+        js("window.noir && noir.ttsClear()")
+    }
+
+    fun ttsSetRate(r: Float) {
+        ttsRate = r
+        Prefs.ttsRate = r
+        if (ttsPlaying) ttsSpeak()
+    }
+
+    fun ttsShutdown() {
+        ttsStop()
+        tts?.shutdown()
+        tts = null
+        ttsReady = false
     }
 
     fun release(view: WebView) {
@@ -539,6 +663,7 @@ class ReaderController(
             if (!a.isNullOrBlank()) anchor = a
             pageSince = System.currentTimeMillis()
             savePosition()
+            if (ttsNextChapter && ttsActive) { ttsNextChapter = false; ttsFetch(fromHere = false) }
         }
 
         @JavascriptInterface

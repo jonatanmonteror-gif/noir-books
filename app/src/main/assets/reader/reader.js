@@ -76,6 +76,7 @@
       c.push('img{filter:brightness(0.9);}');
     }
     Object.keys(HL).forEach(function (k) { c.push('::highlight(nb-' + k + '){background-color:' + HL[k] + ';color:inherit;}'); });
+    c.push('::highlight(nb-tts){background-color:' + (s.dark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.10)') + ';}');
     c.push('::highlight(nb-search){background-color:' + (s.dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.22)') + ';}');
     c.push('#__noir_end{display:block!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}');
     return c.join('\n');
@@ -249,6 +250,54 @@
     r.setStart(a[0], a[1]);
     r.setEnd(b[0], Math.min(b[1], b[0].length));
     return r;
+  }
+
+  // ---- Lectura en voz alta: frases del capítulo con su posición ----
+
+  var TTS_BLOCKS = 'p,li,h1,h2,h3,h4,h5,h6,blockquote,dd,dt,figcaption,td,th,pre';
+
+  /** Frases del capítulo (desde la página visible si [fromHere]): [{t: texto, r: rango}]. */
+  function ttsSentences(fromHere) {
+    var out = [];
+    var blocks = Array.prototype.filter.call(document.body.querySelectorAll(TTS_BLOCKS), function (b) {
+      return !b.querySelector(TTS_BLOCKS);
+    });
+    if (!blocks.length) blocks = [document.body];
+    var re = /[^.!?…]+(?:[.!?…]+["»”’)\]]*|$)/g;
+    blocks.forEach(function (b) {
+      var nodes = [], starts = [], text = '';
+      var w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, null);
+      var n;
+      while ((n = w.nextNode())) {
+        if (!n.nodeValue) continue;
+        var pe = n.parentElement;
+        if (pe && (pe.closest('script,style,rt'))) continue;
+        nodes.push(n); starts.push(text.length); text += n.nodeValue;
+      }
+      if (!text.trim()) return;
+      function locate(pos) {
+        for (var i = nodes.length - 1; i >= 0; i--) if (starts[i] <= pos) return [nodes[i], Math.min(pos - starts[i], nodes[i].length)];
+        return [nodes[0], 0];
+      }
+      var m;
+      re.lastIndex = 0;
+      while ((m = re.exec(text))) {
+        if (!m[0]) { re.lastIndex++; continue; }
+        var raw = m[0];
+        var t = raw.replace(/\s+/g, ' ').trim();
+        if (!t || !/[\wÀ-ÿ]/.test(t)) continue;
+        var lead = raw.length - raw.replace(/^\s+/, '').length;
+        var a = locate(m.index + lead), z = locate(m.index + raw.replace(/\s+$/, '').length);
+        try {
+          var r = document.createRange();
+          r.setStart(a[0], a[1]); r.setEnd(z[0], z[1]);
+          if (fromHere && pageOfRange(r) < page) continue;
+          var j = fromRange(r);
+          if (j) out.push({ t: t, r: j });
+        } catch (e) {}
+      }
+    });
+    return out;
   }
 
   function markSearch(r) {
@@ -427,6 +476,18 @@
       paintHighlights();
     },
     clearSelection: function () { var s = window.getSelection(); if (s) s.removeAllRanges(); lastSel = ''; },
+    ttsSentences: function (fromHere) { try { return JSON.stringify(ttsSentences(!!fromHere)); } catch (e) { return '[]'; } },
+    ttsMark: function (json) {
+      try {
+        CSS.highlights.delete('nb-tts');
+        var r = toRange(typeof json === 'string' ? JSON.parse(json) : json);
+        if (!r) return;
+        CSS.highlights.set('nb-tts', new Highlight(r));
+        var p = pageOfRange(r);
+        if (p !== page) show(p);
+      } catch (e) {}
+    },
+    ttsClear: function () { try { CSS.highlights.delete('nb-tts'); } catch (e) {} },
     pageOfRangeJson: function (json) { var r = toRange(JSON.parse(json)); return r ? pageOfRange(r) : -1; },
     /** Primeras palabras de la página visible (para los marcadores). */
     snippet: function () {

@@ -218,6 +218,11 @@ object Prefs {
         get() = sp.getInt("goal_pages_year", 5000)
         set(v) { sp.edit().putInt("goal_pages_year", v).apply() }
 
+    /** Velocidad de la lectura en voz alta (1 = normal). */
+    var ttsRate: Float
+        get() = sp.getFloat("reader_tts_rate", 1f)
+        set(v) { sp.edit().putFloat("reader_tts_rate", v).apply() }
+
     // Pista de gestos del lector: se muestra solo la primera vez
     var gestureHintShown: Boolean
         get() = sp.getBoolean("reader_gesture_hint_shown", false)
