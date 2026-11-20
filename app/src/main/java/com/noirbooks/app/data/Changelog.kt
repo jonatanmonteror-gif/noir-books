@@ -9,6 +9,9 @@ object Changelog {
             "Páginas de la edición en papel automáticas: se buscan solas por ISBN o por título y autor",
             "También para los libros que ya tenías, en segundo plano",
             "En la ficha: «412 páginas en papel». Si tu edición tiene otras, cámbialas en el menú del libro",
+            "Estilo Kindle (Lectura → Perfiles): tema verde, letra con serifa, sangría, hora arriba y tiempo del libro abajo",
+            "Tema Verde y opción de ver la hora arriba (Lectura → Pie de página)",
+            "Lectura en voz alta en español de España cuando el libro solo dice «español»",
         )),
         Entry("1.0.36", "21 nov 2026", listOf(
             "Quitar la valoración de un libro: botón Quitar junto a las estrellas (o tocar otra vez la misma nota)",

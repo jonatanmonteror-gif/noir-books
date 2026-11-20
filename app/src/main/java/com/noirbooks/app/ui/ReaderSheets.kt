@@ -290,7 +290,14 @@ fun ReadingControls(showPreview: Boolean = false) {
     FoldSection("Tema propio y automático", "Tus colores, y claro de día y oscuro de noche") {
         ThemeExtras(s) { set(it) }
     }
-    FoldSection("Perfiles", "Tus ajustes guardados con nombre: «Cama», «Tren»…") {
+    FoldSection("Perfiles", "Estilo Kindle y tus ajustes guardados: «Cama», «Tren»…") {
+        Text("Estilos listos", color = NB.text3, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Estilo Kindle", s == s.kindle(), Modifier.weight(1f)) { set(s.kindle()) }
+            Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
         ProfilesBlock(s) { set(it) }
     }
     FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
@@ -298,6 +305,11 @@ fun ReadingControls(showPreview: Boolean = false) {
         FooterChoices(FooterInfo.LEFT, s.footerLeft) { set(s.copy(footerLeft = it)) }
         Label("A la derecha")
         FooterChoices(FooterInfo.RIGHT, s.footerRight) { set(s.copy(footerRight = it)) }
+        Label("Arriba")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Choice("Hora arriba", s.headerClock, Modifier.weight(1f)) { set(s.copy(headerClock = true)) }
+            Choice("Nada", !s.headerClock, Modifier.weight(1f)) { set(s.copy(headerClock = false)) }
+        }
         Spacer(Modifier.height(6.dp))
         Text("También puedes tocar cada lado del pie mientras lees para cambiarlo.", color = NB.text3, fontSize = 12.sp)
     }
@@ -541,12 +553,16 @@ private fun ThemeExtras(s: ReaderSettings, set: (ReaderSettings) -> Unit) {
         Text(if (s.autoTheme == "hours") "De día es de 7 a 21 h." else "Sigue el modo oscuro de tu móvil.", color = NB.text3, fontSize = 12.sp,
             modifier = Modifier.padding(top = 6.dp))
         Label("De día")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ReaderTheme.entries.forEach { t -> Choice(t.label, s.dayTheme == t, Modifier.weight(1f)) { set(s.copy(dayTheme = t)) } }
+        ReaderTheme.entries.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { t -> Choice(t.label, s.dayTheme == t, Modifier.weight(1f)) { set(s.copy(dayTheme = t)) } }
+            }
         }
         Label("De noche")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ReaderTheme.entries.forEach { t -> Choice(t.label, s.nightTheme == t, Modifier.weight(1f)) { set(s.copy(nightTheme = t)) } }
+        ReaderTheme.entries.chunked(3).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { t -> Choice(t.label, s.nightTheme == t, Modifier.weight(1f)) { set(s.copy(nightTheme = t)) } }
+            }
         }
     }
 }

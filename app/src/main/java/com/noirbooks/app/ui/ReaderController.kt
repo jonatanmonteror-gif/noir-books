@@ -290,7 +290,9 @@ class ReaderController(
             main.post {
                 if (status == TextToSpeech.SUCCESS) {
                     ttsReady = true
-                    val loc = java.util.Locale.forLanguageTag(epub.language.ifBlank { "es-ES" })
+                    // "es" a secas → español de España (si no, el móvil puede elegir una voz latinoamericana)
+                    val tag = epub.language.trim().ifBlank { "es-ES" }.let { if (it.equals("es", true) || it.equals("spa", true)) "es-ES" else it }
+                    val loc = java.util.Locale.forLanguageTag(tag)
                     val ok = tts?.setLanguage(loc) ?: TextToSpeech.LANG_NOT_SUPPORTED
                     if (ok < 0) tts?.setLanguage(java.util.Locale("es", "ES"))
                     tts?.setOnUtteranceProgressListener(ttsListener)

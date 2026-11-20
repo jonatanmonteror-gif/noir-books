@@ -305,6 +305,15 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
+            if (settings.headerClock && !settings.focus) {
+                var now by remember { mutableStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(20_000) } }
+                Text(
+                    java.text.SimpleDateFormat("H:mm", java.util.Locale.getDefault()).format(java.util.Date(now)),
+                    color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1,
+                    modifier = Modifier.padding(start = settings.marginH.dp.coerceAtLeast(16.dp), top = 10.dp, bottom = 2.dp),
+                )
+            }
             key(c.webKey) {
                 AndroidView(
                     factory = { c.createWebView(it) },
@@ -344,7 +353,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                             Prefs.setReader(settings.copy(footerLeft = FooterInfo.next(settings.footerLeft, FooterInfo.LEFT)))
                         },
                     ) {
-                        Text(info(settings.footerLeft), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1,
+                        Text(info(settings.footerLeft), color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1,
                             overflow = TextOverflow.Ellipsis)
                     }
                     Box(
@@ -353,7 +362,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                         },
                         contentAlignment = Alignment.TopEnd,
                     ) {
-                        Text(info(settings.footerRight), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1)
+                        Text(info(settings.footerRight), color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1)
                     }
                 }
             } else {

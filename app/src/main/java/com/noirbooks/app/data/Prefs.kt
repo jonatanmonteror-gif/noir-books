@@ -8,6 +8,8 @@ import org.json.JSONObject
 enum class ReaderTheme(val key: String, val label: String, val bg: Long, val fg: Long, val muted: Long, val dark: Boolean) {
     Light("light", "Claro", 0xFFFFFFFF, 0xFF1A1A1A, 0xFF8A8A8A, false),
     Sepia("sepia", "Sepia", 0xFFF4ECD8, 0xFF3B2F22, 0xFF9A8B74, false),
+    /** Verde suave, como el de Kindle: cansa poco la vista. */
+    Green("green", "Verde", 0xFFC5E7CE, 0xFF2A3A31, 0xFF4A5F53, false),
     Dark("dark", "Oscuro", 0xFF1C1C1E, 0xFFD6D6D6, 0xFF7C7C80, true),
     Black("black", "Negro", 0xFF000000, 0xFFC8C8C8, 0xFF6E6E72, true),
     /** Colores elegidos por ti (fondo y letra en los ajustes). */
@@ -109,6 +111,8 @@ data class ReaderSettings(
     val footerRight: FooterInfo = FooterInfo.BookPercent,
     /** Modo concentración: solo el texto, sin pie de página ni avisos. */
     val focus: Boolean = false,
+    /** La hora arriba a la izquierda, discreta (como en Kindle). */
+    val headerClock: Boolean = false,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
     val twoPages: Boolean = true,    // dos páginas en horizontal en pantallas anchas
@@ -127,6 +131,14 @@ data class ReaderSettings(
     fun palette(): Palette =
         if (theme == ReaderTheme.Custom) Palette(customBg, customFg, mix(customFg, customBg, 0.5f), luminance(customBg) < 0.5)
         else Palette(theme.bg, theme.fg, theme.muted, theme.dark)
+
+    /** Estilo Kindle: verde, letra con serifa, justificado con guiones, sangría, hora arriba y tiempo del libro abajo. */
+    fun kindle(): ReaderSettings = copy(
+        theme = ReaderTheme.Green, autoTheme = "off", font = ReaderFont.Literata, publisher = false,
+        lineHeight = 1.8f, marginH = 22, marginV = 20, paraSpacing = 0f, indent = 1.5f,
+        justify = true, hyphens = true, focus = false, headerClock = true,
+        footerLeft = FooterInfo.BookTime, footerRight = FooterInfo.BookPercent,
+    )
 
     /** El tema que toca ahora, si el automático está activado. */
     fun effective(systemDark: Boolean, hour: Int): ReaderSettings = when (autoTheme) {
@@ -195,6 +207,7 @@ object Prefs {
             .putString("reader_footer_left", s.footerLeft.key)
             .putString("reader_footer_right", s.footerRight.key)
             .putBoolean("reader_focus", s.focus)
+            .putBoolean("reader_header_clock", s.headerClock)
             .putBoolean("reader_justify", s.justify)
             .putBoolean("reader_hyphens", s.hyphens)
             .putBoolean("reader_two_pages", s.twoPages)
@@ -226,6 +239,7 @@ object Prefs {
             footerLeft = FooterInfo.of(sp.getString("reader_footer_left", null), d.footerLeft, FooterInfo.LEFT),
             footerRight = FooterInfo.of(sp.getString("reader_footer_right", null), d.footerRight, FooterInfo.RIGHT),
             focus = sp.getBoolean("reader_focus", d.focus),
+            headerClock = sp.getBoolean("reader_header_clock", d.headerClock),
             justify = sp.getBoolean("reader_justify", d.justify),
             hyphens = sp.getBoolean("reader_hyphens", d.hyphens),
             twoPages = sp.getBoolean("reader_two_pages", d.twoPages),
@@ -301,7 +315,7 @@ object Prefs {
     fun settingsToJson(s: ReaderSettings): JSONObject = JSONObject()
         .put("theme", s.theme.key).put("font", s.font.key).put("size", s.fontSize).put("lh", s.lineHeight.toDouble())
         .put("mh", s.marginH).put("mv", s.marginV).put("para", s.paraSpacing.toDouble()).put("indent", s.indent.toDouble())
-        .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus)
+        .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus).put("hclock", s.headerClock)
         .put("justify", s.justify).put("hyphens", s.hyphens).put("two", s.twoPages).put("vol", s.volumeKeys)
         .put("bright", s.brightness.toDouble()).put("awake", s.keepScreenOn).put("tap", s.tapLayout.key)
         .put("cbg", s.customBg).put("cfg", s.customFg).put("auto", s.autoTheme).put("day", s.dayTheme.key).put("night", s.nightTheme.key)
@@ -314,7 +328,7 @@ object Prefs {
             marginH = o.optInt("mh", d.marginH), marginV = o.optInt("mv", d.marginV),
             paraSpacing = o.optDouble("para", -1.0).toFloat(), indent = o.optDouble("indent", -1.0).toFloat(),
             publisher = o.optBoolean("publisher"), footerLeft = FooterInfo.of(o.optString("fl"), d.footerLeft, FooterInfo.LEFT),
-            footerRight = FooterInfo.of(o.optString("fr"), d.footerRight, FooterInfo.RIGHT), focus = o.optBoolean("focus"),
+            footerRight = FooterInfo.of(o.optString("fr"), d.footerRight, FooterInfo.RIGHT), focus = o.optBoolean("focus"), headerClock = o.optBoolean("hclock"),
             justify = o.optBoolean("justify", d.justify), hyphens = o.optBoolean("hyphens", d.hyphens), twoPages = o.optBoolean("two", d.twoPages),
             volumeKeys = o.optBoolean("vol"), brightness = o.optDouble("bright", -1.0).toFloat(), keepScreenOn = o.optBoolean("awake", true),
             tapLayout = TapLayout.of(o.optString("tap")),
