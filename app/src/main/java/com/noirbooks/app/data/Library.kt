@@ -104,7 +104,7 @@ data class Book(
     /** Letras de cada capítulo: sirve para el % del libro y el tiempo que queda. */
     val chapterLengths: List<Int> = emptyList(),
     val status: BookStatus = BookStatus.ToRead,
-    /** Valoración en cuartos de estrella (0 = sin valorar). */
+    /** Valoración en medias estrellas, de 0,5 a 5 (0 = sin valorar). */
     val rating: Float = 0f,
     val abandonReason: String = "",
     val review: String = "",
@@ -610,7 +610,7 @@ object Library {
                 anchor = o.optString("anchor"),
                 chapterLengths = lengths,
                 status = status,
-                rating = o.optDouble("rating", 0.0).toFloat(),
+                rating = (kotlin.math.round(o.optDouble("rating", 0.0) * 2) / 2).toFloat(), // medias estrellas
                 abandonReason = o.optString("abandonReason"),
                 review = o.optString("review"),
                 readings = readings,

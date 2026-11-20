@@ -55,7 +55,7 @@ import com.noirbooks.app.data.Highlight
 import com.noirbooks.app.data.HighlightColor
 import kotlinx.coroutines.delay
 
-/** Valoración en cuartos de estrella (como StoryGraph). Tocar dentro de una estrella elige el cuarto. */
+/** Valoración en medias estrellas: tocar la mitad izquierda de una estrella da media; la derecha, la entera. */
 @Composable
 fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: ((Float) -> Unit)? = null) {
     Row(
@@ -63,14 +63,15 @@ fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: (
             .then(if (onChange != null) Modifier.pointerInput(Unit) {
                 detectTapGestures { o ->
                     val raw = (o.x / this.size.width.coerceAtLeast(1)) * 5f
-                    val q = (kotlin.math.ceil(raw * 4f) / 4f).coerceIn(0.25f, 5f)
+                    val q = (kotlin.math.ceil(raw * 2f) / 2f).coerceIn(0.5f, 5f)
                     onChange(if (q == value) 0f else q)
                 }
             } else Modifier),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        val shown = kotlin.math.round(value * 2f) / 2f
         for (i in 0 until 5) {
-            val fill = (value - i).coerceIn(0f, 1f)
+            val fill = (shown - i).coerceIn(0f, 1f)
             Box(Modifier.size(size.dp)) {
                 Text("★", color = color.copy(alpha = 0.22f), fontSize = (size * 0.9f).sp, modifier = Modifier.align(Alignment.Center))
                 if (fill > 0f) {

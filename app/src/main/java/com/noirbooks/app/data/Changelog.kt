@@ -5,6 +5,7 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.20", "20 nov 2026", listOf("Valoración en medias estrellas: 0,5, 1, 1,5… hasta 5")),
         Entry("1.0.19", "20 nov 2026", listOf(
             "Tocar un libro abre su ficha a pantalla completa: portada, sinopsis, progreso y tu lectura (el libro ya no se abre solo)",
             "Sinopsis del propio EPUB o de Google Books",
