@@ -103,6 +103,26 @@ object Stats {
         flush()
     }
 
+    /** Borra todo lo leído de un libro: registro, calendario y estadísticas. */
+    @Synchronized
+    fun deleteBook(bookId: String) {
+        sessions.removeAll { it.bookId == bookId }
+        data.entries.removeAll { it.value.bookId == bookId }
+        dirty = true
+        saveSessions()
+        flush()
+    }
+
+    /** Borra lo leído de un libro en un día concreto (también sus lecturas del registro de ese día). */
+    @Synchronized
+    fun deleteDay(date: String, bookId: String) {
+        sessions.removeAll { it.bookId == bookId && dayOf(it.start) == date }
+        data.remove("$date|$bookId")
+        dirty = true
+        saveSessions()
+        flush()
+    }
+
     /** Reparte (o resta, con sign = -1) un tiempo por las horas y días en que ocurrió. */
     private fun spread(bookId: String, startMillis: Long, seconds: Long, pages: Int, sign: Int) {
         var remaining = seconds

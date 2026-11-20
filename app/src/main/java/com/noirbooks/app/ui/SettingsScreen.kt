@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
 
+                FoldSection("Novedades", "Qué ha cambiado en cada versión") {
+                    ChangelogList()
+                }
+
                 FoldSection("Registro de errores", run { errVersion; val n = ErrorLog.count(); if (n == 0) "Sin errores" else "$n anotados" }) {
                     Text(
                         "Si algo falla (un libro que no abre, un cierre inesperado), aquí queda anotado sin datos personales. " +
@@ -149,4 +154,62 @@ fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
     ) {
         Text(label, color = if (primary) Color.Black else NB.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
+}
+
+/** Lista de novedades por versión; la instalada aparece marcada. */
+@Composable
+fun ChangelogList() {
+    com.noirbooks.app.data.Changelog.entries.forEachIndexed { i, e ->
+        if (i > 0) Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Versión ${e.version}", color = NB.text, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            if (e.version == BuildConfig.VERSION_NAME) {
+                Spacer(Modifier.width(8.dp))
+                Text("la tuya", color = NB.text3, fontSize = 12.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(e.date, color = NB.text3, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        e.items.forEach { t ->
+            Row(Modifier.padding(vertical = 2.dp)) {
+                Text("·  ", color = NB.text3, fontSize = 14.sp)
+                Text(t, color = NB.text2, fontSize = 14.sp, lineHeight = 19.sp)
+            }
+        }
+    }
+}
+
+/** Al abrir una versión nueva por primera vez, se enseñan sus novedades una sola vez. */
+@Composable
+fun WhatsNewPrompt() {
+    var show by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            com.noirbooks.app.data.Prefs.seenVersionCode in 1 until BuildConfig.VERSION_CODE
+        )
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (com.noirbooks.app.data.Prefs.seenVersionCode != BuildConfig.VERSION_CODE && !show)
+            com.noirbooks.app.data.Prefs.seenVersionCode = BuildConfig.VERSION_CODE
+    }
+    if (!show) return
+    val latest = com.noirbooks.app.data.Changelog.entries.firstOrNull()
+    fun close() { com.noirbooks.app.data.Prefs.seenVersionCode = BuildConfig.VERSION_CODE; show = false }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { close() }, containerColor = NB.surface2,
+        title = { Text("Actualizada a la ${BuildConfig.VERSION_NAME}", fontFamily = Inter, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) },
+        text = {
+            Column {
+                latest?.items?.forEach { t ->
+                    Row(Modifier.padding(vertical = 3.dp)) {
+                        Text("·  ", color = NB.text3, fontSize = 14.sp)
+                        Text(t, color = NB.text2, fontSize = 14.sp, lineHeight = 19.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Todas las novedades: Ajustes → Novedades.", color = NB.text3, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { close() }) { Text("Vale", color = NB.text) } },
+    )
 }

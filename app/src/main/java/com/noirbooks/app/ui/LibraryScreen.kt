@@ -338,6 +338,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     var abandoning by remember { mutableStateOf(false) }
     var reviewing by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
+    var deleteAll by remember { mutableStateOf(false) }
     var editPages by remember { mutableStateOf(false) }
     val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
 
@@ -363,6 +364,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
         return
     }
     if (history) { SessionsDialog(b.id, onDismiss = { history = false }); return }
+    if (deleteAll) { DeleteReadingDialog(b.id, onDismiss = { deleteAll = false }); return }
     if (editPages) {
         var t by remember { mutableStateOf(if (b.pages > 0) b.pages.toString() else "") }
         AlertDialog(
@@ -439,6 +441,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 }
                 if (b.status == BookStatus.Reading) MenuRow("Abandonar…") { abandoning = true }
                 MenuRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
+                if (Stats.secondsForBook(b.id) > 0 || Stats.sessions(b.id).isNotEmpty()) MenuRow("Borrar lecturas…", color = Color(0xFFFF6B6B)) { deleteAll = true }
                 MenuRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
                     scope.launch { Library.moveToTrash(b.id) }
                     AppState.toast("Movido a la papelera (Ajustes → Papelera)")

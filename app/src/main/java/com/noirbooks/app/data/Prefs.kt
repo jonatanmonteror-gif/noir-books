@@ -197,6 +197,11 @@ object Prefs {
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }
 
+    // Última versión de la que se mostraron las novedades.
+    var seenVersionCode: Int
+        get() = sp.getInt("updates_seen_version_code", 0)
+        set(v) { sp.edit().putInt("updates_seen_version_code", v).apply() }
+
     var lastUpdateCheck: Long
         get() = sp.getLong("updates_last_check", 0L)
         set(v) { sp.edit().putLong("updates_last_check", v).apply() }

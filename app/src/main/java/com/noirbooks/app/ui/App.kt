@@ -170,6 +170,7 @@ fun App() {
             AppState.logSession.value?.let { r -> LogSessionDialog(r, onDismiss = { AppState.logSession.value = null }) }
             UpdatePrompt()
             CrashReportPrompt()
+            if (screen !is Screen.Reader) WhatsNewPrompt()
         }
     }
 }

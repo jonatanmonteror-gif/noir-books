@@ -517,15 +517,7 @@ fun SessionRows(list: List<com.noirbooks.app.data.Session>, showBook: Boolean) {
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirm = s }.padding(horizontal = 8.dp, vertical = 6.dp))
         }
     }
-    confirm?.let { s ->
-        AlertDialog(
-            onDismissRequest = { confirm = null }, containerColor = NB.surface2,
-            title = { Text("¿Borrar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            text = { Text("Se quitan ${durationLabel(s.seconds)} del calendario y de las estadísticas. El progreso del libro no cambia.", color = NB.text2) },
-            confirmButton = { TextButton(onClick = { Stats.deleteSession(s.id); confirm = null; AppState.toast("Lectura borrada") }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = NB.text2) } },
-        )
-    }
+    confirm?.let { s -> DeleteReadingDialog(s.bookId, session = s, onDismiss = { confirm = null }) }
 }
 
 @Composable
@@ -614,4 +606,43 @@ fun PlayPauseButton(bookId: String, size: Int = 36) {
             Icon(Icons.Filled.PlayArrow, "Empezar a contar el tiempo de lectura", tint = NB.text, modifier = Modifier.size((size * 0.55f).dp))
         }
     }
+}
+
+/**
+ * Borrar lecturas: solo esta (una lectura del registro), solo lo de un día, o todo lo de ese libro.
+ * Nunca cambia el progreso del libro.
+ */
+@Composable
+fun DeleteReadingDialog(bookId: String, session: com.noirbooks.app.data.Session? = null, date: String? = null, onDismiss: () -> Unit) {
+    val title = Library.get(bookId)?.title ?: "este libro"
+    val total = Stats.secondsForBook(bookId)
+    var confirmAll by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = { Text(if (confirmAll) "¿Borrar todo lo leído?" else "Borrar lectura", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                if (confirmAll) {
+                    Text("Se borran todas las lecturas de «$title» (${durationLabel(total)}) del registro, el calendario y las estadísticas. " +
+                        "El libro, su progreso y sus citas se quedan.", color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+                } else {
+                    Text("El progreso del libro no cambia.", color = NB.text3, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    if (session != null) MenuRow("Borrar esta lectura (${durationLabel(session.seconds)})") {
+                        Stats.deleteSession(session.id); AppState.toast("Lectura borrada"); onDismiss()
+                    }
+                    if (date != null) MenuRow("Borrar lo leído este día") {
+                        Stats.deleteDay(date, bookId); AppState.toast("Borrado lo de ese día"); onDismiss()
+                    }
+                    MenuRow("Borrar todas las lecturas de este libro", color = Color(0xFFFF6B6B)) { confirmAll = true }
+                }
+            }
+        },
+        confirmButton = {
+            if (confirmAll) TextButton(onClick = { Stats.deleteBook(bookId); AppState.toast("Lecturas de «$title» borradas"); onDismiss() }) {
+                Text("Borrar todo", color = Color(0xFFFF6B6B))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
+    )
 }

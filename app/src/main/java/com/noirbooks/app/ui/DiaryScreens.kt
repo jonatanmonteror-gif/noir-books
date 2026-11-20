@@ -180,15 +180,7 @@ fun LogScreen() {
     }
 
     if (picking) BookPickerDialog(onPick = { b -> picking = false; AppState.logSession.value = LogRequest(b.id) }, onDismiss = { picking = false })
-    confirm?.let { s ->
-        AlertDialog(
-            onDismissRequest = { confirm = null }, containerColor = NB.surface2,
-            title = { Text("¿Borrar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            text = { Text("Se quitan ${durationLabel(s.seconds)} del calendario y de las estadísticas. El progreso del libro no cambia.", color = NB.text2) },
-            confirmButton = { TextButton(onClick = { Stats.deleteSession(s.id); confirm = null; AppState.toast("Lectura borrada") }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = NB.text2) } },
-        )
-    }
+    confirm?.let { s -> DeleteReadingDialog(s.bookId, session = s, onDismiss = { confirm = null }) }
 }
 
 @Composable
@@ -329,10 +321,13 @@ private fun DayCell(day: Int, book: Book?, isToday: Boolean, onClick: (() -> Uni
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book>, onDismiss: () -> Unit, onAdd: () -> Unit) {
     val v by Stats.version
     val sessions = remember(v, date) { Stats.sessions().filter { Stats.dayOf(it.start) == date } }
+    var deleting by remember { mutableStateOf<String?>(null) }
+    deleting?.let { id -> DeleteReadingDialog(id, date = date, onDismiss = { deleting = null }); return }
     val parts = date.split("-")
     val label = "${parts.getOrNull(2)?.toIntOrNull() ?: ""} de ${MONTHS.getOrNull((parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1)?.lowercase().orEmpty()}"
     AlertDialog(
@@ -342,9 +337,13 @@ private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (reads.isEmpty()) Text("Este día no hay lecturas.", color = NB.text3, fontSize = 14.sp)
+                else Text("Mantén pulsado un libro para borrar lo leído.", color = NB.text3, fontSize = 12.sp)
                 reads.sortedByDescending { it.seconds }.forEach { r ->
                     val b = byId[r.bookId]
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).combinedClickable(onClick = {}, onLongClick = { deleting = r.bookId }),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         if (b != null) BookCover(b, Modifier.width(40.dp), titleSize = 7)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
