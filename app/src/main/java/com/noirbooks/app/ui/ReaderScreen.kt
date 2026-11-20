@@ -397,13 +397,20 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                         repeat(2) { Box(Modifier.width(3.dp).height(14.dp).background(fg)) }
                     } else Icon(Icons.Filled.PlayArrow, "Seguir", tint = fg)
                 }
-                val rates = listOf(0.8f, 1f, 1.2f, 1.5f, 2f)
+                // Velocidad de 0,8 a 1,5 en pasos de 0,1, con − y +
+                fun step(d: Int) {
+                    val r = ((kotlin.math.round(c.ttsRate * 10f).toInt() + d).coerceIn(8, 15)) / 10f
+                    if (r != c.ttsRate) c.ttsSetRate(r)
+                }
+                val tenths = kotlin.math.round(c.ttsRate * 10f).toInt()
+                Text("−", color = if (tenths > 8) fg else muted.copy(alpha = 0.4f), fontSize = 18.sp, fontFamily = Inter,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { step(-1) }.padding(horizontal = 10.dp, vertical = 4.dp))
                 Text(
                     String.format(java.util.Locale("es", "ES"), "%.1f×", c.ttsRate), color = fg, fontSize = 13.sp, fontFamily = Inter,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable {
-                        c.ttsSetRate(rates[(rates.indexOfFirst { kotlin.math.abs(it - c.ttsRate) < 0.05f } + 1).mod(rates.size)])
-                    }.padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 2.dp),
                 )
+                Text("+", color = if (tenths < 15) fg else muted.copy(alpha = 0.4f), fontSize = 18.sp, fontFamily = Inter,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { step(1) }.padding(horizontal = 10.dp, vertical = 4.dp))
                 var sleepIdx by remember { mutableStateOf(0) }
                 val sleepOpts = listOf(0L, 15L, 30L, 60L)
                 if (c.ttsSleepAt == 0L && sleepIdx != 0) sleepIdx = 0

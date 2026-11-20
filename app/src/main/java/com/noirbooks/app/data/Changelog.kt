@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.38", "21 nov 2026", listOf(
+            "Velocidad de la lectura en voz alta de 0,8 a 1,5, de 0,1 en 0,1, con los botones − y +",
+        )),
         Entry("1.0.37", "21 nov 2026", listOf(
             "Páginas de la edición en papel automáticas: se buscan solas por ISBN o por título y autor",
             "También para los libros que ya tenías, en segundo plano",

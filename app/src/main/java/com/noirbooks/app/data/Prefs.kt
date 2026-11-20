@@ -359,7 +359,7 @@ object Prefs {
 
     /** Velocidad de la lectura en voz alta (1 = normal). */
     var ttsRate: Float
-        get() = sp.getFloat("reader_tts_rate", 1f)
+        get() = (kotlin.math.round(sp.getFloat("reader_tts_rate", 1f) * 10f) / 10f).coerceIn(0.8f, 1.5f)
         set(v) { sp.edit().putFloat("reader_tts_rate", v).apply() }
 
     // Pista de gestos del lector: se muestra solo la primera vez
