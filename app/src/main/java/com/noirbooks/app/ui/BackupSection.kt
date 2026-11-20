@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noirbooks.app.data.Backup
+import com.noirbooks.app.data.DriveBackup
 import com.noirbooks.app.data.ErrorLog
 import com.noirbooks.app.data.Prefs
 import kotlinx.coroutines.launch
