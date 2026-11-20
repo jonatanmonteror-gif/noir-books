@@ -125,7 +125,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         color = NB.text2, fontSize = 14.sp,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ButtonRow {
                         PillButton("Copiar") {
                             copyText(ctx, "Registro Noir Books", ErrorLog.read().ifEmpty { "Sin errores" }); AppState.toast("Registro copiado")
                         }
@@ -165,6 +165,16 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
+/** Fila de botones que pasa a la línea siguiente si no caben (nunca parte un botón en dos). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun ButtonRow(content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) { content() }
+}
+
 @Composable
 fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
     Box(
@@ -173,7 +183,7 @@ fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
-        Text(label, color = if (primary) NB.onText else NB.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = if (primary) NB.onText else NB.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
     }
 }
 

@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.32", "20 nov 2026", listOf(
+            "Los botones que no caben pasan a la línea de abajo en vez de partirse en dos (p. ej. Restaurar de Drive)",
+        )),
         Entry("1.0.31", "20 nov 2026", listOf(
             "Las actualizaciones se descargan e instalan desde la propia app, sin pasar por el navegador",
             "Se comprueba la huella del archivo antes de instalarlo",

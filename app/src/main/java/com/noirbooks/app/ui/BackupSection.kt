@@ -103,7 +103,7 @@ fun BackupSection() {
         }
     }
     Spacer(Modifier.height(6.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    ButtonRow {
         PillButton("Guardar copia", primary = true) { if (busy == null) saveLauncher.launch(Backup.suggestedName()) }
         PillButton("Restaurar") { if (busy == null) openLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
     }
@@ -225,7 +225,7 @@ private fun DriveBlock(onRestoreFile: (java.io.File, Backup.Info) -> Unit) {
         }
     }
     if (!linked) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ButtonRow {
             PillButton("Vincular Google Drive", primary = true) { if (busy == null) withToken { doBackup(it) } }
             PillButton("Restaurar de Drive") { if (busy == null) withToken { doRestore(it) } }
         }
@@ -247,7 +247,7 @@ private fun DriveBlock(onRestoreFile: (java.io.File, Backup.Info) -> Unit) {
                 uncheckedThumbColor = NB.text3, uncheckedTrackColor = NB.surface2, uncheckedBorderColor = NB.line,
             ))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ButtonRow {
             PillButton("Copiar ahora", primary = true) { if (busy == null) withToken { doBackup(it) } }
             PillButton("Restaurar de Drive") { if (busy == null) withToken { doRestore(it) } }
         }
