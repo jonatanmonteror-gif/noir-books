@@ -12,6 +12,7 @@
   var ready = false;
   var styleEl = null;
   var HL = { 0: 'rgba(232,197,71,0.42)', 1: 'rgba(111,168,220,0.40)', 2: 'rgba(123,198,126,0.40)', 3: 'rgba(232,138,168,0.40)' };
+  var cfg = null;          // configuración del capítulo (ajustes, destino, marcas de página)
   var highlights = [];    // [{id, color, range}]
 
   var offset = 0;         // desplazamiento actual en px (página * ancho)
@@ -186,7 +187,23 @@
   function show(p, notify) {
     page = Math.max(0, Math.min(count - 1, p));
     setOffset(page * vw());
-    if (notify !== false) A.onPage(page, count, anchorNow());
+    if (notify !== false) { A.onPage(page, count, anchorNow()); reportPrinted(); }
+  }
+
+  /** Página de la edición en papel: la última marca de página que empieza en esta página o antes. */
+  function reportPrinted() {
+    try {
+      if (!cfg || !cfg.pageMarks || !cfg.pageMarks.length || !A.onPrinted) return;
+      var label = cfg.pagePrev || '';
+      for (var i = 0; i < cfg.pageMarks.length; i++) {
+        var m = cfg.pageMarks[i];
+        var el = document.getElementById(m.id);
+        if (!el) { var byName = document.getElementsByName(m.id); el = byName && byName[0]; }
+        if (!el) continue;
+        if (pageOfRect(el.getBoundingClientRect()) <= page) label = m.label; else break;
+      }
+      A.onPrinted(label);
+    } catch (e) {}
   }
 
   function anchorPage(id) {
@@ -434,7 +451,6 @@
   window.noir = api;
 
   function init() {
-    var cfg;
     try { cfg = JSON.parse(A.init()); } catch (e) { cfg = {}; }
     S = cfg.settings || { bg: '#1C1C1E', fg: '#D6D6D6', size: 19, lh: 1.5, margin: 24, justify: true, hyphens: true, twoPages: true };
     highlights = cfg.highlights || [];
@@ -450,6 +466,7 @@
       document.documentElement.style.setProperty('visibility', 'visible', 'important');
       ready = true;
       A.onReady(page, count, anchorNow());
+      reportPrinted();
     });
     });
   }

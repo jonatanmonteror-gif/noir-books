@@ -482,3 +482,89 @@ fun TimerBar() {
         )
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Historial de lecturas (para revisar o borrar una mal apuntada) y elegir libro
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+fun SessionRows(list: List<com.noirbooks.app.data.Session>, showBook: Boolean) {
+    val books by Library.books
+    val byId = books.associateBy { it.id }
+    val hm = remember { SimpleDateFormat("HH:mm", ES) }
+    val day = remember { SimpleDateFormat("EEE d MMM", ES) }
+    var confirm by remember { mutableStateOf<com.noirbooks.app.data.Session?>(null) }
+    if (list.isEmpty()) {
+        Text("Todavía no hay lecturas apuntadas.", color = NB.text3, fontSize = 13.sp)
+    }
+    list.forEach { s ->
+        val b = byId[s.bookId]
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (showBook && b != null) { BookCover(b, Modifier.width(30.dp), titleSize = 6); Spacer(Modifier.width(10.dp)) }
+            Column(Modifier.weight(1f)) {
+                if (showBook) Text(b?.title ?: "Libro eliminado", color = NB.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    (if (showBook) "" else day.format(Date(s.start)).replaceFirstChar { it.uppercase() } + " · ") +
+                        "${hm.format(Date(s.start))}–${hm.format(Date(s.end))} · ${durationLabel(s.seconds)}",
+                    color = if (showBook) NB.text2 else NB.text, fontSize = 13.sp,
+                )
+                Text(if (s.manual) "Apuntada a mano" else "Leída en la app" + if (s.pages > 0) " · ${s.pages} páginas" else "",
+                    color = NB.text3, fontSize = 12.sp)
+            }
+            Text("Borrar", color = NB.text3, fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirm = s }.padding(horizontal = 8.dp, vertical = 6.dp))
+        }
+    }
+    confirm?.let { s ->
+        AlertDialog(
+            onDismissRequest = { confirm = null }, containerColor = NB.surface2,
+            title = { Text("¿Borrar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = { Text("Se quitan ${durationLabel(s.seconds)} del calendario y de las estadísticas. El progreso del libro no cambia.", color = NB.text2) },
+            confirmButton = { TextButton(onClick = { Stats.deleteSession(s.id); confirm = null; AppState.toast("Lectura borrada") }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = NB.text2) } },
+        )
+    }
+}
+
+@Composable
+fun SessionsDialog(bookId: String, onDismiss: () -> Unit) {
+    val v by Stats.version
+    val list = remember(v) { Stats.sessions(bookId) }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = { Text("Lecturas", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { SessionRows(list, showBook = false) } },
+        confirmButton = { TextButton(onClick = { onDismiss(); AppState.logSession.value = LogRequest(bookId) }) { Text("Apuntar lectura", color = NB.text) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
+    )
+}
+
+/** Elegir libro para apuntar una lectura (primero los que estás leyendo). */
+@Composable
+fun BookPickerDialog(onPick: (Book) -> Unit, onDismiss: () -> Unit) {
+    val books by Library.books
+    val list = books.filter { !it.inTrash }.sortedWith(
+        compareBy<Book>({ if (it.status == BookStatus.Reading) 0 else if (it.status == BookStatus.ToRead) 1 else 2 }, { -maxOf(it.lastOpened, it.addedAt) })
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = { Text("¿Qué has leído?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (list.isEmpty()) Text("Añade antes un libro a tu biblioteca.", color = NB.text2)
+                list.forEach { b ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onPick(b) }.padding(vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        BookCover(b, Modifier.width(30.dp), titleSize = 6)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(b.title, color = NB.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(b.status.label + if (!b.isEpub) " · ${b.format.label}" else "", color = NB.text3, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
+    )
+}

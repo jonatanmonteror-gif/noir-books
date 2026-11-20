@@ -80,6 +80,12 @@ class ReaderController(
     var count by mutableIntStateOf(1)
         private set
     var ready by mutableStateOf(false)
+    /** Página de la edición en papel (si el libro trae page-list). */
+    var printed by mutableStateOf("")
+    val printedTotal: String get() = epub.pageList.lastOrNull()?.label.orEmpty()
+    private val marksBySpine: Map<Int, List<com.noirbooks.app.data.PageMark>> by lazy {
+        epub.pageList.groupBy { epub.spine.indexOf(it.href) }
+    }
         private set
     var endReached by mutableStateOf(false)
     /** Se incrementa si el motor del WebView se cae, para crear uno nuevo. */
@@ -124,6 +130,10 @@ class ReaderController(
     val startProgress: Float = Library.get(bookId)?.progress ?: 0f
     private var pageSince = 0L
     private var paused = false
+    // Tramo de lectura desde la última pausa: se guarda en el historial de lecturas (para poder borrarlo).
+    private var segStart = 0L
+    private var segSeconds = 0L
+    private var segPages = 0
 
     /** Cuenta el tiempo de la página que se deja: menos de 5 s no cuenta, más de 120 s se recorta. */
     private fun closePage(turned: Boolean) {
@@ -135,6 +145,9 @@ class ReaderController(
                 Stats.addPage(bookId, counted, turned)
                 sessionSeconds += counted.toInt()
                 if (turned) sessionPages++
+                if (segSeconds == 0L) segStart = now - counted * 1000
+                segSeconds += counted
+                if (turned) segPages++
             }
         }
         pageSince = now
@@ -143,6 +156,8 @@ class ReaderController(
     fun pause() {
         closePage(turned = false)
         paused = true
+        if (segSeconds > 0) Stats.logAppSession(bookId, segStart, segSeconds, segPages)
+        segSeconds = 0; segPages = 0
         Stats.flush()
         saveNow()
     }
@@ -237,13 +252,25 @@ class ReaderController(
         return arr
     }
 
+    /** Última página impresa que empieza antes de este capítulo (o al principio de él, si la marca no lleva ancla). */
+    private fun printedBefore(ch: Int): String {
+        marksBySpine[ch]?.firstOrNull { it.anchor.isNullOrEmpty() }?.let { return it.label }
+        for (i in ch - 1 downTo 0) marksBySpine[i]?.lastOrNull()?.let { return it.label }
+        return ""
+    }
+
     private fun prepareInit() {
         initJson = JSONObject()
             .put("settings", Prefs.reader.value.toJson())
             .put("target", target)
             .put("lang", epub.language.ifBlank { "es" })
             .put("highlights", highlightsJson(chapter))
+            .put("pageMarks", JSONArray().also { arr ->
+                marksBySpine[chapter].orEmpty().forEach { m -> if (!m.anchor.isNullOrEmpty()) arr.put(JSONObject().put("id", m.anchor).put("label", m.label)) }
+            })
+            .put("pagePrev", printedBefore(chapter))
             .toString()
+        if (epub.pageList.isNotEmpty()) printed = printedBefore(chapter).ifEmpty { marksBySpine[chapter]?.firstOrNull()?.label.orEmpty() }
     }
 
     private fun loadChapter(ch: Int, t: JSONObject) {
@@ -491,6 +518,9 @@ class ReaderController(
             selection = null
             savePosition()
         }
+
+        @JavascriptInterface
+        fun onPrinted(label: String) = main.post { if (label.isNotBlank()) printed = label }
 
         @JavascriptInterface
         fun onTap(x: Double, y: Double) = main.post { this@ReaderController.onTap(x.toFloat()) }

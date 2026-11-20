@@ -67,6 +67,8 @@ import com.noirbooks.app.data.Prefs
 import com.noirbooks.app.data.Stats
 import com.noirbooks.app.data.durationLabel
 import com.noirbooks.app.data.minutesLabel
+import com.noirbooks.app.data.percentLabel
+import com.noirbooks.app.data.printedPageLabel
 import kotlinx.coroutines.launch
 import java.text.Normalizer
 import java.text.SimpleDateFormat
@@ -84,6 +86,7 @@ fun LibraryScreen() {
     val books = all.filter { !it.inTrash }
     val importing by AppState.importing
     var sort by remember { mutableStateOf(Prefs.sortOrder) }
+    var columns by remember { mutableStateOf(Prefs.libraryColumns.coerceIn(2, 4)) }
     var filter by rememberSaveable { mutableStateOf("all") }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -158,10 +161,10 @@ fun LibraryScreen() {
         }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(112.dp),
+            columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (columns >= 4) 10.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (columns >= 4) 14.dp else 18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             if (current != null && q.isEmpty()) {
@@ -186,7 +189,8 @@ fun LibraryScreen() {
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         listOf("recent" to "Recientes", "title" to "Título", "author" to "Autor", "rating" to "Valoración").forEach { (k, label) ->
                             Text(
                                 label, fontSize = 13.sp, fontFamily = Inter,
@@ -196,11 +200,26 @@ fun LibraryScreen() {
                             )
                         }
                     }
+                    // Portadas por fila: 2, 3 o 4
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        (2..4).forEach { n ->
+                            Text(
+                                "$n", fontSize = 13.sp, fontFamily = Inter,
+                                fontWeight = if (columns == n) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (columns == n) Color.Black else NB.text3,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(26.dp).clip(RoundedCornerShape(6.dp))
+                                    .background(if (columns == n) NB.text else Color.Transparent)
+                                    .clickable { columns = n; Prefs.libraryColumns = n }.padding(vertical = 3.dp),
+                            )
+                        }
+                    }
+                    }
                 }
             }
             items(shown, key = { it.id }) { b ->
                 Column(Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
-                    BookCover(b, Modifier.fillMaxWidth())
+                    BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
                     if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(6.dp))
                         ThinProgress(b.progress, Modifier.fillMaxWidth())
@@ -245,7 +264,12 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
             ThinProgress(b.progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
             if (b.isEpub) {
-                Text("${(b.progress * 100).toInt()} % · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
+                Text("${percentLabel(b.progress)} · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip("Seguir leyendo", true, onOpen)
+                    Chip("Apuntar lectura", false) { AppState.logSession.value = LogRequest(b.id) }
+                }
             } else {
                 Text("${b.format.label} · ${b.progressLabel()}", color = NB.text3, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
@@ -314,6 +338,8 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     if (b == null) { onDismiss(); return }
     var abandoning by remember { mutableStateOf(false) }
     var reviewing by remember { mutableStateOf(false) }
+    var history by remember { mutableStateOf(false) }
+    var editPages by remember { mutableStateOf(false) }
     val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
 
     if (abandoning) {
@@ -334,6 +360,26 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 }
             },
             confirmButton = { TextButton(onClick = { abandoning = false }) { Text("Cancelar", color = NB.text2) } },
+        )
+        return
+    }
+    if (history) { SessionsDialog(b.id, onDismiss = { history = false }); return }
+    if (editPages) {
+        var t by remember { mutableStateOf(if (b.pages > 0) b.pages.toString() else "") }
+        AlertDialog(
+            onDismissRequest = { editPages = false }, containerColor = NB.surface2,
+            title = { Text("Páginas en papel", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column {
+                    Text("Con las páginas de tu edición, el lector te dice por qué página del libro irías.", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(t, { t = it.filter(Char::isDigit).take(5) }, singleLine = true, label = { Text("Páginas") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text))
+                }
+            },
+            confirmButton = { TextButton(onClick = { scope.launch { Library.update(b.id) { it.copy(pages = t.toIntOrNull() ?: 0) } }; editPages = false }) { Text("Guardar", color = NB.text) } },
+            dismissButton = { TextButton(onClick = { editPages = false }) { Text("Cancelar", color = NB.text2) } },
         )
         return
     }
@@ -362,6 +408,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                     if (b.status == BookStatus.Reading) append(" · ${b.progressLabel()}")
                     if (b.status == BookStatus.Abandoned && b.abandonReason.isNotBlank()) append(" · ${b.abandonReason}")
                     if (b.isEpub) append("\n${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
+                    if (b.isEpub && b.status == BookStatus.Reading) append("\nVas por la ${b.printedPageLabel(b.progress).replace("p. ", "página ")}")
                     else append("\n${b.format.label}" + if (b.pages > 0) " · ${b.pages} ${if (b.unit == com.noirbooks.app.data.ProgressUnit.Location) "posiciones" else "páginas"}" else "")
                     if (!b.isEpub && (b.publisher.isNotBlank() || b.year.isNotBlank())) append("\n" + listOf(b.publisher, b.year).filter { it.isNotBlank() }.joinToString(", "))
                     if (secs > 0) append("\nLlevas ${durationLabel(secs)} leyendo este libro")
@@ -382,6 +429,8 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 }
                 MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
                 if (!b.isEpub) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
+                MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
+                if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel…") { editPages = true }
                 MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
                 if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
                     scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()

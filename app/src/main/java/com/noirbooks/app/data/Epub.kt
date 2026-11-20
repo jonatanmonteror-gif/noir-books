@@ -12,6 +12,9 @@ import java.util.zip.ZipFile
 /** Entrada del índice del libro. [href] es la ruta dentro del EPUB (sin '#'), [anchor] el fragmento. */
 data class TocEntry(val title: String, val href: String, val anchor: String?, val level: Int)
 
+/** Marca de página de la edición en papel (page-list del EPUB): etiqueta ("123"), capítulo y ancla. */
+data class PageMark(val label: String, val href: String, val anchor: String?)
+
 data class ManifestItem(val id: String, val href: String, val mediaType: String, val properties: String)
 
 /** Libro abierto: estructura mínima para leerlo. No guarda capítulos en memoria (se leen del zip cuando hacen falta). */
@@ -29,6 +32,8 @@ class EpubBook(
     val uuidId: String = "",
     /** Fuentes ofuscadas: ruta → algoritmo. */
     val obfuscated: Map<String, String> = emptyMap(),
+    /** Páginas de la edición impresa, si el libro las trae. */
+    val pageList: List<PageMark> = emptyList(),
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -100,7 +105,16 @@ object Epub {
             val ids = meta?.select("dc|identifier, identifier").orEmpty()
             val uniqueId = (ids.firstOrNull { it.attr("id") == uidRef } ?: ids.firstOrNull())?.text()?.trim().orEmpty()
             val uuidId = ids.map { it.text().trim() }.firstOrNull { it.startsWith("urn:uuid:", true) }.orEmpty()
-            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z))
+            // Páginas de la edición en papel (EPUB 3 page-list o pageList del NCX).
+            var pages = emptyList<PageMark>()
+            manifestById.values.firstOrNull { "nav" in it.properties.split(' ') }?.let { nav ->
+                pages = runCatching { parseNavPages(z, nav.href) }.getOrDefault(emptyList())
+            }
+            if (pages.isEmpty()) {
+                val ncx = manifestById[spineEl?.attr("toc").orEmpty()] ?: manifestById.values.firstOrNull { it.mediaType == "application/x-dtbncx+xml" }
+                if (ncx != null) pages = runCatching { parseNcxPages(z, ncx.href) }.getOrDefault(emptyList())
+            }
+            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages)
         }
     }
 
@@ -177,6 +191,34 @@ object Epub {
         }
         nav.children().firstOrNull { it.tagName() == "ol" || it.tagName() == "ul" }?.let { walk(it, 0) }
         return out
+    }
+
+    private fun parseNavPages(z: ZipFile, path: String): List<PageMark> {
+        val text = z.text(path) ?: return emptyList()
+        val doc = Jsoup.parse(text)
+        val base = path.substringBeforeLast('/', "")
+        val nav = doc.select("nav").firstOrNull { it.attr("epub:type").split(' ').contains("page-list") || it.attr("role") == "doc-pagelist" }
+            ?: return emptyList()
+        return nav.select("a[href]").mapNotNull { a ->
+            val label = a.text().trim()
+            if (label.isEmpty()) return@mapNotNull null
+            val (p, frag) = splitHref(base, a.attr("href"))
+            PageMark(label, p, frag)
+        }
+    }
+
+    private fun parseNcxPages(z: ZipFile, path: String): List<PageMark> {
+        val text = z.text(path) ?: return emptyList()
+        val doc = xml(text)
+        val base = path.substringBeforeLast('/', "")
+        return doc.getAllElements().filter { it.tagName().endsWith("pageTarget") }.mapNotNull { pt ->
+            val label = pt.children().firstOrNull { it.tagName().endsWith("navLabel") }?.text()?.trim().orEmpty()
+                .ifEmpty { pt.attr("value") }
+            val src = pt.children().firstOrNull { it.tagName().endsWith("content") }?.attr("src").orEmpty()
+            if (label.isEmpty() || src.isEmpty()) return@mapNotNull null
+            val (p, frag) = splitHref(base, src)
+            PageMark(label, p, frag)
+        }
     }
 
     private fun parseNcx(z: ZipFile, path: String): List<TocEntry> {

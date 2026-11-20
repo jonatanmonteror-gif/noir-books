@@ -145,10 +145,28 @@ data class Book(
     fun progressLabel(p: Float = progress): String = when {
         unit == ProgressUnit.Page && pages > 0 -> "p. ${(p * pages).toInt()} de $pages"
         unit == ProgressUnit.Location && pages > 0 -> "posición ${(p * pages).toInt()} de $pages"
-        else -> "${(p * 100).toInt()} %"
+        else -> percentLabel(p)
     }
     val started: Boolean get() = lastOpened > 0L
     val timesRead: Int get() = readings.count { it.end > 0L }
+}
+
+/** Porcentaje con un decimal, a la española: "37,4 %". */
+fun percentLabel(p: Float): String = String.format(java.util.Locale("es", "ES"), "%.1f %%", (p * 100f).coerceIn(0f, 100f))
+
+/** Letras de una página impresa media (libro de bolsillo en español), para estimar la página. */
+const val CHARS_PER_PRINTED_PAGE = 1800
+
+/**
+ * Página de la edición en papel por la que vas en un EPUB: exacta si el libro trae las páginas (page-list),
+ * proporcional si sabes cuántas páginas tiene en papel, o estimada por las letras.
+ */
+fun Book.printedPageLabel(p: Float, exact: String = "", exactTotal: String = ""): String {
+    if (exact.isNotBlank()) return "p. $exact" + if (exactTotal.isNotBlank()) " de $exactTotal" else ""
+    if (pages > 0) return "p. ${kotlin.math.ceil(p * pages).toInt().coerceIn(1, pages)} de $pages"
+    if (!isEpub) return progressLabel(p)
+    val total = kotlin.math.ceil(totalChars / CHARS_PER_PRINTED_PAGE.toFloat()).toInt().coerceAtLeast(1)
+    return "p. ≈${kotlin.math.ceil(p * total).toInt().coerceIn(1, total)} de ≈$total"
 }
 
 /** Palabra buscada en el diccionario, con la frase del libro. */

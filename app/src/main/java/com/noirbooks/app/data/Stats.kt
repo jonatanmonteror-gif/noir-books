@@ -10,6 +10,11 @@ import java.util.Date
 import java.util.Locale
 
 /** Lectura de un día con un libro: segundos y páginas. */
+/** Una lectura del historial: en la app o apuntada a mano. */
+data class Session(val id: Long, val bookId: String, val start: Long, val seconds: Long, val pages: Int, val manual: Boolean) {
+    val end: Long get() = start + seconds * 1000
+}
+
 data class DayRead(val date: String, val bookId: String, val seconds: Long, val pages: Int, val hourSeconds: LongArray = LongArray(24))
 
 /**
@@ -21,6 +26,8 @@ object Stats {
     const val MAX_PAGE_SECONDS = 120L
 
     private lateinit var file: File
+    private lateinit var sessionsFile: File
+    private val sessions = ArrayList<Session>()
     private val data = LinkedHashMap<String, DayRead>() // clave: fecha|libro
     /** Cambia cada vez que hay datos nuevos: las pantallas lo leen para recalcular. */
     val version = mutableIntStateOf(0)
@@ -31,7 +38,9 @@ object Stats {
     fun init(ctx: Context) {
         if (::file.isInitialized) return
         file = File(ctx.filesDir, "stats.json")
+        sessionsFile = File(ctx.filesDir, "sessions.json")
         runCatching { load() }.onFailure { ErrorLog.note("Leer estadísticas", it) }
+        runCatching { loadSessions() }.onFailure { ErrorLog.note("Leer historial de lecturas", it) }
     }
 
     fun today(): String = dayFmt.format(Date())
@@ -58,6 +67,44 @@ object Stats {
     @Synchronized
     fun addSession(bookId: String, startMillis: Long, seconds: Long, pages: Int) {
         if (seconds <= 0 && pages <= 0) return
+        spread(bookId, startMillis, seconds, pages, 1)
+        sessions.add(Session(System.currentTimeMillis(), bookId, startMillis, seconds, pages, manual = true))
+        saveSessions()
+        flush()
+    }
+
+    /** Historial de lecturas (apuntadas a mano o leídas en la app), de la más reciente a la más antigua. */
+    @Synchronized
+    fun sessions(bookId: String? = null): List<Session> =
+        sessions.filter { bookId == null || it.bookId == bookId }.sortedByDescending { it.start }
+
+    /** Tramo leído en la app (se une al anterior si fue hace menos de 10 minutos). */
+    @Synchronized
+    fun logAppSession(bookId: String, start: Long, seconds: Long, pages: Int) {
+        if (seconds <= 0) return
+        val last = sessions.lastOrNull()
+        if (last != null && !last.manual && last.bookId == bookId && start - last.end < 10 * 60_000L && start >= last.start) {
+            sessions[sessions.lastIndex] = last.copy(seconds = last.seconds + seconds, pages = last.pages + pages)
+        } else {
+            sessions.add(Session(System.currentTimeMillis(), bookId, start, seconds, pages, manual = false))
+        }
+        saveSessions()
+    }
+
+    /** Borra una lectura y resta su tiempo y sus páginas de las estadísticas. */
+    @Synchronized
+    fun deleteSession(id: Long) {
+        val s = sessions.firstOrNull { it.id == id } ?: return
+        sessions.remove(s)
+        spread(s.bookId, s.start, s.seconds, s.pages, -1)
+        // Quita los días que se quedan vacíos.
+        data.entries.removeAll { it.value.seconds <= 0 && it.value.pages <= 0 }
+        saveSessions()
+        flush()
+    }
+
+    /** Reparte (o resta, con sign = -1) un tiempo por las horas y días en que ocurrió. */
+    private fun spread(bookId: String, startMillis: Long, seconds: Long, pages: Int, sign: Int) {
         var remaining = seconds
         val cal = Calendar.getInstance().apply { timeInMillis = startMillis }
         var first = true
@@ -69,8 +116,13 @@ object Stats {
             val h = cal.get(Calendar.HOUR_OF_DAY)
             val inHour = (3600 - cal.get(Calendar.MINUTE) * 60 - cal.get(Calendar.SECOND)).toLong()
             val chunk = minOf(remaining, inHour)
-            hours[h] = hours[h] + chunk
-            data[key] = old.copy(seconds = old.seconds + chunk, pages = old.pages + if (first) pages else 0, hourSeconds = hours)
+            if (sign < 0 && data[key] == null) { remaining -= chunk; cal.add(Calendar.SECOND, chunk.toInt().coerceAtLeast(1)); first = false; if (chunk <= 0) break; continue }
+            hours[h] = (hours[h] + sign * chunk).coerceAtLeast(0)
+            data[key] = old.copy(
+                seconds = (old.seconds + sign * chunk).coerceAtLeast(0),
+                pages = (old.pages + if (first) sign * pages else 0).coerceAtLeast(0),
+                hourSeconds = hours,
+            )
             remaining -= chunk
             cal.add(Calendar.SECOND, chunk.toInt().coerceAtLeast(1))
             first = false
@@ -78,7 +130,6 @@ object Stats {
         }
         dirty = true
         version.intValue++
-        flush()
     }
 
     @Synchronized
@@ -95,6 +146,29 @@ object Stats {
             if (!tmp.renameTo(file)) { file.writeText(tmp.readText()); tmp.delete() }
             dirty = false
         }.onFailure { ErrorLog.note("Guardar estadísticas", it) }
+    }
+
+    private fun saveSessions() {
+        if (!::sessionsFile.isInitialized) return
+        runCatching {
+            val arr = org.json.JSONArray()
+            sessions.forEach { x ->
+                arr.put(JSONObject().put("id", x.id).put("b", x.bookId).put("st", x.start).put("s", x.seconds).put("p", x.pages).put("m", x.manual))
+            }
+            val tmp = File(sessionsFile.parentFile, "sessions.json.tmp")
+            tmp.writeText(arr.toString())
+            if (!tmp.renameTo(sessionsFile)) { sessionsFile.writeText(tmp.readText()); tmp.delete() }
+        }.onFailure { ErrorLog.note("Guardar historial de lecturas", it) }
+        version.intValue++
+    }
+
+    private fun loadSessions() {
+        if (!sessionsFile.exists()) return
+        val arr = org.json.JSONArray(sessionsFile.readText())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            sessions += Session(o.optLong("id"), o.optString("b"), o.optLong("st"), o.optLong("s"), o.optInt("p"), o.optBoolean("m"))
+        }
     }
 
     private fun load() {

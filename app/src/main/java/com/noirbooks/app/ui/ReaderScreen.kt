@@ -84,6 +84,8 @@ import com.noirbooks.app.data.FooterInfo
 import com.noirbooks.app.data.Stats
 import com.noirbooks.app.data.durationLabel
 import com.noirbooks.app.data.minutesLabel
+import com.noirbooks.app.data.percentLabel
+import com.noirbooks.app.data.printedPageLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -259,6 +261,18 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     LaunchedEffect(layoutKey) {
         if (firstSettings) firstSettings = false else c.applySettings()
     }
+    // Si el libro no trae las páginas de la edición en papel, se busca una vez cuántas tiene en el catálogo.
+    LaunchedEffect(c.bookId) {
+        val b = book ?: return@LaunchedEffect
+        if (c.epub.pageList.isEmpty() && b.pages == 0 && !Prefs.pagesLookedUp(b.id)) {
+            Prefs.markPagesLookedUp(b.id)
+            val found = runCatching { com.noirbooks.app.data.BookSearch.search("${b.title} ${b.author}".trim()) }.getOrDefault(emptyList())
+            val t = fold(b.title).take(18)
+            found.firstOrNull { it.pages > 40 && fold(it.title).startsWith(t) }?.let { f ->
+                Library.update(b.id) { it.copy(pages = f.pages) }
+            }
+        }
+    }
     // Abrir el libro desde una cita: ir a esa cita en cuanto el capítulo esté listo.
     LaunchedEffect(c.ready) {
         val j = AppState.jumpTo.value
@@ -293,7 +307,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     FooterInfo.ChapterTime -> if (c.page >= c.count - 1) "Último de este capítulo" else "Quedan ${minutesLabel(leftInChapter, cpm)} en el capítulo"
                     FooterInfo.BookTime -> "Quedan ${minutesLabel(((book?.totalChars ?: 0) * (1f - bookP)).toInt(), cpm)} del libro"
                     FooterInfo.ChapterPages -> "${c.page + 1} de ${c.count} en el capítulo"
-                    FooterInfo.BookPercent -> "${(bookP * 100).toInt()} %"
+                    FooterInfo.BookPercent -> percentLabel(bookP)
+                    FooterInfo.BookPage -> book?.printedPageLabel(bookP, c.printed, c.printedTotal).orEmpty()
                     FooterInfo.Clock -> java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(clock.coerceAtLeast(1)))
                     FooterInfo.Battery -> {
                         clock // se actualiza con el reloj
@@ -470,7 +485,10 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                 color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text("${(shown * 100).toInt()} %", color = muted, fontSize = 12.sp, fontFamily = Inter)
+            Text(
+                (if (dragging == null && book != null) book.printedPageLabel(shown, c.printed, c.printedTotal) + " · " else "") + percentLabel(shown),
+                color = muted, fontSize = 12.sp, fontFamily = Inter,
+            )
         }
         Box {
             // Mapa del libro: capítulos, subrayados y marcadores sobre la barra

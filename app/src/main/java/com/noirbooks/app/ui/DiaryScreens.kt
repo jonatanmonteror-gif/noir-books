@@ -126,6 +126,22 @@ fun CalendarScreen() {
     var year by rememberSaveable { mutableIntStateOf(now.get(Calendar.YEAR)) }
     var month by rememberSaveable { mutableIntStateOf(now.get(Calendar.MONTH)) }
     var dayOpen by remember { mutableStateOf<String?>(null) }
+    /** Eligiendo libro para apuntar una lectura: "" = hoy, o la fecha del día abierto. */
+    var picking by remember { mutableStateOf<String?>(null) }
+    picking?.let { d ->
+        BookPickerDialog(
+            onPick = { b ->
+                picking = null
+                val req = if (d.isEmpty()) LogRequest(b.id) else {
+                    val p = d.split("-").map { it.toInt() }
+                    val st = Calendar.getInstance().apply { clear(); set(p[0], p[1] - 1, p[2], 21, 0) }.timeInMillis
+                    LogRequest(b.id, st, st + 30 * 60_000L)
+                }
+                AppState.logSession.value = req
+            },
+            onDismiss = { picking = null },
+        )
+    }
     val days = remember(statsVersion) { Stats.byDay() }
 
     val cal = Calendar.getInstance().apply { clear(); set(year, month, 1) }
@@ -141,7 +157,12 @@ fun CalendarScreen() {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        ScreenTitle("Calendario")
+        ScreenTitle("Calendario") {
+            Box(
+                Modifier.padding(end = 10.dp).clip(RoundedCornerShape(50)).background(NB.text)
+                    .clickable { picking = "" }.padding(horizontal = 14.dp, vertical = 8.dp),
+            ) { Text("+ Apuntar lectura", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (month == 0) { month = 11; year-- } else month-- }) {
                 Icon(Icons.Filled.KeyboardArrowLeft, "Mes anterior", tint = NB.text)
@@ -169,7 +190,7 @@ fun CalendarScreen() {
                             if (d in 1..dim) {
                                 val reads = monthDays[d]
                                 val main = reads?.maxByOrNull { it.seconds }?.let { byId[it.bookId] }
-                                DayCell(d, main, isToday = key(d) == today, onClick = if (reads != null) ({ dayOpen = key(d) }) else null)
+                                DayCell(d, main, isToday = key(d) == today, onClick = if (reads != null || key(d) <= today) ({ dayOpen = key(d) }) else null)
                             }
                         }
                     }
@@ -198,7 +219,7 @@ fun CalendarScreen() {
         Spacer(Modifier.height(24.dp))
     }
 
-    dayOpen?.let { d -> DayDialog(d, days[d].orEmpty(), byId, onDismiss = { dayOpen = null }) }
+    dayOpen?.let { d -> DayDialog(d, days[d].orEmpty(), byId, onDismiss = { dayOpen = null }, onAdd = { dayOpen = null; picking = d }) }
 }
 
 @Composable
@@ -220,7 +241,9 @@ private fun DayCell(day: Int, book: Book?, isToday: Boolean, onClick: (() -> Uni
 }
 
 @Composable
-private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book>, onDismiss: () -> Unit) {
+private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book>, onDismiss: () -> Unit, onAdd: () -> Unit) {
+    val v by Stats.version
+    val sessions = remember(v, date) { Stats.sessions().filter { Stats.dayOf(it.start) == date } }
     val parts = date.split("-")
     val label = "${parts.getOrNull(2)?.toIntOrNull() ?: ""} de ${MONTHS.getOrNull((parts.getOrNull(1)?.toIntOrNull() ?: 1) - 1)?.lowercase().orEmpty()}"
     AlertDialog(
@@ -228,7 +251,8 @@ private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book
         containerColor = NB.surface2,
         title = { Text(label, fontFamily = Playfair, fontSize = 22.sp) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (reads.isEmpty()) Text("Este día no hay lecturas.", color = NB.text3, fontSize = 14.sp)
                 reads.sortedByDescending { it.seconds }.forEach { r ->
                     val b = byId[r.bookId]
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -240,9 +264,14 @@ private fun DayDialog(date: String, reads: List<DayRead>, byId: Map<String, Book
                         }
                     }
                 }
+                if (sessions.isNotEmpty()) {
+                    Text("LECTURAS", fontSize = 10.sp, letterSpacing = 1.3.sp, color = NB.text3, modifier = Modifier.padding(top = 6.dp))
+                    Column { SessionRows(sessions, showBook = true) }
+                }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
+        confirmButton = { TextButton(onClick = onAdd) { Text("Apuntar lectura", color = NB.text) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
     )
 }
 

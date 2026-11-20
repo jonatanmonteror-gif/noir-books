@@ -43,6 +43,7 @@ enum class FooterInfo(val key: String, val label: String) {
     ChapterTime("chapter_time", "Queda del capítulo"),
     BookTime("book_time", "Queda del libro"),
     ChapterPages("chapter_pages", "Página del capítulo"),
+    BookPage("book_page", "Página del libro"),
     BookPercent("book_percent", "% del libro"),
     Clock("clock", "Hora"),
     Battery("battery", "Batería"),
@@ -51,7 +52,7 @@ enum class FooterInfo(val key: String, val label: String) {
     companion object {
         /** Cada lado tiene sus propias opciones, para que no se repita lo mismo a los dos lados. */
         val LEFT = listOf(ChapterTime, BookTime, ChapterPages, None)
-        val RIGHT = listOf(BookPercent, Clock, Battery, None)
+        val RIGHT = listOf(BookPercent, BookPage, Clock, Battery, None)
         fun of(k: String?, d: FooterInfo, allowed: List<FooterInfo>) =
             entries.firstOrNull { it.key == k }?.takeIf { it in allowed } ?: d
         fun next(f: FooterInfo, list: List<FooterInfo>) = list[(list.indexOf(f) + 1).mod(list.size)]
@@ -186,6 +187,15 @@ object Prefs {
     var timerStart: Long
         get() = sp.getLong("timer_start", 0L)
         set(v) { sp.edit().putLong("timer_start", v).apply() }
+
+    // Libros cuyas páginas en papel ya se buscaron en el catálogo (para no repetir).
+    fun pagesLookedUp(id: String) = sp.getBoolean("pages_lookup_$id", false)
+    fun markPagesLookedUp(id: String) { sp.edit().putBoolean("pages_lookup_$id", true).apply() }
+
+    // Biblioteca: portadas por fila (0 = automático según la pantalla)
+    var libraryColumns: Int
+        get() = sp.getInt("library_columns", 3)
+        set(v) { sp.edit().putInt("library_columns", v).apply() }
 
     var lastUpdateCheck: Long
         get() = sp.getLong("updates_last_check", 0L)
