@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.26", "20 nov 2026", listOf(
+            "La lectura en voz alta sigue con la pantalla apagada, con Pausa y Parar en la notificación",
+            "Escanear varios libros seguidos: «Añadir y escanear otro»",
+            "Perfiles de lectura: guarda tus ajustes con nombre y cambia con un toque (Lectura → Perfiles)",
+            "Zonas táctiles: Normal, Zurdo, Una mano o Todo avanza, con mapa (Lectura → Avanzado)",
+        )),
         Entry("1.0.25", "20 nov 2026", listOf(
             "Lectura en voz alta: botón ▶ arriba en el libro; frase resaltada, pasa de página y de capítulo sola, velocidad y temporizador para dormir",
             "Escáner del código de barras (ISBN) al añadir un libro",

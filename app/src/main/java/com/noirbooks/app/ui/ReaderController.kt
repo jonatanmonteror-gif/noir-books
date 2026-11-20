@@ -101,7 +101,7 @@ class ReaderController(
         private set
 
     /** La interfaz decide qué hacer con un toque (pasar página o mostrar las barras). */
-    var onTap: (x: Float) -> Unit = {}
+    var onTap: (x: Float, y: Float) -> Unit = { _, _ -> }
 
     private var web: WebView? = null
     @Volatile private var initJson: String = ""
@@ -323,7 +323,19 @@ class ReaderController(
         js("window.noir && noir.ttsMark(${JSONObject.quote(range)})")
         tts?.setSpeechRate(ttsRate)
         tts?.speak(text.take(3900), TextToSpeech.QUEUE_FLUSH, null, "s$sIndex")
+        val wasPlaying = ttsPlaying
         ttsPlaying = true
+        if (!wasPlaying) ttsNotify()
+    }
+
+    /** Notificación con Pausa/Seguir y Parar; mantiene la voz con la pantalla apagada. */
+    private fun ttsNotify() {
+        val c = com.noirbooks.app.data.ReadAloudService.Control
+        c.title = book?.title ?: epub.title
+        c.playing = ttsPlaying
+        c.toggle = { main.post { if (ttsPlaying) ttsPause() else ttsResume() } }
+        c.stop = { main.post { ttsStop() } }
+        com.noirbooks.app.data.ReadAloudService.update(app)
     }
 
     private fun ttsAdvance(id: String?) {
@@ -347,6 +359,7 @@ class ReaderController(
     fun ttsPause() {
         ttsPlaying = false
         tts?.stop()
+        if (ttsActive) ttsNotify()
     }
 
     fun ttsResume() {
@@ -361,6 +374,9 @@ class ReaderController(
         ttsSleepAt = 0L
         tts?.stop()
         js("window.noir && noir.ttsClear()")
+        com.noirbooks.app.data.ReadAloudService.Control.toggle = null
+        com.noirbooks.app.data.ReadAloudService.Control.stop = null
+        com.noirbooks.app.data.ReadAloudService.stop(app)
     }
 
     fun ttsSetRate(r: Float) {
@@ -680,7 +696,7 @@ class ReaderController(
         fun onPrinted(label: String) = main.post { if (label.isNotBlank()) printed = label }
 
         @JavascriptInterface
-        fun onTap(x: Double, y: Double) = main.post { this@ReaderController.onTap(x.toFloat()) }
+        fun onTap(x: Double, y: Double) = main.post { this@ReaderController.onTap(x.toFloat(), y.toFloat()) }
 
         @JavascriptInterface
         fun onEnd() = main.post {

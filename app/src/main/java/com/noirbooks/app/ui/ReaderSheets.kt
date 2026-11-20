@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -279,6 +280,9 @@ fun ReadingControls(showPreview: Boolean = false) {
         Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
         Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
     }
+    FoldSection("Perfiles", "Tus ajustes guardados con nombre: «Cama», «Tren»…") {
+        ProfilesBlock(s) { set(it) }
+    }
     FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
         Label("A la izquierda")
         FooterChoices(FooterInfo.LEFT, s.footerLeft) { set(s.copy(footerLeft = it)) }
@@ -289,6 +293,8 @@ fun ReadingControls(showPreview: Boolean = false) {
     }
     FoldSection("Avanzado", "Concentración, tablet, botones y pantalla") {
         Toggle("Modo concentración (solo el texto)", s.focus) { set(s.copy(focus = it)) }
+        Label("Zonas al tocar la página")
+        TapZones(s.tapLayout) { set(s.copy(tapLayout = it)) }
         Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
         Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
         Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
@@ -392,6 +398,101 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
                 checkedThumbColor = NB.onText, checkedTrackColor = NB.text,
                 uncheckedThumbColor = NB.text3, uncheckedTrackColor = NB.surface2, uncheckedBorderColor = NB.line,
             ),
+        )
+    }
+}
+
+/** Plantillas de zonas táctiles con un mapa de la pantalla. */
+@Composable
+private fun TapZones(value: com.noirbooks.app.data.TapLayout, onPick: (com.noirbooks.app.data.TapLayout) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val back = NB.surface2
+        val fwd = NB.text.copy(alpha = 0.55f)
+        val menu = NB.text3.copy(alpha = 0.6f)
+        androidx.compose.foundation.Canvas(
+            Modifier.size(width = 74.dp, height = 120.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, NB.line, RoundedCornerShape(10.dp)),
+        ) {
+            val cols = 20; val rows = 32
+            val cw = size.width / cols; val ch = size.height / rows
+            for (i in 0 until cols) for (j in 0 until rows) {
+                val a = value.action((i + 0.5f) / cols, (j + 0.5f) / rows)
+                drawRect(
+                    when (a) { com.noirbooks.app.data.TapAction.Prev -> back; com.noirbooks.app.data.TapAction.Next -> fwd; else -> menu },
+                    topLeft = androidx.compose.ui.geometry.Offset(i * cw, j * ch), size = androidx.compose.ui.geometry.Size(cw + 0.5f, ch + 0.5f),
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            com.noirbooks.app.data.TapLayout.entries.forEach { t ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onPick(t) }.padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(14.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(if (t == value) NB.text else Color.Transparent).border(1.5.dp, NB.text2, androidx.compose.foundation.shape.CircleShape))
+                    Spacer(Modifier.width(10.dp))
+                    Text(t.label, color = NB.text, fontSize = 14.sp, fontWeight = if (t == value) FontWeight.SemiBold else FontWeight.Normal)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(value.hint, color = NB.text3, fontSize = 12.sp)
+    Text("En el mapa: blanco adelante · oscuro atrás · gris menú", color = NB.text3, fontSize = 11.sp)
+}
+
+/** Perfiles de lectura: aplicar con un toque, guardar los ajustes actuales, borrar manteniendo pulsado. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ProfilesBlock(current: ReaderSettings, apply: (ReaderSettings) -> Unit) {
+    val profiles by Prefs.profiles
+    var naming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<String?>(null) }
+    if (profiles.isEmpty()) {
+        Text("Deja la lectura a tu gusto y guárdala con un nombre; luego cambias de una a otra con un toque.",
+            color = NB.text3, fontSize = 13.sp, lineHeight = 18.sp)
+        Spacer(Modifier.height(10.dp))
+    } else {
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            profiles.forEach { (name, s) ->
+                val sel = s == current
+                Box(
+                    Modifier.clip(RoundedCornerShape(50)).background(if (sel) NB.text else NB.surface2)
+                        .combinedClickable(onClick = { apply(s) }, onLongClick = { deleting = name })
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) { Text(name, color = if (sel) NB.onText else NB.text, fontSize = 14.sp) }
+            }
+        }
+        Text("Mantén pulsado un perfil para borrarlo.", color = NB.text3, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+        Spacer(Modifier.height(8.dp))
+    }
+    Text("+ Guardar los ajustes actuales como perfil", color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { naming = true }.padding(vertical = 8.dp))
+    if (naming) {
+        var name by remember { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { naming = false }, containerColor = NB.surface2,
+            title = { Text("Nombre del perfil", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(name, { name = it.take(24) }, singleLine = true,
+                    placeholder = { Text("Cama, Tren, Tablet…", color = NB.text3) },
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text))
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(enabled = name.isNotBlank(), onClick = {
+                    Prefs.saveProfile(name.trim(), current); naming = false; AppState.toast("Perfil «${name.trim()}» guardado")
+                }) { Text("Guardar", color = NB.text) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { naming = false }) { Text("Cancelar", color = NB.text2) } },
+        )
+    }
+    deleting?.let { n ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleting = null }, containerColor = NB.surface2,
+            title = { Text("¿Borrar el perfil «$n»?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { Prefs.deleteProfile(n); deleting = null }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text("Cancelar", color = NB.text2) } },
         )
     }
 }

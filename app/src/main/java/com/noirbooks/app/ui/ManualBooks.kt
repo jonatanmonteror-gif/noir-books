@@ -113,6 +113,9 @@ fun AddBookScreen(onClose: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var picked by remember { mutableStateOf<FoundBook?>(null) }
+    // Modo escáner: cada código escaneado abre su ficha y se puede seguir escaneando.
+    var scanMode by remember { mutableStateOf(false) }
+    fun startScan() { scanMode = true; scanIsbn(ctx) { query = it } }
 
     val epubPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
@@ -142,7 +145,13 @@ fun AddBookScreen(onClose: () -> Unit) {
         loading = true
         error = null
         runCatching { BookSearch.search(q) }
-            .onSuccess { results = it; if (it.isEmpty()) error = "Sin resultados. Prueba con otras palabras o escríbelo a mano." }
+            .onSuccess {
+                results = it
+                if (it.isEmpty()) error = "Sin resultados. Prueba con otras palabras o escríbelo a mano."
+                if (scanMode && q.all { c -> c.isDigit() || c == 'X' }) {
+                    picked = it.firstOrNull() ?: FoundBook("", "", null, 0, q, "", "", "", "")
+                }
+            }
             .onFailure { results = emptyList(); error = "No hay conexión con el catálogo. Puedes escribirlo a mano." }
         loading = false
     }
@@ -157,14 +166,15 @@ fun AddBookScreen(onClose: () -> Unit) {
             }
             val p = picked
             if (p != null) {
-                ConfirmBook(p, onSaved = { b -> onClose(); AppState.bookMenu.value = b.id })
+                ConfirmBook(p, onSaved = { b -> onClose(); AppState.bookMenu.value = b.id },
+                    onSavedAndScan = if (scanMode) ({ picked = null; query = ""; results = emptyList(); startScan() }) else null)
                 return@Column
             }
             OutlinedTextField(
                 value = query, onValueChange = { query = it },
                 placeholder = { Text("Título, autor o ISBN", color = NB.text3) },
                 trailingIcon = {
-                    TextButton(onClick = { scanIsbn(ctx) { query = it } }) { Text("Escanear", color = NB.text) }
+                    TextButton(onClick = { startScan() }) { Text("Escanear", color = NB.text) }
                 },
                 singleLine = true, shape = RoundedCornerShape(12.dp), colors = field(),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -175,7 +185,7 @@ fun AddBookScreen(onClose: () -> Unit) {
                     Text("Busca el libro que lees en Kindle, en papel o en audio y apunta tus lecturas aunque no lo leas en el móvil.",
                         color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
                     Spacer(Modifier.height(18.dp))
-                    MenuRow("Escanear el código de barras (ISBN)") { scanIsbn(ctx) { query = it } }
+                    MenuRow("Escanear el código de barras (ISBN)") { startScan() }
                     MenuRow("Escribirlo a mano") { picked = FoundBook("", "", null, 0, "", "", "", "", "") }
                     MenuRow("Importar EPUB desde el móvil") { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "application/zip")) }
                     MenuRow("Importar subrayados del Kindle (My Clippings.txt)") { clipPicker.launch(arrayOf("text/plain", "*/*")) }
@@ -227,14 +237,19 @@ private fun ResultRow(r: FoundBook, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit) {
+private var lastFormat = BookFormat.Kindle
+private var lastUnit = ProgressUnit.Percent
+private var lastStatus = BookStatus.Reading
+
+@Composable
+private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (() -> Unit)? = null) {
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf(r.title) }
     var author by remember { mutableStateOf(r.author) }
-    var format by remember { mutableStateOf(BookFormat.Kindle) }
-    var unit by remember { mutableStateOf(ProgressUnit.Percent) }
+    var format by remember { mutableStateOf(lastFormat) }
+    var unit by remember { mutableStateOf(lastUnit) }
     var pages by remember { mutableStateOf(if (r.pages > 0) r.pages.toString() else "") }
-    var status by remember { mutableStateOf(BookStatus.Reading) }
+    var status by remember { mutableStateOf(lastStatus) }
     var saving by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
@@ -275,15 +290,27 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit) {
             }
         }
         Spacer(Modifier.height(26.dp))
-        PrimaryButton(if (saving) "Añadiendo…" else "Añadir a la biblioteca", Modifier.fillMaxWidth(), enabled = title.isNotBlank() && !saving) {
+        fun save(then: (Book) -> Unit) {
             saving = true
+            lastFormat = format; lastUnit = unit; lastStatus = status
             scope.launch {
                 val b = runCatching {
                     Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description)
                 }.getOrElse { ErrorLog.note("Añadir libro", it); null }
                 saving = false
-                if (b != null) { AppState.toast("Añadido: ${b.title}"); onSaved(b) } else AppState.toast("No se pudo añadir")
+                if (b != null) { AppState.toast("Añadido: ${b.title}"); then(b) } else AppState.toast("No se pudo añadir")
             }
+        }
+        PrimaryButton(if (saving) "Añadiendo…" else "Añadir a la biblioteca", Modifier.fillMaxWidth(), enabled = title.isNotBlank() && !saving) {
+            save(onSaved)
+        }
+        if (onSavedAndScan != null) {
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).border(1.dp, NB.line, RoundedCornerShape(50))
+                    .clickable(enabled = title.isNotBlank() && !saving) { save { onSavedAndScan() } }.padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("Añadir y escanear otro", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Medium) }
         }
         Spacer(Modifier.height(30.dp))
     }

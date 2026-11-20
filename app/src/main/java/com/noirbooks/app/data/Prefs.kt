@@ -59,6 +59,27 @@ enum class FooterInfo(val key: String, val label: String) {
     }
 }
 
+enum class TapAction { Prev, Next, Menu }
+
+/** Qué hace cada zona de la pantalla al tocar (plantillas). */
+enum class TapLayout(val key: String, val label: String, val hint: String) {
+    Normal("normal", "Normal", "Izquierda atrás · centro menú · derecha adelante"),
+    Lefty("lefty", "Zurdo", "Izquierda adelante · centro menú · derecha atrás"),
+    OneHand("onehand", "Una mano", "Arriba menú · abajo: izquierda atrás, el resto adelante"),
+    Forward("forward", "Todo avanza", "Casi toda la pantalla adelante · borde izquierdo atrás · centro menú");
+
+    fun action(x: Float, y: Float): TapAction = when (this) {
+        Normal -> if (x < 0.28f) TapAction.Prev else if (x > 0.72f) TapAction.Next else TapAction.Menu
+        Lefty -> if (x < 0.28f) TapAction.Next else if (x > 0.72f) TapAction.Prev else TapAction.Menu
+        OneHand -> if (y < 0.25f) TapAction.Menu else if (x < 0.3f) TapAction.Prev else TapAction.Next
+        Forward -> if (x in 0.35f..0.65f && y in 0.35f..0.65f) TapAction.Menu else if (x < 0.15f) TapAction.Prev else TapAction.Next
+    }
+
+    companion object {
+        fun of(k: String?) = entries.firstOrNull { it.key == k } ?: Normal
+    }
+}
+
 data class ReaderSettings(
     val theme: ReaderTheme = ReaderTheme.Dark,
     val font: ReaderFont = ReaderFont.Literata,
@@ -82,6 +103,7 @@ data class ReaderSettings(
     val volumeKeys: Boolean = false, // pasar página con los botones de volumen
     val brightness: Float = -1f,     // -1 = la del sistema
     val keepScreenOn: Boolean = true,
+    val tapLayout: TapLayout = TapLayout.Normal,
 ) {
     /** Lo que necesita el lector (JavaScript) para maquetar. */
     fun toJson(): JSONObject = JSONObject().apply {
@@ -112,6 +134,7 @@ object Prefs {
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
         appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
+        loadProfiles()
     }
 
     fun setReader(s: ReaderSettings) {
@@ -135,6 +158,7 @@ object Prefs {
             .putBoolean("reader_volume_keys", s.volumeKeys)
             .putFloat("reader_brightness", s.brightness)
             .putBoolean("reader_keep_screen_on", s.keepScreenOn)
+            .putString("reader_tap_layout", s.tapLayout.key)
             .apply()
     }
 
@@ -160,6 +184,7 @@ object Prefs {
             volumeKeys = sp.getBoolean("reader_volume_keys", d.volumeKeys),
             brightness = sp.getFloat("reader_brightness", d.brightness),
             keepScreenOn = sp.getBoolean("reader_keep_screen_on", d.keepScreenOn),
+            tapLayout = TapLayout.of(sp.getString("reader_tap_layout", null)),
         )
     }
 
@@ -217,6 +242,49 @@ object Prefs {
     var goalPages: Int
         get() = sp.getInt("goal_pages_year", 5000)
         set(v) { sp.edit().putInt("goal_pages_year", v).apply() }
+
+    // ---- Perfiles de lectura: ajustes guardados con nombre ----
+
+    fun settingsToJson(s: ReaderSettings): JSONObject = JSONObject()
+        .put("theme", s.theme.key).put("font", s.font.key).put("size", s.fontSize).put("lh", s.lineHeight.toDouble())
+        .put("mh", s.marginH).put("mv", s.marginV).put("para", s.paraSpacing.toDouble()).put("indent", s.indent.toDouble())
+        .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus)
+        .put("justify", s.justify).put("hyphens", s.hyphens).put("two", s.twoPages).put("vol", s.volumeKeys)
+        .put("bright", s.brightness.toDouble()).put("awake", s.keepScreenOn).put("tap", s.tapLayout.key)
+
+    fun settingsFromJson(o: JSONObject): ReaderSettings {
+        val d = ReaderSettings()
+        return ReaderSettings(
+            theme = ReaderTheme.of(o.optString("theme", d.theme.key)), font = ReaderFont.of(o.optString("font", d.font.key)),
+            fontSize = o.optInt("size", d.fontSize).coerceIn(12, 40), lineHeight = o.optDouble("lh", d.lineHeight.toDouble()).toFloat(),
+            marginH = o.optInt("mh", d.marginH), marginV = o.optInt("mv", d.marginV),
+            paraSpacing = o.optDouble("para", -1.0).toFloat(), indent = o.optDouble("indent", -1.0).toFloat(),
+            publisher = o.optBoolean("publisher"), footerLeft = FooterInfo.of(o.optString("fl"), d.footerLeft, FooterInfo.LEFT),
+            footerRight = FooterInfo.of(o.optString("fr"), d.footerRight, FooterInfo.RIGHT), focus = o.optBoolean("focus"),
+            justify = o.optBoolean("justify", d.justify), hyphens = o.optBoolean("hyphens", d.hyphens), twoPages = o.optBoolean("two", d.twoPages),
+            volumeKeys = o.optBoolean("vol"), brightness = o.optDouble("bright", -1.0).toFloat(), keepScreenOn = o.optBoolean("awake", true),
+            tapLayout = TapLayout.of(o.optString("tap")),
+        )
+    }
+
+    val profiles = mutableStateOf<List<Pair<String, ReaderSettings>>>(emptyList())
+
+    private fun loadProfiles() {
+        profiles.value = runCatching {
+            val a = org.json.JSONArray(sp.getString("reader_profiles", "[]") ?: "[]")
+            (0 until a.length()).map { i -> a.getJSONObject(i).let { it.getString("name") to settingsFromJson(it.getJSONObject("s")) } }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun saveProfiles(list: List<Pair<String, ReaderSettings>>) {
+        profiles.value = list
+        val a = org.json.JSONArray()
+        list.forEach { (n, s) -> a.put(JSONObject().put("name", n).put("s", settingsToJson(s))) }
+        sp.edit().putString("reader_profiles", a.toString()).apply()
+    }
+
+    fun saveProfile(name: String, s: ReaderSettings) = saveProfiles(profiles.value.filter { it.first != name } + (name to s))
+    fun deleteProfile(name: String) = saveProfiles(profiles.value.filter { it.first != name })
 
     /** Velocidad de la lectura en voz alta (1 = normal). */
     var ttsRate: Float

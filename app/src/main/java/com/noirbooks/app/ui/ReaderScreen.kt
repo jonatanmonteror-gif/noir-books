@@ -175,6 +175,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     val cpm = remember { Stats.charsPerMinute() }
 
     var askSave by remember { mutableStateOf(false) }
+    val askNotify = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
     fun finishClose() {
         if (c.sessionSeconds >= 60 && !summary) summary = true else onClose()
     }
@@ -193,13 +195,15 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         }
     }
 
-    c.onTap = { x ->
+    c.onTap = { x, y ->
         when {
             showHint -> { showHint = false; Prefs.gestureHintShown = true }
             bars -> bars = false
-            x < 0.28f -> c.prev()
-            x > 0.72f -> c.next()
-            else -> bars = true
+            else -> when (Prefs.reader.value.tapLayout.action(x, y)) {
+                com.noirbooks.app.data.TapAction.Prev -> c.prev()
+                com.noirbooks.app.data.TapAction.Next -> c.next()
+                com.noirbooks.app.data.TapAction.Menu -> bars = true
+            }
         }
     }
 
@@ -267,7 +271,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     var firstSettings by remember { mutableStateOf(true) }
     // El pie y el modo concentración no cambian la maqueta (el tamaño lo detecta el propio lector).
     val layoutKey = settings.copy(volumeKeys = false, brightness = 0f, keepScreenOn = false,
-        footerLeft = FooterInfo.None, footerRight = FooterInfo.None, focus = false)
+        footerLeft = FooterInfo.None, footerRight = FooterInfo.None, focus = false,
+        tapLayout = com.noirbooks.app.data.TapLayout.Normal)
     LaunchedEffect(layoutKey) {
         if (firstSettings) firstSettings = false else c.applySettings()
     }
@@ -448,7 +453,14 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                             .border(1.5.dp, fg, CircleShape),
                     )
                 }
-                IconButton(onClick = { bars = false; if (c.ttsActive) c.ttsResume() else c.ttsStart() }) {
+                IconButton(onClick = {
+                    bars = false
+                    if (c.ttsActive) c.ttsResume() else c.ttsStart()
+                    // Para seguir leyendo con la pantalla apagada hace falta la notificación (Android 13+).
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && !com.noirbooks.app.data.TimerNotification.canNotify(ctx)) {
+                        askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }) {
                     Icon(Icons.Filled.PlayArrow, "Escuchar el libro", tint = fg)
                 }
                 IconButton(onClick = { sheet = Sheet.Search; bars = false }) { Icon(Icons.Filled.Search, "Buscar en el libro", tint = fg) }

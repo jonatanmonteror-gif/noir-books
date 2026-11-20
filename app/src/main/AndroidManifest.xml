@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Solo para la notificación del cronómetro de lectura (se pide al darle a play) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lectura en voz alta con la pantalla apagada -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Sin permiso para instalar apps: la actualización se descarga con el navegador (Play Protect desconfía de ese permiso) -->
 
     <application
@@ -51,6 +54,11 @@
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".data.ReadAloudService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
