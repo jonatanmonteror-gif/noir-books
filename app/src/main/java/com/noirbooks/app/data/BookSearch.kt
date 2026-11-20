@@ -18,6 +18,7 @@ data class FoundBook(
     val year: String,
     val language: String,
     val source: String,
+    val description: String = "",
 )
 
 /**
@@ -40,6 +41,15 @@ object BookSearch {
                 .sortedBy { if (it.language.startsWith("es") || it.language == "spa") 0 else 1 }
                 .take(40)
         }
+    }
+
+    /** Sinopsis de un libro en Google Books (por ISBN o por título y autor). */
+    suspend fun description(title: String, author: String, isbn: String): String = withContext(Dispatchers.IO) {
+        val q = if (isbn.isNotBlank()) "isbn:$isbn" else "intitle:$title" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
+        val list = runCatching { google(q) }.getOrDefault(emptyList())
+        val t = key(title).take(14)
+        (list.firstOrNull { it.description.isNotBlank() && key(it.title).startsWith(t) } ?: list.firstOrNull { it.description.isNotBlank() && isbn.isNotBlank() })
+            ?.description.orEmpty()
     }
 
     private fun key(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD)
@@ -68,6 +78,7 @@ object BookSearch {
                 title = title, author = authors.joinToString(", "), coverUrl = img,
                 pages = v.optInt("pageCount"), isbn = isbn, publisher = v.optString("publisher"),
                 year = v.optString("publishedDate").take(4), language = v.optString("language"), source = "Google Books",
+                description = v.optString("description").let { d -> if ('<' in d) org.jsoup.Jsoup.parse(d).text() else d },
             )
         }
     }

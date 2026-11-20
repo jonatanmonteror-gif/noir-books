@@ -123,6 +123,8 @@ data class Book(
     val isbn: String = "",
     val publisher: String = "",
     val year: String = "",
+    /** Sinopsis. */
+    val description: String = "",
 ) {
     val isEpub: Boolean get() = format == BookFormat.Epub
     val totalChars: Int get() = chapterLengths.sum().coerceAtLeast(1)
@@ -265,6 +267,7 @@ object Library {
                 addedAt = System.currentTimeMillis(),
                 chapterLengths = lengths,
                 hasCover = hasCover,
+                description = epub.description, publisher = epub.publisher, year = epub.year,
             )
             lock.withLock {
                 books.value = books.value + book
@@ -340,6 +343,22 @@ object Library {
         )
     }
 
+    /**
+     * Completa la sinopsis si falta: primero la del propio EPUB, si no, la de Google Books.
+     * Solo se busca en internet una vez por libro.
+     */
+    suspend fun ensureDescription(id: String) = withContext(Dispatchers.IO) {
+        val b = get(id) ?: return@withContext
+        if (b.description.isNotBlank()) return@withContext
+        var d = ""
+        if (b.isEpub) d = runCatching { Epub.open(epubOf(id)).description }.getOrDefault("")
+        if (d.isBlank() && !Prefs.descLookedUp(id)) {
+            Prefs.markDescLookedUp(id)
+            d = runCatching { BookSearch.description(b.title, b.author, b.isbn) }.getOrDefault("")
+        }
+        if (d.isNotBlank()) update(id) { it.copy(description = d) }
+    }
+
     suspend fun moveToTrash(id: String) = update(id) { it.copy(deletedAt = System.currentTimeMillis()) }
     suspend fun restore(id: String) = update(id) { it.copy(deletedAt = 0L) }
 
@@ -357,6 +376,7 @@ object Library {
     suspend fun addManual(
         title: String, author: String, format: BookFormat, pages: Int, unit: ProgressUnit,
         coverUrl: String?, isbn: String, publisher: String, year: String, status: BookStatus,
+        description: String = "",
     ): Book = withContext(Dispatchers.IO) {
         val id = "m" + java.lang.Long.toHexString(System.currentTimeMillis()) + (100..999).random()
         dirOf(id).mkdirs()
@@ -365,7 +385,7 @@ object Library {
         val book = Book(
             id = id, title = title.trim(), author = author.trim(), addedAt = now,
             status = status, format = format, pages = pages, unit = unit, hasCover = hasCover,
-            isbn = isbn, publisher = publisher, year = year,
+            isbn = isbn, publisher = publisher, year = year, description = description,
             readings = if (status == BookStatus.Reading) listOf(Reading(now)) else if (status == BookStatus.Read) listOf(Reading(now, now)) else emptyList(),
             lastOpened = if (status == BookStatus.Reading) now else 0L,
             manualProgress = if (status == BookStatus.Read) 1f else 0f,
@@ -512,7 +532,7 @@ object Library {
                 put("hasCover", b.hasCover); put("deletedAt", b.deletedAt)
                 put("format", b.format.key); put("pages", b.pages); put("unit", b.unit.key)
                 put("manualProgress", b.manualProgress.toDouble()); put("isbn", b.isbn)
-                put("publisher", b.publisher); put("year", b.year)
+                put("publisher", b.publisher); put("year", b.year); put("description", b.description)
                 put("readings", JSONArray().apply {
                     b.readings.forEach { r -> put(JSONObject().put("start", r.start).put("end", r.end)) }
                 })
@@ -605,6 +625,7 @@ object Library {
                 isbn = o.optString("isbn"),
                 publisher = o.optString("publisher"),
                 year = o.optString("year"),
+                description = o.optString("description"),
             )
         }
     }

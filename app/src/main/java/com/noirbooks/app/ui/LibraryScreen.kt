@@ -93,6 +93,8 @@ fun LibraryScreen() {
     val cpm = remember(all.size) { Stats.charsPerMinute() }
 
     fun open(b: Book) = AppState.openBook(b)
+    /** Tocar un libro de la biblioteca abre su ficha, no el libro. */
+    fun details(b: Book) { AppState.screen.value = Screen.Book(b.id) }
 
     val reading = books.filter { it.status == BookStatus.Reading }.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }
     val q = fold(query.trim())
@@ -230,7 +232,7 @@ fun LibraryScreen() {
                 }
             }
             items(shown, key = { it.id }) { b ->
-                Column(Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
+                Column(Modifier.combinedClickable(onClick = { details(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
                     BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
                     if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(6.dp))
@@ -264,7 +266,7 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boo
         Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.horizontalGradient(listOf(NB.surface2, NB.surface)))
-            .clickable(onClick = onOpen).padding(14.dp),
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BookCover(b, Modifier.width(92.dp), titleSize = 11)

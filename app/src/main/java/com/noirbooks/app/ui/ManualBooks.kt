@@ -267,7 +267,7 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit) {
             saving = true
             scope.launch {
                 val b = runCatching {
-                    Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status)
+                    Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description)
                 }.getOrElse { ErrorLog.note("Añadir libro", it); null }
                 saving = false
                 if (b != null) { AppState.toast("Añadido: ${b.title}"); onSaved(b) } else AppState.toast("No se pudo añadir")

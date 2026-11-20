@@ -197,6 +197,8 @@ object Prefs {
         set(v) { sp.edit().putLong("timer_start", v).apply() }
 
     // Libros cuyas páginas en papel ya se buscaron en el catálogo (para no repetir).
+    fun descLookedUp(id: String) = sp.getBoolean("desc_lookup_$id", false)
+    fun markDescLookedUp(id: String) { sp.edit().putBoolean("desc_lookup_$id", true).apply() }
     fun pagesLookedUp(id: String) = sp.getBoolean("pages_lookup_$id", false)
     fun markPagesLookedUp(id: String) { sp.edit().putBoolean("pages_lookup_$id", true).apply() }
 

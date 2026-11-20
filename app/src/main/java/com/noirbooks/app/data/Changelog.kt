@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.19", "20 nov 2026", listOf(
+            "Tocar un libro abre su ficha a pantalla completa: portada, sinopsis, progreso y tu lectura (el libro ya no se abre solo)",
+            "Sinopsis del propio EPUB o de Google Books",
+            "La tarjeta «Seguir leyendo» ya no abre el libro al tocarla: solo el botón",
+        )),
         Entry("1.0.18", "20 nov 2026", listOf(
             "Carrusel de «Seguir leyendo»: asoman la tarjeta anterior y la siguiente, y ya no salta al deslizar",
         )),

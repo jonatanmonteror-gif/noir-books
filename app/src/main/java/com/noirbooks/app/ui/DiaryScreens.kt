@@ -158,7 +158,7 @@ fun LogScreen() {
                     val b = byId[s.bookId]
                     Row(
                         Modifier.fillMaxWidth()
-                            .combinedClickable(onClick = { b?.let { AppState.bookMenu.value = it.id } }, onLongClick = { confirm = s })
+                            .combinedClickable(onClick = { b?.let { AppState.screen.value = Screen.Book(it.id) } }, onLongClick = { confirm = s })
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

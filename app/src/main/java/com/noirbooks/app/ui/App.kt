@@ -28,7 +28,10 @@ import java.io.File
 
 sealed class Screen {
     data object Library : Screen()
-    data class Reader(val bookId: String) : Screen()
+    /** [from]: pantalla a la que volver al cerrar el libro (la biblioteca si no se indica). */
+    data class Reader(val bookId: String, val from: Screen? = null) : Screen()
+    /** Ficha del libro a pantalla completa. */
+    data class Book(val bookId: String) : Screen()
     data object Settings : Screen()
 }
 
@@ -163,8 +166,12 @@ fun App() {
                     BackHandler { AppState.screen.value = Screen.Library }
                     SettingsScreen(onBack = { AppState.screen.value = Screen.Library })
                 }
+                is Screen.Book -> {
+                    BackHandler { AppState.screen.value = Screen.Library }
+                    BookScreen(s.bookId, onBack = { AppState.screen.value = Screen.Library })
+                }
                 is Screen.Reader -> {
-                    ReaderScreen(s.bookId, onClose = { AppState.screen.value = Screen.Library })
+                    ReaderScreen(s.bookId, onClose = { AppState.screen.value = s.from ?: Screen.Library })
                 }
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())

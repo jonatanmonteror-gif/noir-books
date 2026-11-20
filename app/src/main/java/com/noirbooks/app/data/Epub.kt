@@ -34,6 +34,10 @@ class EpubBook(
     val obfuscated: Map<String, String> = emptyMap(),
     /** Páginas de la edición impresa, si el libro las trae. */
     val pageList: List<PageMark> = emptyList(),
+    /** Sinopsis del libro (dc:description), en texto sin formato. */
+    val description: String = "",
+    val publisher: String = "",
+    val year: String = "",
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -76,6 +80,10 @@ object Epub {
             val author = meta?.select("dc|creator, creator")?.map { it.text().trim() }?.filter { it.isNotEmpty() }
                 ?.distinct()?.joinToString(", ").orEmpty()
             val lang = meta?.firstText("dc|language", "language").orEmpty()
+            val description = meta?.select("dc|description, description")?.firstOrNull()?.text()?.trim()
+                ?.let { d -> if ('<' in d) Jsoup.parse(d).text() else d }.orEmpty()
+            val publisher = meta?.firstText("dc|publisher", "publisher").orEmpty()
+            val year = meta?.firstText("dc|date", "date").orEmpty().take(4).filter { it.isDigit() }
 
             // Portada: EPUB 3 (properties="cover-image"), EPUB 2 (<meta name="cover">) o un archivo llamado "cover".
             val cover = manifestById.values.firstOrNull { "cover-image" in it.properties.split(' ') }?.href
@@ -114,7 +122,8 @@ object Epub {
                 val ncx = manifestById[spineEl?.attr("toc").orEmpty()] ?: manifestById.values.firstOrNull { it.mediaType == "application/x-dtbncx+xml" }
                 if (ncx != null) pages = runCatching { parseNcxPages(z, ncx.href) }.getOrDefault(emptyList())
             }
-            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages)
+            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages,
+                description = description, publisher = publisher, year = year)
         }
     }
 
