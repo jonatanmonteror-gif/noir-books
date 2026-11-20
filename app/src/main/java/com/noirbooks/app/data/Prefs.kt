@@ -378,6 +378,16 @@ object Prefs {
     fun markPagesLookedUp(id: String) { sp.edit().putBoolean("pages_lookup_$id", true).apply() }
 
     // Biblioteca: portadas por fila (0 = automático según la pantalla)
+    /** Diseño de las estanterías: noir, oak (madera clara), walnut (madera oscura), white. */
+    var shelfStyle: String
+        get() = sp.getString("shelf_style", "walnut") ?: "walnut"
+        set(v) { sp.edit().putString("shelf_style", v).apply() }
+
+    /** Cómo se ven los libros en las estanterías: spines (lomos) o covers (portadas). */
+    var shelfView: String
+        get() = sp.getString("shelf_view", "spines") ?: "spines"
+        set(v) { sp.edit().putString("shelf_view", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

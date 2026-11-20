@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -95,7 +96,8 @@ fun LibraryScreen() {
     val shelves by Library.shelves
     var shelf by rememberSaveable { mutableStateOf<String?>(null) }
     if (shelf != null && shelf != NO_SHELF && shelf !in shelves) shelf = null
-    var shelvesView by rememberSaveable { mutableStateOf(false) }
+    // Tres vistas: Inicio (lo que lees y lo reciente), Biblioteca (todos) y Estanterías
+    var mode by rememberSaveable { mutableStateOf("home") }
     var addToShelf by remember { mutableStateOf<String?>(null) }
     // Selección de varios libros para moverlos en grupo
     var selecting by remember { mutableStateOf(false) }
@@ -126,11 +128,6 @@ fun LibraryScreen() {
             }
         }
 
-    if (shelvesView) {
-        ShelvesScreen(books, shelf, onPick = { shelf = it; shelvesView = false }, onBack = { shelvesView = false })
-        return
-    }
-
     Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 4.dp),
@@ -145,14 +142,8 @@ fun LibraryScreen() {
                 )
             }
             if (books.isNotEmpty()) {
-                IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
+                IconButton(onClick = { searching = !searching; if (!searching) query = "" else mode = "all" }) {
                     Icon(if (searching) Icons.Filled.Close else Icons.Filled.Search, "Buscar", tint = NB.text)
-                }
-            }
-            if (books.isNotEmpty()) {
-                IconButton(onClick = { shelvesView = true }) {
-                    Icon(androidx.compose.ui.res.painterResource(com.noirbooks.app.R.drawable.ic_shelves), "Estanterías",
-                        tint = if (shelf != null) NB.text else NB.text2)
                 }
             }
             IconButton(onClick = { AppState.screen.value = Screen.Settings }) {
@@ -189,6 +180,32 @@ fun LibraryScreen() {
             return@Column
         }
 
+        // Pestañas de la biblioteca
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("home" to "Inicio", "all" to "Biblioteca", "shelves" to "Estanterías").forEach { (k, label) ->
+                val on = mode == k
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (on) NB.text else NB.surface)
+                        .clickable { mode = k; if (k != "all") endSelection() }.padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(label, color = if (on) NB.onText else NB.text2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+            }
+        }
+        BackHandler(enabled = mode != "home" && !selecting) { mode = "home" }
+        if (mode == "home" && !searching) {
+            HomePane(books, reading, cpm,
+                onOpen = { open(it) }, onDetails = { details(it) },
+                onSeeAll = { mode = "all" },
+                onStatus = { filter = it; shelf = null; mode = "all" },
+                onShelf = { shelf = it; mode = "all" },
+                onShelves = { mode = "shelves" })
+            return@Column
+        }
+        if (mode == "shelves" && !searching) {
+            ShelvesPane(books, shelf, onPick = { shelf = it; mode = "all" }, onBook = { details(it) })
+            return@Column
+        }
+
         if (selecting) {
             Row(
                 Modifier.fillMaxWidth().background(NB.surface2).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
@@ -208,23 +225,6 @@ fun LibraryScreen() {
             verticalArrangement = Arrangement.spacedBy(if (columns >= 4) 14.dp else 18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (reading.isNotEmpty() && q.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "continue") {
-                    if (reading.size == 1) ContinueCard(reading[0], cpm, onOpen = { open(reading[0]) })
-                    else {
-                        // Varios libros a la vez: carrusel; la siguiente tarjeta asoma por la derecha.
-                        val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
-                        androidx.compose.foundation.pager.HorizontalPager(
-                            state = pager,
-                            // Margen a los dos lados: asoman la tarjeta anterior y la siguiente.
-                            contentPadding = PaddingValues(horizontal = 18.dp),
-                            pageSpacing = 8.dp,
-                            key = { reading[it].id },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { i -> ContinueCard(reading[i], cpm, onOpen = { open(reading[i]) }, fixedHeight = true) }
-                    }
-                }
-            }
             item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
                 Column {
                     Spacer(Modifier.height(6.dp))
@@ -249,7 +249,7 @@ fun LibraryScreen() {
                         Spacer(Modifier.height(10.dp))
                         Row(
                             Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NB.surface2)
-                                .clickable { shelvesView = true }.padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
+                                .clickable { mode = "shelves" }.padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(androidx.compose.ui.res.painterResource(com.noirbooks.app.R.drawable.ic_shelves), null, tint = NB.text, modifier = Modifier.size(18.dp))
@@ -595,3 +595,120 @@ fun MenuRow(label: String, color: Color = NB.text, onClick: () -> Unit) {
 /** Para buscar y ordenar sin distinguir mayúsculas ni tildes. */
 fun fold(s: String): String =
     Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
+
+/**
+ * Inicio de la biblioteca, al estilo de Kindle: lo que estás leyendo, lo último que has añadido o abierto,
+ * tus estados y tus estanterías. Tamaños fijos, sin elegir columnas.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomePane(
+    books: List<Book>, reading: List<Book>, cpm: Int,
+    onOpen: (Book) -> Unit, onDetails: (Book) -> Unit, onSeeAll: () -> Unit,
+    onStatus: (String) -> Unit, onShelf: (String) -> Unit, onShelves: () -> Unit,
+) {
+    val shelves by Library.shelves
+    val recent = remember(books) { books.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }.take(8) }
+    val style = shelfStyle(Prefs.shelfStyle)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 28.dp)) {
+        if (reading.isNotEmpty()) {
+            Box(Modifier.padding(horizontal = 16.dp)) {
+                if (reading.size == 1) ContinueCard(reading[0], cpm, onOpen = { onOpen(reading[0]) })
+                else {
+                    val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pager, contentPadding = PaddingValues(horizontal = 2.dp), pageSpacing = 8.dp,
+                        key = { reading[it].id }, modifier = Modifier.fillMaxWidth(),
+                    ) { i -> ContinueCard(reading[i], cpm, onOpen = { onOpen(reading[i]) }, fixedHeight = true) }
+                }
+            }
+        }
+
+        HomeTitle("Recientes", "Ver todos", onSeeAll)
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            recent.forEach { b ->
+                Column(Modifier.width(108.dp).combinedClickable(onClick = { onDetails(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
+                    BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
+                    if (b.status == BookStatus.Reading) {
+                        Spacer(Modifier.height(5.dp))
+                        ThinProgress(b.progress, Modifier.fillMaxWidth())
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(b.title, color = NB.text, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (b.author.isNotBlank()) Text(b.author, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            // Atajo a todos los libros al final del carrusel
+            Box(
+                Modifier.width(108.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp))
+                    .border(1.dp, NB.line, RoundedCornerShape(6.dp)).clickable(onClick = onSeeAll),
+                contentAlignment = Alignment.Center,
+            ) { Text("Ver los\n${books.size} libros", color = NB.text2, fontSize = 14.sp, textAlign = TextAlign.Center) }
+        }
+
+        HomeTitle("Por estado", null, null)
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            BookStatus.entries.forEach { st ->
+                val n = books.count { it.status == st }
+                Column(
+                    Modifier.width(104.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
+                        .border(1.dp, NB.line, RoundedCornerShape(14.dp)).clickable { onStatus(st.key) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Text("$n", fontFamily = Playfair, fontSize = 22.sp, color = if (n > 0) NB.text else NB.text3)
+                    Text(st.label, fontSize = 13.sp, color = NB.text2, maxLines = 1)
+                }
+            }
+        }
+
+        HomeTitle("Tus estanterías", "Ver todas", onShelves)
+        if (shelves.isEmpty()) {
+            Text(
+                "Aún no tienes estanterías. Créalas en la pestaña Estanterías.",
+                color = NB.text3, fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onShelves).padding(vertical = 6.dp),
+            )
+        } else {
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                shelves.forEach { s ->
+                    val inside = books.filter { s in it.shelves }
+                    Column(Modifier.width(150.dp).clip(RoundedCornerShape(8.dp)).clickable { onShelf(s) }) {
+                        ShelfCompartment(style, 86.dp) {
+                            Row(Modifier.padding(start = 8.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(1.dp),
+                                verticalAlignment = Alignment.Bottom) {
+                                inside.take(7).forEach { b -> BookSpine(b, 74.dp, onClick = { onShelf(s) }, onLongClick = { onShelf(s) }) }
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(s, color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (inside.size == 1) "1 libro" else "${inside.size} libros", color = NB.text3, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTitle(title: String, action: String?, onAction: (() -> Unit)?) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 22.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, color = NB.text, modifier = Modifier.weight(1f))
+        if (action != null && onAction != null) Text(
+            "$action ›", color = NB.text2, fontSize = 14.sp,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onAction).padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
