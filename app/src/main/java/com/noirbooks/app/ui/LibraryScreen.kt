@@ -424,7 +424,6 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                     Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair)
                 }
                 Spacer(Modifier.height(10.dp))
-                if (b.isEpub) MenuRow(if (b.status == BookStatus.Read) "Volver a leer" else "Leer") { onDismiss(); AppState.screen.value = Screen.Reader(b.id) }
                 if (!b.isEpub && b.status != BookStatus.Read) {
                     if (AppState.timer.value?.first == b.id) MenuRow("Terminar cronómetro") { onDismiss(); AppState.stopTimer() }
                     else MenuRow("Empiezo a leer (cronómetro)") { onDismiss(); AppState.startTimer(b.id) }
