@@ -102,7 +102,10 @@ fun ReaderScreen(bookId: String, onClose: () -> Unit) {
     var opened by remember(bookId) { mutableStateOf<Pair<EpubBook, BookServer>?>(null) }
     var error by remember(bookId) { mutableStateOf<String?>(null) }
     val settings by Prefs.reader
-    val theme = settings.theme
+    // Tema efectivo (con el automático aplicado); se revisa cada minuto por si cambia la hora.
+    var themeTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(60_000); themeTick++ } }
+    val theme = remember(settings, themeTick) { Prefs.effectiveReader().palette() }
 
     LaunchedEffect(bookId) {
         val b = Library.get(bookId)
@@ -160,7 +163,10 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     val activity = ctx as? Activity
     val scope = rememberCoroutineScope()
     val settings by Prefs.reader
-    val theme = settings.theme
+    // Tema efectivo (con el automático aplicado); se revisa cada minuto por si cambia la hora.
+    var themeTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(60_000); themeTick++ } }
+    val theme = remember(settings, themeTick) { Prefs.effectiveReader().palette() }
     val fg = Color(theme.fg)
     val muted = Color(theme.muted)
     val bg = Color(theme.bg)
@@ -270,7 +276,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     }
     var firstSettings by remember { mutableStateOf(true) }
     // El pie y el modo concentración no cambian la maqueta (el tamaño lo detecta el propio lector).
-    val layoutKey = settings.copy(volumeKeys = false, brightness = 0f, keepScreenOn = false,
+    val layoutKey = settings.copy(theme = remember(settings, themeTick) { Prefs.effectiveReader().theme },volumeKeys = false, brightness = 0f, keepScreenOn = false,
         footerLeft = FooterInfo.None, footerRight = FooterInfo.None, focus = false,
         tapLayout = com.noirbooks.app.data.TapLayout.Normal)
     LaunchedEffect(layoutKey) {

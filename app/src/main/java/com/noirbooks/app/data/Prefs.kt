@@ -9,12 +9,24 @@ enum class ReaderTheme(val key: String, val label: String, val bg: Long, val fg:
     Light("light", "Claro", 0xFFFFFFFF, 0xFF1A1A1A, 0xFF8A8A8A, false),
     Sepia("sepia", "Sepia", 0xFFF4ECD8, 0xFF3B2F22, 0xFF9A8B74, false),
     Dark("dark", "Oscuro", 0xFF1C1C1E, 0xFFD6D6D6, 0xFF7C7C80, true),
-    Black("black", "Negro", 0xFF000000, 0xFFC8C8C8, 0xFF6E6E72, true);
+    Black("black", "Negro", 0xFF000000, 0xFFC8C8C8, 0xFF6E6E72, true),
+    /** Colores elegidos por ti (fondo y letra en los ajustes). */
+    Custom("custom", "Propio", 0xFF14181F, 0xFFD9D4C7, 0xFF7D7A72, true);
 
     companion object {
         fun of(k: String) = entries.firstOrNull { it.key == k } ?: Dark
     }
 }
+
+/** Colores con los que se pinta la página. */
+data class Palette(val bg: Long, val fg: Long, val muted: Long, val dark: Boolean)
+
+private fun channel(c: Long, shift: Int) = ((c shr shift) and 0xFF).toInt()
+private fun mix(a: Long, b: Long, t: Float): Long {
+    fun m(sh: Int) = (channel(a, sh) * (1 - t) + channel(b, sh) * t).toInt().coerceIn(0, 255).toLong()
+    return (0xFFL shl 24) or (m(16) shl 16) or (m(8) shl 8) or m(0)
+}
+private fun luminance(c: Long) = (0.299 * channel(c, 16) + 0.587 * channel(c, 8) + 0.114 * channel(c, 0)) / 255.0
 
 enum class ReaderFont(val key: String, val label: String, val css: String?) {
     Original("original", "Original", null),
@@ -104,10 +116,29 @@ data class ReaderSettings(
     val brightness: Float = -1f,     // -1 = la del sistema
     val keepScreenOn: Boolean = true,
     val tapLayout: TapLayout = TapLayout.Normal,
+    /** Colores del tema propio. */
+    val customBg: Long = 0xFF14181F,
+    val customFg: Long = 0xFFD9D4C7,
+    /** Tema automático: "off", "system" (según el modo oscuro del móvil) o "hours" (de 7 a 21 h, día). */
+    val autoTheme: String = "off",
+    val dayTheme: ReaderTheme = ReaderTheme.Sepia,
+    val nightTheme: ReaderTheme = ReaderTheme.Black,
 ) {
+    fun palette(): Palette =
+        if (theme == ReaderTheme.Custom) Palette(customBg, customFg, mix(customFg, customBg, 0.5f), luminance(customBg) < 0.5)
+        else Palette(theme.bg, theme.fg, theme.muted, theme.dark)
+
+    /** El tema que toca ahora, si el automático está activado. */
+    fun effective(systemDark: Boolean, hour: Int): ReaderSettings = when (autoTheme) {
+        "system" -> copy(theme = if (systemDark) nightTheme else dayTheme)
+        "hours" -> copy(theme = if (hour in 7..20) dayTheme else nightTheme)
+        else -> this
+    }
+
     /** Lo que necesita el lector (JavaScript) para maquetar. */
     fun toJson(): JSONObject = JSONObject().apply {
-        put("bg", css(theme.bg)); put("fg", css(theme.fg)); put("dark", theme.dark)
+        val p = palette()
+        put("bg", css(p.bg)); put("fg", css(p.fg)); put("dark", p.dark)
         put("font", font.css ?: JSONObject.NULL)
         put("size", fontSize); put("lh", lineHeight.toDouble())
         put("margin", marginH); put("mtop", marginV); put("mbottom", (marginV * 0.6f).toInt().coerceAtLeast(6))
@@ -129,7 +160,19 @@ object Prefs {
     /** Apariencia de la app: "system", "dark" o "light". */
     val appearanceState = mutableStateOf("dark")
 
+    private var appCtx: Context? = null
+
+    /** Los ajustes de lectura con el tema automático ya aplicado (según la hora o el modo oscuro del móvil). */
+    fun effectiveReader(): ReaderSettings {
+        val s = reader.value
+        if (s.autoTheme == "off") return s
+        val night = appCtx?.resources?.configuration?.uiMode?.and(android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        return s.effective(night, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+    }
+
     fun init(ctx: Context) {
+        appCtx = ctx.applicationContext
         if (::sp.isInitialized) return
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
@@ -159,6 +202,11 @@ object Prefs {
             .putFloat("reader_brightness", s.brightness)
             .putBoolean("reader_keep_screen_on", s.keepScreenOn)
             .putString("reader_tap_layout", s.tapLayout.key)
+            .putLong("reader_custom_bg", s.customBg)
+            .putLong("reader_custom_fg", s.customFg)
+            .putString("reader_auto_theme", s.autoTheme)
+            .putString("reader_day_theme", s.dayTheme.key)
+            .putString("reader_night_theme", s.nightTheme.key)
             .apply()
     }
 
@@ -185,6 +233,11 @@ object Prefs {
             brightness = sp.getFloat("reader_brightness", d.brightness),
             keepScreenOn = sp.getBoolean("reader_keep_screen_on", d.keepScreenOn),
             tapLayout = TapLayout.of(sp.getString("reader_tap_layout", null)),
+            customBg = sp.getLong("reader_custom_bg", d.customBg),
+            customFg = sp.getLong("reader_custom_fg", d.customFg),
+            autoTheme = sp.getString("reader_auto_theme", d.autoTheme) ?: d.autoTheme,
+            dayTheme = ReaderTheme.of(sp.getString("reader_day_theme", d.dayTheme.key) ?: d.dayTheme.key),
+            nightTheme = ReaderTheme.of(sp.getString("reader_night_theme", d.nightTheme.key) ?: d.nightTheme.key),
         )
     }
 
@@ -251,6 +304,7 @@ object Prefs {
         .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus)
         .put("justify", s.justify).put("hyphens", s.hyphens).put("two", s.twoPages).put("vol", s.volumeKeys)
         .put("bright", s.brightness.toDouble()).put("awake", s.keepScreenOn).put("tap", s.tapLayout.key)
+        .put("cbg", s.customBg).put("cfg", s.customFg).put("auto", s.autoTheme).put("day", s.dayTheme.key).put("night", s.nightTheme.key)
 
     fun settingsFromJson(o: JSONObject): ReaderSettings {
         val d = ReaderSettings()
@@ -264,6 +318,9 @@ object Prefs {
             justify = o.optBoolean("justify", d.justify), hyphens = o.optBoolean("hyphens", d.hyphens), twoPages = o.optBoolean("two", d.twoPages),
             volumeKeys = o.optBoolean("vol"), brightness = o.optDouble("bright", -1.0).toFloat(), keepScreenOn = o.optBoolean("awake", true),
             tapLayout = TapLayout.of(o.optString("tap")),
+            customBg = o.optLong("cbg", d.customBg), customFg = o.optLong("cfg", d.customFg),
+            autoTheme = o.optString("auto", "off"), dayTheme = ReaderTheme.of(o.optString("day", d.dayTheme.key)),
+            nightTheme = ReaderTheme.of(o.optString("night", d.nightTheme.key)),
         )
     }
 

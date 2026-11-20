@@ -5,7 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
-        Entry("1.0.26", "20 nov 2026", listOf(
+        Entry("1.0.28", "20 nov 2026", listOf(
+            "Tema propio: elige el color del fondo y de la letra (Lectura → Tema propio y automático)",
+            "Tema automático: claro de día y oscuro de noche, por horas o como el modo oscuro del móvil",
+            "Restablecer los ajustes de lectura (Lectura → Avanzado)",
+        )),
+        Entry("1.0.27", "20 nov 2026", listOf(
             "La lectura en voz alta sigue con la pantalla apagada, con Pausa y Parar en la notificación",
             "Escanear varios libros seguidos: «Añadir y escanear otro»",
             "Perfiles de lectura: guarda tus ajustes con nombre y cambia con un toque (Lectura → Perfiles)",

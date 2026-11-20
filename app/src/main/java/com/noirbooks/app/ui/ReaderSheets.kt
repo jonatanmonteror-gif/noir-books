@@ -194,18 +194,25 @@ fun ReadingControls(showPreview: Boolean = false) {
     }
 
     Label("Tema")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    if (s.autoTheme != "off") {
+        Text(if (s.autoTheme == "system") "Automático según el modo oscuro del móvil: ${s.dayTheme.label} / ${s.nightTheme.label}"
+            else "Automático por horas: ${s.dayTheme.label} de 7 a 21 h, ${s.nightTheme.label} de noche",
+            color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ReaderTheme.entries.forEach { t ->
-            val sel = s.theme == t
+            val sel = s.theme == t && s.autoTheme == "off"
+            val tbg = if (t == ReaderTheme.Custom) s.customBg else t.bg
+            val tfg = if (t == ReaderTheme.Custom) s.customFg else t.fg
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { set(s.copy(theme = t)) },
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { set(s.copy(theme = t, autoTheme = "off")) },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
-                    Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).background(Color(t.bg))
+                    Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).background(Color(tbg))
                         .border(if (sel) 2.dp else 1.dp, if (sel) NB.text else NB.line, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center,
-                ) { Text("Aa", color = Color(t.fg), fontFamily = Playfair, fontSize = 17.sp) }
+                ) { Text("Aa", color = Color(tfg), fontFamily = Playfair, fontSize = 17.sp) }
                 Spacer(Modifier.height(5.dp))
                 Text(t.label, fontSize = 12.sp, color = if (sel) NB.text else NB.text3)
             }
@@ -280,6 +287,9 @@ fun ReadingControls(showPreview: Boolean = false) {
         Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
         Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
     }
+    FoldSection("Tema propio y automático", "Tus colores, y claro de día y oscuro de noche") {
+        ThemeExtras(s) { set(it) }
+    }
     FoldSection("Perfiles", "Tus ajustes guardados con nombre: «Cama», «Tren»…") {
         ProfilesBlock(s) { set(it) }
     }
@@ -295,6 +305,8 @@ fun ReadingControls(showPreview: Boolean = false) {
         Toggle("Modo concentración (solo el texto)", s.focus) { set(s.copy(focus = it)) }
         Label("Zonas al tocar la página")
         TapZones(s.tapLayout) { set(s.copy(tapLayout = it)) }
+        Spacer(Modifier.height(10.dp))
+        ResetReading()
         Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
         Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
         Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
@@ -309,12 +321,12 @@ private fun Preview(s: ReaderSettings) {
         ReaderFont.Atkinson -> FontFamily.SansSerif
     }
     Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(s.theme.bg))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(s.palette().bg))
             .border(1.dp, NB.line, RoundedCornerShape(14.dp)).padding(horizontal = (s.marginH * 0.7f).dp, vertical = 16.dp),
     ) {
         Text(
             "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero.",
-            color = Color(s.theme.fg), fontFamily = family, fontSize = (s.fontSize * 0.85f).sp,
+            color = Color(s.palette().fg), fontFamily = family, fontSize = (s.fontSize * 0.85f).sp,
             lineHeight = (s.fontSize * 0.85f * s.lineHeight).sp,
         )
     }
@@ -493,6 +505,74 @@ private fun ProfilesBlock(current: ReaderSettings, apply: (ReaderSettings) -> Un
             title = { Text("¿Borrar el perfil «$n»?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
             confirmButton = { androidx.compose.material3.TextButton(onClick = { Prefs.deleteProfile(n); deleting = null }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text("Cancelar", color = NB.text2) } },
+        )
+    }
+}
+
+private val BG_SWATCHES = listOf(0xFFFFFFFFL, 0xFFF7F3EAL, 0xFFF4ECD8L, 0xFFE9E4D8L, 0xFFDDE5D6L, 0xFFDCE4EEL,
+    0xFF2A2A2CL, 0xFF1C1C1EL, 0xFF14181FL, 0xFF1F1B16L, 0xFF0F1A14L, 0xFF000000L)
+private val FG_SWATCHES = listOf(0xFF000000L, 0xFF1A1A1AL, 0xFF3B2F22L, 0xFF2F3A46L, 0xFF5A4A3AL,
+    0xFFF2F2F2L, 0xFFD6D6D6L, 0xFFD9D4C7L, 0xFFE8DCC4L, 0xFFB8C4CFL, 0xFFC9B79CL)
+
+/** Tema propio (fondo y letra) y tema automático de día y de noche. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ThemeExtras(s: ReaderSettings, set: (ReaderSettings) -> Unit) {
+    Label("Tu tema: fondo")
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        BG_SWATCHES.forEach { c -> Swatch(c, s.customBg == c && s.theme == ReaderTheme.Custom) { set(s.copy(theme = ReaderTheme.Custom, customBg = c, autoTheme = "off")) } }
+    }
+    Label("Tu tema: letra")
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FG_SWATCHES.forEach { c -> Swatch(c, s.customFg == c && s.theme == ReaderTheme.Custom) { set(s.copy(theme = ReaderTheme.Custom, customFg = c, autoTheme = "off")) } }
+    }
+    Spacer(Modifier.height(8.dp))
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(s.customBg)).padding(12.dp),
+    ) { Text("Así se ve tu tema propio", color = Color(s.customFg), fontFamily = FontFamily.Serif, fontSize = 15.sp) }
+
+    Label("Cambio automático")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("off" to "No", "hours" to "Por horas", "system" to "Como el móvil").forEach { (k, l) ->
+            Choice(l, s.autoTheme == k, Modifier.weight(1f)) { set(s.copy(autoTheme = k)) }
+        }
+    }
+    if (s.autoTheme != "off") {
+        Text(if (s.autoTheme == "hours") "De día es de 7 a 21 h." else "Sigue el modo oscuro de tu móvil.", color = NB.text3, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 6.dp))
+        Label("De día")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ReaderTheme.entries.forEach { t -> Choice(t.label, s.dayTheme == t, Modifier.weight(1f)) { set(s.copy(dayTheme = t)) } }
+        }
+        Label("De noche")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ReaderTheme.entries.forEach { t -> Choice(t.label, s.nightTheme == t, Modifier.weight(1f)) { set(s.copy(nightTheme = t)) } }
+        }
+    }
+}
+
+@Composable
+private fun Swatch(c: Long, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.size(34.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(c))
+            .border(if (selected) 2.5.dp else 1.dp, if (selected) NB.text else NB.line, androidx.compose.foundation.shape.CircleShape)
+            .clickable(onClick = onClick),
+    )
+}
+
+/** Volver a los ajustes de lectura de fábrica (los perfiles guardados se quedan). */
+@Composable
+private fun ResetReading() {
+    var ask by remember { mutableStateOf(false) }
+    Text("Restablecer los ajustes de lectura", color = NB.text2, fontSize = 14.sp,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { ask = true }.padding(vertical = 8.dp))
+    if (ask) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { ask = false }, containerColor = NB.surface2,
+            title = { Text("¿Restablecer la lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = { Text("Tema, letra, márgenes, pie, zonas y demás vuelven a como venían. Tus perfiles guardados se quedan.", color = NB.text2) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { Prefs.setReader(ReaderSettings()); ask = false }) { Text("Restablecer", color = NB.text) } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { ask = false }) { Text("Cancelar", color = NB.text2) } },
         )
     }
 }

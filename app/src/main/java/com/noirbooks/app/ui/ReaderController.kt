@@ -224,7 +224,7 @@ class ReaderController(
         isHorizontalScrollBarEnabled = false
         overScrollMode = View.OVER_SCROLL_NEVER
         isHapticFeedbackEnabled = false
-        setBackgroundColor(Prefs.reader.value.theme.bg.toInt())
+        setBackgroundColor(Prefs.effectiveReader().palette().bg.toInt())
         addJavascriptInterface(Bridge(), "Android")
         webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse =
@@ -418,7 +418,7 @@ class ReaderController(
 
     private fun prepareInit() {
         initJson = JSONObject()
-            .put("settings", Prefs.reader.value.toJson())
+            .put("settings", Prefs.effectiveReader().toJson())
             .put("target", target)
             .put("lang", epub.language.ifBlank { "es" })
             .put("highlights", highlightsJson(chapter))
@@ -497,8 +497,9 @@ class ReaderController(
     fun applySettings() {
         target = posTarget(anchor, fraction)
         prepareInit()
-        web?.setBackgroundColor(Prefs.reader.value.theme.bg.toInt())
-        js("window.noir && noir.apply(${JSONObject.quote(Prefs.reader.value.toJson().toString())})")
+        val eff = Prefs.effectiveReader()
+        web?.setBackgroundColor(eff.palette().bg.toInt())
+        js("window.noir && noir.apply(${JSONObject.quote(eff.toJson().toString())})")
     }
 
     fun snippet(cb: (String) -> Unit) {
