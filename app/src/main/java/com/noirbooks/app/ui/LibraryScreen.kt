@@ -131,7 +131,7 @@ fun LibraryScreen() {
             }
             IconButton(onClick = { AppState.addBook.value = true }) {
                 Box(Modifier.size(30.dp).clip(CircleShape).background(NB.text), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Add, "Añadir libros", tint = Color.Black, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Add, "Añadir libros", tint = NB.onText, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -206,7 +206,7 @@ fun LibraryScreen() {
                             Text(
                                 "$n", fontSize = 13.sp, fontFamily = Inter,
                                 fontWeight = if (columns == n) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (columns == n) Color.Black else NB.text3,
+                                color = if (columns == n) NB.onText else NB.text3,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.width(26.dp).clip(RoundedCornerShape(6.dp))
                                     .background(if (columns == n) NB.text else Color.Transparent)
@@ -291,7 +291,7 @@ fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        Text(label, fontSize = 13.sp, color = if (selected) Color.Black else NB.text2, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, fontSize = 13.sp, color = if (selected) NB.onText else NB.text2, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -313,7 +313,7 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
             Modifier.clip(RoundedCornerShape(50)).background(NB.text).clickable(onClick = onAdd)
                 .padding(horizontal = 26.dp, vertical = 13.dp),
         ) {
-            Text("Añadir un libro", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Añadir un libro", color = NB.onText, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
         Spacer(Modifier.height(28.dp))
         Text(

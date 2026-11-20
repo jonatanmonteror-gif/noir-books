@@ -64,6 +64,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(Modifier.widthIn(max = 640.dp)) {
+                val appearance by com.noirbooks.app.data.Prefs.appearanceState
+                FoldSection("Apariencia", when (appearance) { "light" -> "Clara"; "system" -> "Como el sistema"; else -> "Oscura" }) {
+                    Text("Colores de la app (el libro tiene sus propios temas en Lectura).", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("dark" to "Oscura", "light" to "Clara", "system" to "Sistema").forEach { (k, l) ->
+                            Chip(l, appearance == k) { com.noirbooks.app.data.Prefs.setAppearance(k) }
+                        }
+                    }
+                }
+
                 FoldSection("Lectura", "Tema, letra, márgenes y brillo para todos los libros") {
                     ReadingControls(showPreview = true)
                 }
@@ -152,7 +163,7 @@ fun PillButton(label: String, primary: Boolean = false, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     ) {
-        Text(label, color = if (primary) Color.Black else NB.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = if (primary) NB.onText else NB.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

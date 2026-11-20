@@ -97,7 +97,7 @@ private fun PrimaryButton(label: String, modifier: Modifier = Modifier, enabled:
         modifier.clip(RoundedCornerShape(50)).background(if (enabled) NB.text else NB.line)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 22.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = if (enabled) Color.Black else NB.text3, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
+    ) { Text(label, color = if (enabled) NB.onText else NB.text3, fontWeight = FontWeight.SemiBold, fontSize = 15.sp) }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -450,7 +450,7 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                 }
                 if (needTotal) Text("Pon el total para calcular el porcentaje.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 Row(Modifier.fillMaxWidth().clickable { finished = !finished }.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(finished, { finished = it }, colors = CheckboxDefaults.colors(checkedColor = NB.text, checkmarkColor = Color.Black, uncheckedColor = NB.text3))
+                    Checkbox(finished, { finished = it }, colors = CheckboxDefaults.colors(checkedColor = NB.text, checkmarkColor = NB.onText, uncheckedColor = NB.text3))
                     Text("Lo he terminado", color = NB.text, fontSize = 15.sp)
                 }
             }
@@ -644,7 +644,7 @@ fun PlayPauseButton(bookId: String, size: Int = 36) {
     ) {
         if (running) {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(2) { Box(Modifier.width(3.dp).height((size * 0.36f).dp).clip(RoundedCornerShape(1.dp)).background(Color.Black)) }
+                repeat(2) { Box(Modifier.width(3.dp).height((size * 0.36f).dp).clip(RoundedCornerShape(1.dp)).background(NB.onText)) }
             }
         } else {
             Icon(Icons.Filled.PlayArrow, "Empezar a contar el tiempo de lectura", tint = NB.text, modifier = Modifier.size((size * 0.55f).dp))

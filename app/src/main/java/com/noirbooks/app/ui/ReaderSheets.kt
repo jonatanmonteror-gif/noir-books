@@ -162,7 +162,7 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Text(label, color = if (selected) Color.Black else NB.text2, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = if (selected) NB.onText else NB.text2, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -375,7 +375,7 @@ private fun Choice(label: String, selected: Boolean, modifier: Modifier, family:
             .padding(horizontal = 10.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (selected) Color.Black else NB.text2, fontSize = 13.sp, fontFamily = family, maxLines = 1)
+        Text(label, color = if (selected) NB.onText else NB.text2, fontSize = 13.sp, fontFamily = family, maxLines = 1)
     }
 }
 
@@ -389,7 +389,7 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
         Switch(
             checked = value, onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.Black, checkedTrackColor = NB.text,
+                checkedThumbColor = NB.onText, checkedTrackColor = NB.text,
                 uncheckedThumbColor = NB.text3, uncheckedTrackColor = NB.surface2, uncheckedBorderColor = NB.line,
             ),
         )

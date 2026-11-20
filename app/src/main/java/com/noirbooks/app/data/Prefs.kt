@@ -104,11 +104,14 @@ data class ReaderSettings(
 object Prefs {
     private lateinit var sp: SharedPreferences
     val reader = mutableStateOf(ReaderSettings())
+    /** Apariencia de la app: "system", "dark" o "light". */
+    val appearanceState = mutableStateOf("dark")
 
     fun init(ctx: Context) {
         if (::sp.isInitialized) return
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
+        appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
     }
 
     fun setReader(s: ReaderSettings) {
@@ -158,6 +161,11 @@ object Prefs {
             brightness = sp.getFloat("reader_brightness", d.brightness),
             keepScreenOn = sp.getBoolean("reader_keep_screen_on", d.keepScreenOn),
         )
+    }
+
+    fun setAppearance(v: String) {
+        appearanceState.value = v
+        sp.edit().putString("app_appearance", v).apply()
     }
 
     // Meta anual de libros (0 = sin meta)

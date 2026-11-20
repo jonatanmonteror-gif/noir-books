@@ -114,7 +114,7 @@ fun BookCover(book: Book, modifier: Modifier = Modifier, titleSize: Int = 15) {
 
 @Composable
 fun ThinProgress(value: Float, modifier: Modifier = Modifier) {
-    Box(modifier.height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White.copy(alpha = 0.12f))) {
+    Box(modifier.height(2.dp).clip(RoundedCornerShape(1.dp)).background(NB.line)) {
         Box(Modifier.fillMaxWidth(value.coerceIn(0f, 1f)).height(2.dp).background(NB.text))
     }
 }
@@ -217,7 +217,7 @@ fun CrashReportPrompt() {
                     modifier = Modifier
                         .heightIn(max = 260.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black)
+                        .background(NB.surface)
                         .padding(10.dp)
                         .verticalScroll(rememberScrollState()),
                 )

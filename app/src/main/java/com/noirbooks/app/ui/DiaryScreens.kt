@@ -131,7 +131,7 @@ fun LogScreen() {
             Box(
                 Modifier.padding(end = 10.dp).clip(RoundedCornerShape(50)).background(NB.text)
                     .clickable { picking = true }.padding(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text("+ Apuntar lectura", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("+ Apuntar lectura", color = NB.onText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
         }
         if (list.isEmpty()) {
             Text(
@@ -242,7 +242,7 @@ fun CalendarScreen() {
             Box(
                 Modifier.padding(end = 10.dp).clip(RoundedCornerShape(50)).background(NB.text)
                     .clickable { picking = "" }.padding(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text("+ Apuntar lectura", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("+ Apuntar lectura", color = NB.onText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (month == 0) { month = 11; year-- } else month-- }) {
@@ -316,7 +316,7 @@ private fun DayCell(day: Int, book: Book?, isToday: Boolean, onClick: (() -> Uni
                 .background(if (isToday) NB.text else if (book != null) Color.Black.copy(alpha = 0.55f) else Color.Transparent)
                 .padding(horizontal = 5.dp, vertical = 1.dp),
         ) {
-            Text("$day", fontSize = 10.sp, color = if (isToday) Color.Black else NB.text2, fontWeight = FontWeight.Medium)
+            Text("$day", fontSize = 10.sp, color = if (isToday) NB.onText else if (book != null) Color.White else NB.text2, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -655,6 +655,8 @@ fun StatsScreen() {
 @Composable
 private fun BarChart(values: List<Float>, labels: List<String>, highlight: Int) {
     val max = (values.maxOrNull() ?: 0f).coerceAtLeast(0.0001f)
+    val barHi = NB.text
+    val barLo = NB.line
     Column(Modifier.padding(horizontal = 20.dp)) {
         Canvas(Modifier.fillMaxWidth().height(110.dp)) {
             val n = values.size
@@ -664,7 +666,7 @@ private fun BarChart(values: List<Float>, labels: List<String>, highlight: Int) 
                 val h = (v / max) * (size.height - 4f)
                 val x = i * (bw + gap) + gap / 2
                 drawRoundRect(
-                    color = if (i == highlight) Color(0xFFF2F2F2) else Color(0xFF3A3A3F),
+                    color = if (i == highlight) barHi else barLo,
                     topLeft = Offset(x, size.height - h.coerceAtLeast(2f)),
                     size = Size(bw, h.coerceAtLeast(2f)),
                     cornerRadius = CornerRadius(3f, 3f),

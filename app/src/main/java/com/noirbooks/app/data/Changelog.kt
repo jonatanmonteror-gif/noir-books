@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.12", "20 nov 2026", listOf(
+            "Apariencia clara u oscura para la app (o como el sistema), en Ajustes → Apariencia",
+        )),
         Entry("1.0.11", "20 nov 2026", listOf(
             "Al añadir un libro eliges cuándo lo vas a leer: lo empiezo ahora, será mi próximo libro, para más adelante o ya leído",
             "Nuevo estado «Próximo» en la biblioteca y en la ficha del libro",
