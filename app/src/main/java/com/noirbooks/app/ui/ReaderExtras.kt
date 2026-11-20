@@ -58,13 +58,17 @@ import kotlinx.coroutines.delay
 /** Valoración en medias estrellas: tocar la mitad izquierda de una estrella da media; la derecha, la entera. */
 @Composable
 fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: ((Float) -> Unit)? = null) {
+    // Valores siempre al día dentro del gesto (antes se quedaba con el primero y no dejaba quitar la nota)
+    val current by androidx.compose.runtime.rememberUpdatedState(value)
+    val change by androidx.compose.runtime.rememberUpdatedState(onChange)
+    Row(verticalAlignment = Alignment.CenterVertically) {
     Row(
         Modifier
             .then(if (onChange != null) Modifier.pointerInput(Unit) {
                 detectTapGestures { o ->
                     val raw = (o.x / this.size.width.coerceAtLeast(1)) * 5f
                     val q = (kotlin.math.ceil(raw * 2f) / 2f).coerceIn(0.5f, 5f)
-                    onChange(if (q == value) 0f else q)
+                    change?.invoke(if (q == current) 0f else q)
                 }
             } else Modifier),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -83,6 +87,15 @@ fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: (
                 }
             }
         }
+    }
+    // Quitar la valoración (por si se toca sin querer)
+    if (onChange != null && value > 0f) {
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "Quitar", color = color.copy(alpha = 0.6f), fontSize = 13.sp,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChange(0f) }.padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    }
     }
 }
 

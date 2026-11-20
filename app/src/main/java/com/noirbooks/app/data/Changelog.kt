@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.36", "21 nov 2026", listOf(
+            "Quitar la valoración de un libro: botón Quitar junto a las estrellas (o tocar otra vez la misma nota)",
+        )),
         Entry("1.0.35", "20 nov 2026", listOf(
             "Biblioteca en tres pestañas: Inicio, Biblioteca y Estanterías",
             "Inicio al estilo Kindle: lo que lees, tus 8 libros más recientes, tus estados y tus estanterías",
