@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.18", "20 nov 2026", listOf(
+            "Carrusel de «Seguir leyendo»: asoman la tarjeta anterior y la siguiente, y ya no salta al deslizar",
+        )),
         Entry("1.0.17", "20 nov 2026", listOf(
             "Si lees varios libros a la vez, «Seguir leyendo» es un carrusel: desliza y la siguiente tarjeta asoma por la derecha",
             "La meta anual solo cuenta los libros marcados como leídos, una vez cada uno",

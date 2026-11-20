@@ -175,11 +175,12 @@ fun LibraryScreen() {
                         val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
                         androidx.compose.foundation.pager.HorizontalPager(
                             state = pager,
-                            contentPadding = PaddingValues(end = 26.dp),
-                            pageSpacing = 10.dp,
+                            // Margen a los dos lados: asoman la tarjeta anterior y la siguiente.
+                            contentPadding = PaddingValues(horizontal = 18.dp),
+                            pageSpacing = 8.dp,
                             key = { reading[it].id },
                             modifier = Modifier.fillMaxWidth(),
-                        ) { i -> ContinueCard(reading[i], cpm, onOpen = { open(reading[i]) }) }
+                        ) { i -> ContinueCard(reading[i], cpm, onOpen = { open(reading[i]) }, fixedHeight = true) }
                     }
                 }
             }
@@ -257,10 +258,11 @@ fun LibraryScreen() {
 }
 
 @Composable
-private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
+private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boolean = false) {
     val left = (b.totalChars * (1f - b.progress)).toInt()
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(Brush.horizontalGradient(listOf(NB.surface2, NB.surface)))
             .clickable(onClick = onOpen).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -270,8 +272,11 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(if (b.isEpub) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
-            Text(b.title, fontFamily = Playfair, fontSize = 21.sp, lineHeight = 25.sp, color = NB.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (b.author.isNotBlank()) Text(b.author, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // En el carrusel todas las tarjetas miden lo mismo (título en una línea y autor siempre),
+            // para que la pantalla no salte al deslizar.
+            Text(b.title, fontFamily = Playfair, fontSize = 21.sp, lineHeight = 25.sp, color = NB.text,
+                maxLines = if (fixedHeight) 1 else 2, overflow = TextOverflow.Ellipsis)
+            if (b.author.isNotBlank() || fixedHeight) Text(b.author.ifBlank { " " }, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
             ThinProgress(b.progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
