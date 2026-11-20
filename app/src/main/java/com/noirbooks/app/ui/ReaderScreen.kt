@@ -284,15 +284,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     }
     // Si el libro no trae las páginas de la edición en papel, se busca una vez cuántas tiene en el catálogo.
     LaunchedEffect(c.bookId) {
-        val b = book ?: return@LaunchedEffect
-        if (c.epub.pageList.isEmpty() && b.pages == 0 && !Prefs.pagesLookedUp(b.id)) {
-            Prefs.markPagesLookedUp(b.id)
-            val found = runCatching { com.noirbooks.app.data.BookSearch.search("${b.title} ${b.author}".trim()) }.getOrDefault(emptyList())
-            val t = fold(b.title).take(18)
-            found.firstOrNull { it.pages > 40 && fold(it.title).startsWith(t) }?.let { f ->
-                Library.update(b.id) { it.copy(pages = f.pages) }
-            }
-        }
+        if (book != null) Library.ensurePaperPages(c.bookId)
     }
     // Abrir el libro desde una cita: ir a esa cita en cuanto el capítulo esté listo.
     LaunchedEffect(c.ready) {

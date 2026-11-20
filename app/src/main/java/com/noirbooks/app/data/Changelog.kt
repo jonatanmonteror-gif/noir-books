@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.37", "21 nov 2026", listOf(
+            "Páginas de la edición en papel automáticas: se buscan solas por ISBN o por título y autor",
+            "También para los libros que ya tenías, en segundo plano",
+            "En la ficha: «412 páginas en papel». Si tu edición tiene otras, cámbialas en el menú del libro",
+        )),
         Entry("1.0.36", "21 nov 2026", listOf(
             "Quitar la valoración de un libro: botón Quitar junto a las estrellas (o tocar otra vez la misma nota)",
         )),

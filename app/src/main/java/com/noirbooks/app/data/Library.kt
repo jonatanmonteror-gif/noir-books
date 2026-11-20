@@ -117,6 +117,8 @@ data class Book(
     val format: BookFormat = BookFormat.Epub,
     /** Páginas del libro (papel) o posiciones totales (Kindle), si se conocen. */
     val pages: Int = 0,
+    /** Las páginas en papel se buscaron solas en el catálogo (false si las puso el usuario). */
+    val pagesAuto: Boolean = false,
     val unit: ProgressUnit = ProgressUnit.Percent,
     /** Progreso apuntado a mano (0..1) para libros que no se leen en la app. */
     val manualProgress: Float = 0f,
@@ -285,6 +287,7 @@ object Library {
                 chapterLengths = lengths,
                 hasCover = hasCover,
                 description = epub.description, publisher = epub.publisher, year = epub.year,
+                isbn = epub.isbn,
             )
             lock.withLock {
                 books.value = books.value + book
@@ -374,6 +377,31 @@ object Library {
             d = runCatching { BookSearch.description(b.title, b.author, b.isbn) }.getOrDefault("")
         }
         if (d.isNotBlank()) update(id) { it.copy(description = d) }
+    }
+
+    /**
+     * Páginas de la edición en papel de un EPUB que no las trae: se buscan una vez en Google Books / Open Library
+     * (por ISBN o por título y autor). Si no hay conexión se reintenta otro día; si no aparece, se queda la estimación.
+     */
+    suspend fun ensurePaperPages(id: String) = withContext(Dispatchers.IO) {
+        val b = get(id) ?: return@withContext
+        if (!b.isEpub || b.pages > 0 || Prefs.paperLookedUp(id)) return@withContext
+        val epub = runCatching { Epub.open(epubOf(id)) }.getOrNull()
+        if (epub != null && epub.pageList.isNotEmpty()) { Prefs.markPaperLookedUp(id); return@withContext }
+        val isbn = b.isbn.ifBlank { epub?.isbn.orEmpty() }
+        val n = try {
+            BookSearch.paperPages(b.title, b.author, isbn, epub?.language.orEmpty())
+        } catch (e: Exception) {
+            return@withContext // sin conexión: se intentará más adelante
+        }
+        Prefs.markPaperLookedUp(id)
+        if (n > 0) update(id) { if (it.pages > 0) it else it.copy(pages = n, pagesAuto = true, isbn = it.isbn.ifBlank { isbn }) }
+    }
+
+    /** Busca las páginas en papel de todos los EPUB que aún no las tienen (en segundo plano, de uno en uno). */
+    suspend fun ensureAllPaperPages() {
+        books.value.filter { it.isEpub && !it.inTrash && it.pages == 0 && !Prefs.paperLookedUp(it.id) }
+            .forEach { runCatching { ensurePaperPages(it.id) }; kotlinx.coroutines.delay(400) }
     }
 
     // ---- Estanterías propias ----
@@ -593,7 +621,7 @@ object Library {
                 put("status", b.status.key); put("rating", b.rating.toDouble())
                 put("abandonReason", b.abandonReason); put("review", b.review)
                 put("hasCover", b.hasCover); put("deletedAt", b.deletedAt)
-                put("format", b.format.key); put("pages", b.pages); put("unit", b.unit.key)
+                put("format", b.format.key); put("pages", b.pages); put("pagesAuto", b.pagesAuto); put("unit", b.unit.key)
                 put("manualProgress", b.manualProgress.toDouble()); put("isbn", b.isbn)
                 put("publisher", b.publisher); put("year", b.year); put("description", b.description)
                 put("shelves", JSONArray(b.shelves))
@@ -687,6 +715,7 @@ object Library {
                 deletedAt = o.optLong("deletedAt"),
                 format = format,
                 pages = o.optInt("pages"),
+                pagesAuto = o.optBoolean("pagesAuto"),
                 unit = ProgressUnit.of(o.optString("unit")),
                 manualProgress = o.optDouble("manualProgress", 0.0).toFloat(),
                 isbn = o.optString("isbn"),

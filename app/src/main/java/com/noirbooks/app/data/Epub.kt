@@ -38,6 +38,8 @@ class EpubBook(
     val description: String = "",
     val publisher: String = "",
     val year: String = "",
+    /** ISBN de la edición, si el EPUB lo trae entre sus identificadores. */
+    val isbn: String = "",
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -113,6 +115,7 @@ object Epub {
             val ids = meta?.select("dc|identifier, identifier").orEmpty()
             val uniqueId = (ids.firstOrNull { it.attr("id") == uidRef } ?: ids.firstOrNull())?.text()?.trim().orEmpty()
             val uuidId = ids.map { it.text().trim() }.firstOrNull { it.startsWith("urn:uuid:", true) }.orEmpty()
+            val isbn = ids.map { it.text() }.firstNotNullOfOrNull { isbnOf(it) }.orEmpty()
             // Páginas de la edición en papel (EPUB 3 page-list o pageList del NCX).
             var pages = emptyList<PageMark>()
             manifestById.values.firstOrNull { "nav" in it.properties.split(' ') }?.let { nav ->
@@ -123,7 +126,7 @@ object Epub {
                 if (ncx != null) pages = runCatching { parseNcxPages(z, ncx.href) }.getOrDefault(emptyList())
             }
             EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages,
-                description = description, publisher = publisher, year = year)
+                description = description, publisher = publisher, year = year, isbn = isbn)
         }
     }
 
@@ -309,4 +312,19 @@ fun decodeText(bytes: ByteArray): String {
     var s = String(bytes, cs)
     if (s.startsWith('﻿')) s = s.substring(1)
     return s
+}
+
+/** Saca un ISBN válido (13 o 10 cifras) de un identificador como "urn:isbn:978-84-..." o "9788420412146". */
+fun isbnOf(raw: String): String? {
+    val d = raw.uppercase().filter { it.isDigit() || it == 'X' }
+    if (d.length == 13 && (d.startsWith("978") || d.startsWith("979")) && d.all { it.isDigit() }) {
+        val sum = d.take(12).mapIndexed { i, c -> (c - '0') * if (i % 2 == 0) 1 else 3 }.sum()
+        if ((10 - sum % 10) % 10 == d[12] - '0') return d
+    }
+    if (d.length == 10 && d.take(9).all { it.isDigit() }) {
+        val sum = d.take(9).mapIndexed { i, c -> (c - '0') * (10 - i) }.sum()
+        val check = (11 - sum % 11) % 11
+        if ((if (check == 10) 'X' else '0' + check) == d[9]) return d
+    }
+    return null
 }

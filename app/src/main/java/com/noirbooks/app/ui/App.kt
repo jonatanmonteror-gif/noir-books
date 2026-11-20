@@ -201,6 +201,8 @@ fun App() {
         val snack = remember { SnackbarHostState() }
 
         LaunchedEffect(Unit) {
+            // Páginas en papel de los libros que aún no las tienen (sin prisa, en segundo plano)
+            AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllPaperPages() }
             val ts = com.noirbooks.app.data.Prefs.timerStart
             val tb = com.noirbooks.app.data.Prefs.timerBook
             if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) {

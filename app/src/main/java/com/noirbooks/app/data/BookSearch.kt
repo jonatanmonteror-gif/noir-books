@@ -52,6 +52,42 @@ object BookSearch {
             ?.description.orEmpty()
     }
 
+    /**
+     * Número de páginas de la edición en papel. Con ISBN se pide esa edición exacta; si no, se juntan las ediciones
+     * con el mismo título y autor (en el idioma del libro si se puede) y se toma la mediana. 0 si no aparece.
+     * Lanza excepción si no hay conexión.
+     */
+    suspend fun paperPages(title: String, author: String, isbn: String, language: String): Int = withContext(Dispatchers.IO) {
+        if (isbn.isNotBlank()) {
+            val g = runCatching { google("isbn:$isbn") }
+            val byIsbn = g.getOrDefault(emptyList()).firstOrNull { it.pages > 40 }?.pages
+                ?: runCatching { openLibraryIsbn(isbn) }.getOrDefault(0)
+            if (byIsbn > 40) return@withContext byIsbn
+            g.exceptionOrNull()?.let { if (it is java.io.IOException) throw it }
+        }
+        val t = key(title.substringBefore(':').substringBefore('(')).take(16)
+        if (t.length < 3) return@withContext 0
+        val surname = key(author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
+        val q = "intitle:${title.substringBefore(':')}" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
+        val g = runCatching { google(q) }
+        val o = runCatching { openLibrary("${title.substringBefore(':')} ${author.substringBefore(',')}".trim()) }
+        if (g.isFailure && o.isFailure) throw (g.exceptionOrNull() ?: java.io.IOException("Sin conexión"))
+        val all = (g.getOrDefault(emptyList()) + o.getOrDefault(emptyList())).filter { f ->
+            f.pages in 41..3000 && key(f.title).startsWith(t) &&
+                (surname.length < 3 || key(f.author).contains(surname))
+        }
+        if (all.isEmpty()) return@withContext 0
+        val lang = language.lowercase().take(2)
+        val sameLang = all.filter { lang.isNotBlank() && (it.language.startsWith(lang) || (lang == "es" && it.language == "spa") || (lang == "en" && it.language == "eng")) }
+        val pool = (sameLang.ifEmpty { all }).map { it.pages }.sorted()
+        pool[pool.size / 2]
+    }
+
+    private suspend fun openLibraryIsbn(isbn: String): Int {
+        val json = Http.get("https://openlibrary.org/isbn/$isbn.json")
+        return JSONObject(json).optInt("number_of_pages")
+    }
+
     private fun key(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "").replace(Regex("[^a-z0-9]"), "")
 

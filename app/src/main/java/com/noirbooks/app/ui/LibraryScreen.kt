@@ -499,14 +499,17 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
             title = { Text("Páginas en papel", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
             text = {
                 Column {
-                    Text("Con las páginas de tu edición, el lector te dice por qué página del libro irías.", color = NB.text2, fontSize = 14.sp)
+                    Text(
+                        if (b.pagesAuto) "Se han buscado solas en el catálogo. Si tu edición tiene otras, cámbialas aquí."
+                        else "Con las páginas de tu edición, el lector te dice por qué página del libro irías.",
+                        color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(t, { t = it.filter(Char::isDigit).take(5) }, singleLine = true, label = { Text("Páginas") },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text))
                 }
             },
-            confirmButton = { TextButton(onClick = { scope.launch { Library.update(b.id) { it.copy(pages = t.toIntOrNull() ?: 0) } }; editPages = false }) { Text("Guardar", color = NB.text) } },
+            confirmButton = { TextButton(onClick = { scope.launch { Library.update(b.id) { it.copy(pages = t.toIntOrNull() ?: 0, pagesAuto = false) } }; editPages = false }) { Text("Guardar", color = NB.text) } },
             dismissButton = { TextButton(onClick = { editPages = false }) { Text("Cancelar", color = NB.text2) } },
         )
         return
