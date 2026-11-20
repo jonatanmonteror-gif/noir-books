@@ -628,6 +628,11 @@ fun TimerText(start: Long, prefix: String = "", color: Color = NB.text, size: In
 @Composable
 fun PlayPauseButton(bookId: String, size: Int = 36) {
     val running = AppState.timer.value?.first == bookId
+    val ctx = LocalContext.current
+    // Android 13+: permiso para la notificación del cronómetro (si se niega, el cronómetro funciona igual dentro de la app).
+    val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) AppState.timer.value?.let { com.noirbooks.app.data.TimerNotification.show(it.first, it.second) }
+    }
     Box(
         Modifier.size(size.dp).clip(androidx.compose.foundation.shape.CircleShape)
             .background(if (running) NB.text else Color.Transparent)
@@ -638,6 +643,9 @@ fun PlayPauseButton(bookId: String, size: Int = 36) {
                     if (AppState.timer.value != null) AppState.stopTimer()
                     AppState.startTimer(bookId)
                     AppState.toast("Contando tu tiempo de lectura. Pulsa pausa al terminar.")
+                    if (!com.noirbooks.app.data.TimerNotification.canNotify(ctx) && android.os.Build.VERSION.SDK_INT >= 33) {
+                        askNotify.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
             },
         contentAlignment = Alignment.Center,
@@ -661,9 +669,11 @@ fun DeleteReadingDialog(bookId: String, session: com.noirbooks.app.data.Session?
     val title = Library.get(bookId)?.title ?: "este libro"
     val total = Stats.secondsForBook(bookId)
     var confirmAll by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    if (editing && session != null) { EditSessionDialog(session, onDismiss = onDismiss); return }
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = NB.surface2,
-        title = { Text(if (confirmAll) "¿Borrar todo lo leído?" else "Borrar lectura", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (confirmAll) "¿Borrar todo lo leído?" else "Lectura", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
                 if (confirmAll) {
@@ -672,6 +682,7 @@ fun DeleteReadingDialog(bookId: String, session: com.noirbooks.app.data.Session?
                 } else {
                     Text("El progreso del libro no cambia.", color = NB.text3, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
+                    if (session != null) MenuRow("Editar esta lectura") { editing = true }
                     if (session != null) MenuRow("Borrar esta lectura (${durationLabel(session.seconds)})") {
                         Stats.deleteSession(session.id); AppState.toast("Lectura borrada"); onDismiss()
                     }
@@ -730,5 +741,73 @@ fun PendingReadingPrompt() {
             }
         },
         confirmButton = {},
+    )
+}
+
+/** Corregir una lectura: día, de qué hora a qué hora y páginas. */
+@Composable
+fun EditSessionDialog(s: com.noirbooks.app.data.Session, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val hm = remember { SimpleDateFormat("HH:mm", ES) }
+    val dayFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", ES) }
+    var end by remember { mutableLongStateOf(s.end) }
+    var start by remember { mutableLongStateOf(s.start) }
+    var pages by remember { mutableStateOf(if (s.pages > 0) s.pages.toString() else "") }
+    val effStart = if (start > end) start - 24 * 3600_000L else start
+    val seconds = ((end - effStart) / 1000).coerceIn(0, 16 * 3600)
+
+    fun pickDate() {
+        val c = Calendar.getInstance().apply { timeInMillis = end }
+        DatePickerDialog(ctx, { _, y, m, d ->
+            val dur = end - start
+            end = Calendar.getInstance().apply { timeInMillis = end; set(y, m, d) }.timeInMillis
+            start = end - dur
+        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).apply {
+            datePicker.maxDate = System.currentTimeMillis()
+        }.show()
+    }
+    fun pickTime(t: Long, onPick: (Long) -> Unit) {
+        val c = Calendar.getInstance().apply { timeInMillis = t }
+        TimePickerDialog(ctx, { _, h, m ->
+            onPick(Calendar.getInstance().apply { timeInMillis = end; set(Calendar.HOUR_OF_DAY, h); set(Calendar.MINUTE, m); set(Calendar.SECOND, 0) }.timeInMillis)
+        }, c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = {
+            Column {
+                Text("Editar lectura", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+                Text(Library.get(s.bookId)?.title.orEmpty(), fontSize = 14.sp, color = NB.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        text = {
+            Column {
+                TapField("Día", dayFmt.format(Date(end)).replaceFirstChar { it.uppercase() }) { pickDate() }
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    TapField("De", hm.format(Date(start)), Modifier.weight(1f)) { pickTime(start) { start = it } }
+                    Spacer(Modifier.width(10.dp))
+                    TapField("A", hm.format(Date(end)), Modifier.weight(1f)) { pickTime(end) { end = it } }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(if (seconds >= 60) "${durationLabel(seconds)} de lectura" else "Elige la hora de inicio y de fin", color = NB.text2, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    pages, { pages = it.filter(Char::isDigit).take(5) }, label = { Text("Páginas leídas") },
+                    singleLine = true, colors = field(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("El progreso del libro no cambia.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = seconds >= 60, onClick = {
+                Stats.editSession(s.id, effStart, seconds, pages.toIntOrNull() ?: 0)
+                AppState.toast("Lectura corregida")
+                onDismiss()
+            }) { Text("Guardar", color = NB.text, fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
     )
 }

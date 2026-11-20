@@ -5,6 +5,14 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.21", "20 nov 2026", listOf(
+            "Copia de seguridad en un archivo (con o sin los EPUB) y restaurarla en este u otro móvil: Ajustes → Copia de seguridad",
+            "Exportar tus datos en tablas CSV: libros, lecturas, lectura por día, citas y palabras",
+            "Editar una lectura del registro (día, horas y páginas) manteniéndola pulsada",
+            "El cronómetro de lectura aparece en una notificación, con «Terminar»",
+            "Meta anual por libros, horas o páginas",
+            "Buscador en Citas",
+        )),
         Entry("1.0.20", "20 nov 2026", listOf("Valoración en medias estrellas: 0,5, 1, 1,5… hasta 5")),
         Entry("1.0.19", "20 nov 2026", listOf(
             "Tocar un libro abre su ficha a pantalla completa: portada, sinopsis, progreso y tu lectura (el libro ya no se abre solo)",

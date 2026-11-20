@@ -40,6 +40,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -135,12 +137,12 @@ fun LogScreen() {
         }
         if (list.isEmpty()) {
             Text(
-                "Aquí aparecerá cada lectura: lo que leas en la app y lo que apuntes de Kindle o papel. Mantén pulsada una lectura para borrarla.",
+                "Aquí aparecerá cada lectura: lo que leas en la app y lo que apuntes de Kindle o papel. Mantén pulsada una lectura para editarla o borrarla.",
                 color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(20.dp),
             )
             return@Column
         }
-        Text("Mantén pulsada una lectura para borrarla.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
+        Text("Mantén pulsada una lectura para editarla o borrarla.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
             list.groupBy { Stats.dayOf(it.start) }.forEach { (day, items) ->
                 item(key = "d$day") {
@@ -396,7 +398,10 @@ fun QuotesScreen() {
     var defineWord by remember { mutableStateOf<String?>(null) }
 
     val all = books.filter { !it.inTrash }.flatMap { b -> b.highlights.map { b to it } }.sortedByDescending { it.second.id }
+    var search by rememberSaveable { mutableStateOf("") }
+    val sq = fold(search.trim())
     val shown = all.filter { color < 0 || it.second.color == color }
+        .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) || fold(b.author).contains(sq) }
     val daily = remember(all.size) {
         if (all.isEmpty()) null else all[(Stats.today().hashCode() and 0x7fffffff) % all.size]
     }
@@ -439,6 +444,17 @@ fun QuotesScreen() {
                     }
                 }
                 item(key = "filters") {
+                    OutlinedTextField(
+                        value = search, onValueChange = { search = it },
+                        placeholder = { Text("Buscar en tus citas", color = NB.text3) },
+                        singleLine = true, shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line,
+                            focusedContainerColor = NB.surface, unfocusedContainerColor = NB.surface, cursorColor = NB.text,
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    )
+                    Spacer(Modifier.height(10.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip("Todas", color < 0) { color = -1 }
                         HighlightColor.entries.forEach { hc ->
@@ -494,7 +510,7 @@ fun QuotesScreen() {
             onDismiss = { open = null },
             onOpen = if (!b.isEpub || h.range.isBlank()) null else ({
                 AppState.jumpTo.value = b.id to h
-                AppState.screen.value = Screen.Reader(b.id)
+                AppState.openBook(b)
                 open = null
             }),
         )
@@ -528,7 +544,8 @@ fun StatsScreen() {
     val books by Library.books
     val now = remember { Calendar.getInstance() }
     var year by rememberSaveable { mutableIntStateOf(now.get(Calendar.YEAR)) }
-    var goal by remember { mutableIntStateOf(Prefs.yearGoal) }
+    var goalKind by remember { mutableStateOf(Prefs.goalKind) }
+    var goal by remember { mutableIntStateOf(when (Prefs.goalKind) { "hours" -> Prefs.goalHours; "pages" -> Prefs.goalPages; else -> Prefs.yearGoal }) }
     var editGoal by remember { mutableStateOf(false) }
     val all = remember(statsVersion) { Stats.all() }
     val streak = remember(statsVersion) { Stats.streak() }
@@ -564,24 +581,28 @@ fun StatsScreen() {
         ) {
             Text("META DE $year", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
+            // La meta puede ser de libros terminados, horas o páginas.
+            val current = when (goalKind) { "hours" -> (seconds / 3600).toInt(); "pages" -> pages; else -> finished.size }
+            val unit = when (goalKind) { "hours" -> "horas"; "pages" -> "páginas"; else -> "libros" }
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("${finished.size}", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = NB.text)
-                Text(if (goal > 0) " de $goal libros" else " libros terminados", fontFamily = Inter, fontSize = 15.sp, color = NB.text2,
-                    modifier = Modifier.padding(bottom = 8.dp))
+                Text("$current", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, color = NB.text)
+                Text(if (goal > 0) " de $goal $unit" else " " + when (goalKind) { "hours" -> "horas leídas"; "pages" -> "páginas leídas"; else -> "libros terminados" },
+                    fontFamily = Inter, fontSize = 15.sp, color = NB.text2, modifier = Modifier.padding(bottom = 8.dp))
             }
             if (goal > 0) {
                 Spacer(Modifier.height(8.dp))
-                ThinProgress((finished.size.toFloat() / goal).coerceAtMost(1f), Modifier.fillMaxWidth())
+                ThinProgress((current.toFloat() / goal).coerceAtMost(1f), Modifier.fillMaxWidth())
                 if (year == now.get(Calendar.YEAR)) {
                     val dayOfYear = now.get(Calendar.DAY_OF_YEAR)
                     val expected = goal * dayOfYear / 365f
-                    val diff = finished.size - expected
+                    val diff = current - expected
+                    val slack = when (goalKind) { "hours" -> 3f; "pages" -> 100f; else -> 1f }
                     Spacer(Modifier.height(8.dp))
                     Text(
                         when {
-                            diff >= 0.5f -> "Vas por delante de tu ritmo"
-                            diff > -1f -> "Vas a buen ritmo"
-                            else -> "Te faltan unos ${(-diff).toInt().coerceAtLeast(1)} libros para ir al día; sin prisa"
+                            diff >= slack / 2 -> "Vas por delante de tu ritmo"
+                            diff > -slack -> "Vas a buen ritmo"
+                            else -> "Te faltan unos ${(-diff).toInt().coerceAtLeast(1)} $unit para ir al día; sin prisa"
                         },
                         fontSize = 13.sp, color = NB.text3, fontFamily = Inter,
                     )
@@ -635,20 +656,37 @@ fun StatsScreen() {
     }
 
     if (editGoal) {
+        var kind by remember { mutableStateOf(goalKind) }
+        fun saved(k: String) = when (k) { "hours" -> Prefs.goalHours; "pages" -> Prefs.goalPages; else -> Prefs.yearGoal }
         var v by remember { mutableIntStateOf(goal) }
+        val step = when (kind) { "hours" -> 5; "pages" -> 250; else -> 1 }
+        val maxV = when (kind) { "hours" -> 2000; "pages" -> 100_000; else -> 365 }
         AlertDialog(
             onDismissRequest = { editGoal = false },
             containerColor = NB.surface2,
-            title = { Text("Meta de libros en el año", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            title = { Text("Meta del año", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
             text = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                    PillButton("−") { v = (v - 1).coerceAtLeast(0) }
-                    Text(if (v == 0) "Sin meta" else "$v", fontFamily = InterDisplay, fontSize = 28.sp, color = NB.text,
-                        textAlign = TextAlign.Center, modifier = Modifier.width(120.dp))
-                    PillButton("+") { v = (v + 1).coerceAtMost(365) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("books" to "Libros", "hours" to "Horas", "pages" to "Páginas").forEach { (k, l) ->
+                            Chip(l, kind == k) { if (kind != k) { kind = k; v = saved(k) } }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                        PillButton("−") { v = (v - step).coerceAtLeast(0) }
+                        Text(if (v == 0) "Sin meta" else "$v", fontFamily = InterDisplay, fontSize = 28.sp, color = NB.text,
+                            textAlign = TextAlign.Center, modifier = Modifier.width(130.dp))
+                        PillButton("+") { v = (v + step).coerceAtMost(maxV) }
+                    }
+                    Text(when (kind) { "hours" -> "horas de lectura"; "pages" -> "páginas"; else -> "libros terminados" },
+                        color = NB.text3, fontSize = 13.sp)
                 }
             },
-            confirmButton = { TextButton(onClick = { goal = v; Prefs.yearGoal = v; editGoal = false }) { Text("Guardar", color = NB.text, fontWeight = FontWeight.SemiBold) } },
+            confirmButton = { TextButton(onClick = {
+                when (kind) { "hours" -> Prefs.goalHours = v; "pages" -> Prefs.goalPages = v; else -> Prefs.yearGoal = v }
+                Prefs.goalKind = kind; goalKind = kind; goal = v; editGoal = false
+            }) { Text("Guardar", color = NB.text, fontWeight = FontWeight.SemiBold) } },
             dismissButton = { TextButton(onClick = { editGoal = false }) { Text("Cancelar", color = NB.text2) } },
         )
     }

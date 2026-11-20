@@ -133,6 +133,20 @@ object Stats {
         flush()
     }
 
+    /** Corrige una lectura del registro (día, horas o páginas): se resta la antigua y se suma la nueva. */
+    @Synchronized
+    fun editSession(id: Long, start: Long, seconds: Long, pages: Int) {
+        val i = sessions.indexOfFirst { it.id == id }
+        if (i < 0 || seconds <= 0) return
+        val s = sessions[i]
+        spread(s.bookId, s.start, s.seconds, s.pages, -1)
+        spread(s.bookId, start, seconds, pages.coerceAtLeast(0), 1)
+        sessions[i] = s.copy(start = start, seconds = seconds, pages = pages.coerceAtLeast(0))
+        data.entries.removeAll { it.value.seconds <= 0 && it.value.pages <= 0 }
+        saveSessions()
+        flush()
+    }
+
     /** Borra todo lo leído de un libro: registro, calendario y estadísticas. */
     @Synchronized
     fun deleteBook(bookId: String) {
@@ -184,7 +198,7 @@ object Stats {
 
     @Synchronized
     fun flush() {
-        if (!dirty || !::file.isInitialized) return
+        if (!dirty || !::file.isInitialized || Backup.restoring) return
         runCatching {
             val o = JSONObject()
             data.values.forEach { d ->
@@ -199,7 +213,7 @@ object Stats {
     }
 
     private fun saveSessions() {
-        if (!::sessionsFile.isInitialized) return
+        if (!::sessionsFile.isInitialized || Backup.restoring) return
         runCatching {
             val arr = org.json.JSONArray()
             sessions.forEach { x ->

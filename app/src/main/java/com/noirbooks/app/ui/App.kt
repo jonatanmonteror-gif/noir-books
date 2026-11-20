@@ -66,8 +66,13 @@ object AppState {
     /** La lectura sin guardar de una sesión anterior solo se pregunta una vez al arrancar la app. */
     var pendingChecked = false
 
-    fun openBook(b: com.noirbooks.app.data.Book) {
-        if (b.isEpub) screen.value = Screen.Reader(b.id) else bookMenu.value = b.id
+    fun openBook(b: com.noirbooks.app.data.Book, from: Screen? = null) {
+        when {
+            !b.isEpub -> bookMenu.value = b.id
+            com.noirbooks.app.data.Library.fileMissing(b) ->
+                toast("Falta el archivo de este libro. Impórtalo otra vez (el mismo EPUB) y recuperas todo")
+            else -> screen.value = Screen.Reader(b.id, from)
+        }
     }
 
     fun startTimer(bookId: String) {
@@ -75,18 +80,23 @@ object AppState {
         com.noirbooks.app.data.Prefs.timerBook = bookId
         com.noirbooks.app.data.Prefs.timerStart = now
         timer.value = bookId to now
+        com.noirbooks.app.data.TimerNotification.show(bookId, now)
     }
 
     fun stopTimer() {
-        val t = timer.value ?: return
+        // Si la app se cerró, el cronómetro sigue guardado en preferencias.
+        val t = timer.value ?: com.noirbooks.app.data.Prefs.timerStart.takeIf { it > 0L }
+            ?.let { com.noirbooks.app.data.Prefs.timerBook to it } ?: return
         com.noirbooks.app.data.Prefs.timerStart = 0L
         timer.value = null
+        com.noirbooks.app.data.TimerNotification.cancel()
         logSession.value = LogRequest(t.first, t.second, System.currentTimeMillis())
     }
 
     fun discardTimer() {
         com.noirbooks.app.data.Prefs.timerStart = 0L
         timer.value = null
+        com.noirbooks.app.data.TimerNotification.cancel()
     }
     val importing = mutableIntStateOf(0)
     val update = mutableStateOf<UpdateState>(UpdateState.Idle)
@@ -151,7 +161,10 @@ fun App() {
         LaunchedEffect(Unit) {
             val ts = com.noirbooks.app.data.Prefs.timerStart
             val tb = com.noirbooks.app.data.Prefs.timerBook
-            if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) AppState.timer.value = tb to ts
+            if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) {
+                AppState.timer.value = tb to ts
+                com.noirbooks.app.data.TimerNotification.show(tb, ts)
+            }
             for (m in AppState.messages) snack.showSnackbar(m)
         }
         val resume by AppState.resumeCount

@@ -118,6 +118,11 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                         Spacer(Modifier.height(10.dp))
                         ThinProgress(b.progress, Modifier.fillMaxWidth())
                     }
+                    if (Library.fileMissing(b)) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("Falta el archivo de este libro (viene de una copia sin los EPUB). Impórtalo otra vez y recuperas todo.",
+                            color = NB.text2, fontSize = 13.sp, lineHeight = 18.sp)
+                    }
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (b.isEpub) {
@@ -126,7 +131,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                                 BookStatus.Read -> "Volver a leer"
                                 else -> "Empezar a leer"
                             }
-                            Chip(label, true) { AppState.screen.value = Screen.Reader(b.id, from = Screen.Book(b.id)) }
+                            Chip(label, true) { AppState.openBook(b, from = Screen.Book(b.id)) }
                         } else {
                             Chip("Apuntar lectura", true) { AppState.logSession.value = LogRequest(b.id) }
                         }

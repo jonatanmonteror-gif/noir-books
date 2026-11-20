@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
         Prefs.init(this)
         Library.init(this)
         com.noirbooks.app.data.Stats.init(this)
+        com.noirbooks.app.data.TimerNotification.init(this)
         enableEdgeToEdge()
         setContent { App() }
         if (savedInstanceState == null) handleIntent(intent)
@@ -46,6 +47,11 @@ class MainActivity : ComponentActivity() {
     /** "Abrir con" o "Compartir" un .epub desde otra app: se importa y, si es uno solo, se abre. */
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+        if (intent.action == com.noirbooks.app.data.TimerNotification.ACTION_STOP) {
+            AppState.screen.value = com.noirbooks.app.ui.Screen.Library
+            AppState.stopTimer()
+            return
+        }
         val uris = mutableListOf<Uri>()
         when (intent.action) {
             Intent.ACTION_VIEW -> intent.data?.let { uris += it }

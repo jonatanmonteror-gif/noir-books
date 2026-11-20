@@ -225,6 +225,12 @@ object Library {
     fun coverOf(id: String) = File(dirOf(id), "cover.jpg")
     fun get(id: String): Book? = books.value.firstOrNull { it.id == id }
 
+    /** ¿Falta el archivo EPUB? (copia restaurada sin los libros). */
+    fun fileMissing(b: Book): Boolean = b.isEpub && !epubOf(b.id).exists()
+
+    /** Carpeta raíz de la biblioteca (para las copias de seguridad). */
+    val rootDir: File get() = root
+
     sealed class ImportResult {
         data class Added(val book: Book) : ImportResult()
         data class Existing(val book: Book) : ImportResult()
@@ -242,6 +248,13 @@ object Library {
             }
             val id = sha1(tmp).take(16)
             get(id)?.let { existing ->
+                if (existing.isEpub && !epubOf(id).exists()) {
+                    // Libro que venía de una copia sin el archivo: se recupera con todo su progreso.
+                    dirOf(id).mkdirs()
+                    if (!tmp.renameTo(epubOf(id))) { tmp.copyTo(epubOf(id), overwrite = true); tmp.delete() }
+                    update(id) { it.copy(deletedAt = 0L) }
+                    return@withContext ImportResult.Added(existing)
+                }
                 tmp.delete()
                 if (existing.inTrash) {
                     update(id) { it.copy(deletedAt = 0L) }
@@ -520,6 +533,7 @@ object Library {
     }
 
     private fun save() {
+        if (Backup.restoring) return
         val arr = JSONArray()
         books.value.forEach { b ->
             arr.put(JSONObject().apply {
@@ -567,7 +581,8 @@ object Library {
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val id = o.optString("id")
             val format = BookFormat.of(o.optString("format", "epub"))
-            if (id.isEmpty() || (format == BookFormat.Epub && !epubOf(id).exists()) || !seen.add(id)) return@mapNotNull null
+            // Un EPUB sin su archivo (p. ej. copia restaurada sin libros) se conserva: se recupera al importarlo otra vez.
+            if (id.isEmpty() || !seen.add(id)) return@mapNotNull null
             val lengths = o.optJSONArray("lengths")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
             val marks = o.optJSONArray("bookmarks")?.let { a ->
                 (0 until a.length()).mapNotNull { j ->

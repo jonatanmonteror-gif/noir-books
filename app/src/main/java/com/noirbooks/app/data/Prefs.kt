@@ -163,6 +163,39 @@ object Prefs {
         )
     }
 
+    /** Todos los ajustes, para las copias de seguridad (salvo lo propio de este aparato). */
+    fun exportJson(): JSONObject {
+        val o = JSONObject()
+        sp.all.forEach { (k, v) ->
+            if (k in LOCAL_ONLY) return@forEach
+            val t = when (v) { is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is String -> "s"; else -> return@forEach }
+            o.put(k, JSONObject().put("t", t).put("v", v))
+        }
+        return o
+    }
+
+    /** Sustituye los ajustes por los de una copia (se guarda al momento: la app se reinicia después). */
+    fun importJson(o: JSONObject) {
+        val e = sp.edit()
+        sp.all.keys.filter { it !in LOCAL_ONLY }.forEach { e.remove(it) }
+        o.keys().forEach { k ->
+            if (k in LOCAL_ONLY) return@forEach
+            val x = o.optJSONObject(k) ?: return@forEach
+            when (x.optString("t")) {
+                "b" -> e.putBoolean(k, x.optBoolean("v"))
+                "i" -> e.putInt(k, x.optInt("v"))
+                "l" -> e.putLong(k, x.optLong("v"))
+                "f" -> e.putFloat(k, x.optDouble("v").toFloat())
+                "s" -> e.putString(k, x.optString("v"))
+            }
+        }
+        e.commit()
+    }
+
+    /** Claves que son de este aparato y no viajan en las copias. */
+    private val LOCAL_ONLY = setOf("timer_book", "timer_start", "reader_pending_reading", "updates_last_check",
+        "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at")
+
     fun setAppearance(v: String) {
         appearanceState.value = v
         sp.edit().putString("app_appearance", v).apply()
@@ -172,6 +205,17 @@ object Prefs {
     var yearGoal: Int
         get() = sp.getInt("goal_books_year", 12)
         set(v) { sp.edit().putInt("goal_books_year", v).apply() }
+
+    /** Tipo de meta anual: "books", "hours" o "pages". */
+    var goalKind: String
+        get() = sp.getString("goal_kind", "books") ?: "books"
+        set(v) { sp.edit().putString("goal_kind", v).apply() }
+    var goalHours: Int
+        get() = sp.getInt("goal_hours_year", 100)
+        set(v) { sp.edit().putInt("goal_hours_year", v).apply() }
+    var goalPages: Int
+        get() = sp.getInt("goal_pages_year", 5000)
+        set(v) { sp.edit().putInt("goal_pages_year", v).apply() }
 
     // Pista de gestos del lector: se muestra solo la primera vez
     var gestureHintShown: Boolean
@@ -206,6 +250,11 @@ object Prefs {
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }
+
+    /** Última copia de seguridad hecha en este aparato. */
+    var lastBackupAt: Long
+        get() = sp.getLong("backup_last_at", 0L)
+        set(v) { sp.edit().putLong("backup_last_at", v).apply() }
 
     // Última versión de la que se mostraron las novedades.
     var seenVersionCode: Int

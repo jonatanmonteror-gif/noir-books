@@ -104,6 +104,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
 
+                FoldSection("Copia de seguridad", "Guardar, restaurar y exportar tus datos") {
+                    BackupSection()
+                }
+
                 FoldSection("Novedades", "Qué ha cambiado en cada versión") {
                     ChangelogList()
                 }

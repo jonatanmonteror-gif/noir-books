@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Solo para la notificación del cronómetro de lectura (se pide al darle a play) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Sin permiso para instalar apps: la actualización se descarga con el navegador (Play Protect desconfía de ese permiso) -->
 
     <application
