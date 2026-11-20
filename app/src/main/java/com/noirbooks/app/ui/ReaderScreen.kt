@@ -80,6 +80,7 @@ import com.noirbooks.app.data.ErrorLog
 import com.noirbooks.app.data.HighlightColor
 import com.noirbooks.app.data.Library
 import com.noirbooks.app.data.Prefs
+import com.noirbooks.app.data.FooterInfo
 import com.noirbooks.app.data.Stats
 import com.noirbooks.app.data.durationLabel
 import com.noirbooks.app.data.minutesLabel
@@ -279,19 +280,36 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
-            val chLen = book?.chapterLengths?.getOrNull(c.chapter) ?: 0
-            val leftInChapter = (chLen * (1f - (c.page + 1f) / c.count.coerceAtLeast(1))).toInt().coerceAtLeast(0)
-            val pct = ((book?.progressAt(c.chapter, (c.page + 1f) / c.count.coerceAtLeast(1)) ?: 0f) * 100).toInt()
-            Row(
-                Modifier.fillMaxWidth().height(28.dp).padding(horizontal = settings.margins.px.dp.coerceAtLeast(16.dp)),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(
-                    if (c.ready) (if (c.page >= c.count - 1) "Último de este capítulo" else "Quedan ${minutesLabel(leftInChapter, cpm)} en el capítulo") else "",
-                    color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(if (c.ready) "$pct %" else "", color = muted, fontSize = 11.sp, fontFamily = Inter)
+            if (settings.footerLeft != FooterInfo.None || settings.footerRight != FooterInfo.None) {
+                val chLen = book?.chapterLengths?.getOrNull(c.chapter) ?: 0
+                val frac = (c.page + 1f) / c.count.coerceAtLeast(1)
+                val leftInChapter = (chLen * (1f - frac)).toInt().coerceAtLeast(0)
+                val bookP = book?.progressAt(c.chapter, frac) ?: 0f
+                var clock by remember { mutableStateOf(0L) }
+                LaunchedEffect(Unit) { while (true) { clock = System.currentTimeMillis(); delay(20_000) } }
+                fun info(f: FooterInfo): String = if (!c.ready) "" else when (f) {
+                    FooterInfo.ChapterTime -> if (c.page >= c.count - 1) "Último de este capítulo" else "Quedan ${minutesLabel(leftInChapter, cpm)} en el capítulo"
+                    FooterInfo.BookTime -> "Quedan ${minutesLabel(((book?.totalChars ?: 0) * (1f - bookP)).toInt(), cpm)} del libro"
+                    FooterInfo.ChapterPages -> "${c.page + 1} de ${c.count} en el capítulo"
+                    FooterInfo.BookPercent -> "${(bookP * 100).toInt()} %"
+                    FooterInfo.Clock -> java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(clock.coerceAtLeast(1)))
+                    FooterInfo.Battery -> {
+                        clock // se actualiza con el reloj
+                        val bm = ctx.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager
+                        bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }?.let { "Batería $it %" } ?: ""
+                    }
+                    FooterInfo.None -> ""
+                }
+                Row(
+                    Modifier.fillMaxWidth().height(28.dp).padding(horizontal = settings.marginH.dp.coerceAtLeast(16.dp)),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(info(settings.footerLeft), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(info(settings.footerRight), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1)
+                }
+            } else {
+                Spacer(Modifier.navigationBarsPadding())
             }
         }
 

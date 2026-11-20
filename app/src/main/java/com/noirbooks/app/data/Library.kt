@@ -29,6 +29,30 @@ enum class BookStatus(val key: String, val label: String) {
     }
 }
 
+/** Dónde se lee el libro. Solo los EPUB se abren en la app; el resto se apunta a mano. */
+enum class BookFormat(val key: String, val label: String) {
+    Epub("epub", "EPUB en la app"),
+    Kindle("kindle", "Kindle"),
+    Paper("paper", "Papel"),
+    Audio("audio", "Audiolibro"),
+    Other("other", "Otro lector");
+
+    companion object {
+        fun of(k: String?) = entries.firstOrNull { it.key == k } ?: Epub
+    }
+}
+
+/** Cómo se apunta el progreso de un libro que no se lee en la app. */
+enum class ProgressUnit(val key: String, val label: String) {
+    Percent("percent", "Porcentaje"),
+    Page("page", "Página"),
+    Location("location", "Posición de Kindle");
+
+    companion object {
+        fun of(k: String?) = entries.firstOrNull { it.key == k } ?: Percent
+    }
+}
+
 /** Colores de los subrayados, cada uno con un significado (se puede ignorar). */
 enum class HighlightColor(val label: String, val meaning: String, val argb: Long, val css: String) {
     Yellow("Amarillo", "Frase bonita", 0xFFE8C547, "rgba(232,197,71,0.42)"),
@@ -88,7 +112,17 @@ data class Book(
     val hasCover: Boolean = false,
     /** En la papelera desde esta fecha (0 = no está en la papelera). */
     val deletedAt: Long = 0L,
+    val format: BookFormat = BookFormat.Epub,
+    /** Páginas del libro (papel) o posiciones totales (Kindle), si se conocen. */
+    val pages: Int = 0,
+    val unit: ProgressUnit = ProgressUnit.Percent,
+    /** Progreso apuntado a mano (0..1) para libros que no se leen en la app. */
+    val manualProgress: Float = 0f,
+    val isbn: String = "",
+    val publisher: String = "",
+    val year: String = "",
 ) {
+    val isEpub: Boolean get() = format == BookFormat.Epub
     val totalChars: Int get() = chapterLengths.sum().coerceAtLeast(1)
     val finished: Boolean get() = status == BookStatus.Read
     val inTrash: Boolean get() = deletedAt > 0L
@@ -101,7 +135,18 @@ data class Book(
         return ((before + cur * f) / totalChars).coerceIn(0f, 1f)
     }
 
-    val progress: Float get() = if (finished) 1f else progressAt(chapter, fraction)
+    val progress: Float get() = when {
+        finished -> 1f
+        !isEpub -> manualProgress.coerceIn(0f, 1f)
+        else -> progressAt(chapter, fraction)
+    }
+
+    /** Progreso en la unidad del libro, para mostrarlo ("p. 120 de 340", "37 %"). */
+    fun progressLabel(p: Float = progress): String = when {
+        unit == ProgressUnit.Page && pages > 0 -> "p. ${(p * pages).toInt()} de $pages"
+        unit == ProgressUnit.Location && pages > 0 -> "posición ${(p * pages).toInt()} de $pages"
+        else -> "${(p * 100).toInt()} %"
+    }
     val started: Boolean get() = lastOpened > 0L
     val timesRead: Int get() = readings.count { it.end > 0L }
 }
@@ -274,6 +319,86 @@ object Library {
         }
     }
 
+    // ---- Libros que no se leen en la app (Kindle, papel, audiolibro) ----
+
+    /** Añade un libro buscado en el catálogo o escrito a mano. Descarga la portada si hay enlace. */
+    suspend fun addManual(
+        title: String, author: String, format: BookFormat, pages: Int, unit: ProgressUnit,
+        coverUrl: String?, isbn: String, publisher: String, year: String, status: BookStatus,
+    ): Book = withContext(Dispatchers.IO) {
+        val id = "m" + java.lang.Long.toHexString(System.currentTimeMillis()) + (100..999).random()
+        dirOf(id).mkdirs()
+        val hasCover = coverUrl?.let { url -> downloadCover(url, coverOf(id)) } ?: false
+        val now = System.currentTimeMillis()
+        val book = Book(
+            id = id, title = title.trim(), author = author.trim(), addedAt = now,
+            status = status, format = format, pages = pages, unit = unit, hasCover = hasCover,
+            isbn = isbn, publisher = publisher, year = year,
+            readings = if (status == BookStatus.Reading) listOf(Reading(now)) else if (status == BookStatus.Read) listOf(Reading(now, now)) else emptyList(),
+            lastOpened = if (status == BookStatus.Reading) now else 0L,
+            manualProgress = if (status == BookStatus.Read) 1f else 0f,
+        )
+        lock.withLock {
+            books.value = books.value + book
+            save()
+        }
+        book
+    }
+
+    /** Guarda una foto o imagen elegida como portada. */
+    suspend fun setCover(ctx: Context, id: String, uri: Uri) = withContext(Dispatchers.IO) {
+        val ok = runCatching {
+            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching false
+            saveCoverBytes(bytes, coverOf(id))
+        }.getOrDefault(false)
+        if (ok) update(id) { it.copy(hasCover = true) }
+    }
+
+    private fun downloadCover(url: String, out: File): Boolean = runCatching {
+        val req = okhttp3.Request.Builder().url(url.replace("http://", "https://")).header("User-Agent", Http.UA).build()
+        val bytes = Http.client.newCall(req).execute().use { r -> if (r.isSuccessful) r.body?.bytes() else null } ?: return false
+        if (bytes.size < 1500) return false // Open Library devuelve una imagen vacía si no hay portada
+        saveCoverBytes(bytes, out)
+    }.getOrDefault(false)
+
+    private fun saveCoverBytes(bytes: ByteArray, out: File): Boolean {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 1) return false
+        var sample = 1
+        while (bounds.outHeight / (sample * 2) >= 720) sample *= 2
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return false
+        out.parentFile?.mkdirs()
+        out.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        bmp.recycle()
+        return true
+    }
+
+    /**
+     * Apunta hasta dónde se ha leído (0..1). En un EPUB mueve también la posición del lector;
+     * si llega al final, el libro pasa a "Leído".
+     */
+    suspend fun setProgress(id: String, p: Float) {
+        val v = p.coerceIn(0f, 1f)
+        update(id) { b ->
+            val base = b.copy(lastOpened = System.currentTimeMillis(), status = if (b.status == BookStatus.ToRead || b.status == BookStatus.Abandoned) BookStatus.Reading else b.status,
+                readings = if (b.readings.any { it.end == 0L }) b.readings else b.readings + Reading(System.currentTimeMillis()))
+            if (!b.isEpub) base.copy(manualProgress = v)
+            else {
+                var pos = v * b.totalChars
+                var ch = 0
+                var f = 0f
+                for (i in b.chapterLengths.indices) {
+                    val len = b.chapterLengths[i]
+                    if (pos <= len || i == b.chapterLengths.lastIndex) { ch = i; f = if (len > 0) (pos / len).coerceIn(0f, 0.999f) else 0f; break }
+                    pos -= len
+                }
+                base.copy(chapter = ch, fraction = f, anchor = "")
+            }
+        }
+        if (v >= 0.999f) setStatus(id, BookStatus.Read)
+    }
+
     // ---- Vocabulario ----
 
     suspend fun addWord(w: VocabWord) = withContext(Dispatchers.IO) {
@@ -353,6 +478,9 @@ object Library {
                 put("status", b.status.key); put("rating", b.rating.toDouble())
                 put("abandonReason", b.abandonReason); put("review", b.review)
                 put("hasCover", b.hasCover); put("deletedAt", b.deletedAt)
+                put("format", b.format.key); put("pages", b.pages); put("unit", b.unit.key)
+                put("manualProgress", b.manualProgress.toDouble()); put("isbn", b.isbn)
+                put("publisher", b.publisher); put("year", b.year)
                 put("readings", JSONArray().apply {
                     b.readings.forEach { r -> put(JSONObject().put("start", r.start).put("end", r.end)) }
                 })
@@ -386,7 +514,8 @@ object Library {
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val id = o.optString("id")
-            if (id.isEmpty() || !epubOf(id).exists() || !seen.add(id)) return@mapNotNull null
+            val format = BookFormat.of(o.optString("format", "epub"))
+            if (id.isEmpty() || (format == BookFormat.Epub && !epubOf(id).exists()) || !seen.add(id)) return@mapNotNull null
             val lengths = o.optJSONArray("lengths")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
             val marks = o.optJSONArray("bookmarks")?.let { a ->
                 (0 until a.length()).mapNotNull { j ->
@@ -437,6 +566,13 @@ object Library {
                 highlights = highlights,
                 hasCover = o.optBoolean("hasCover") && coverOf(id).exists(),
                 deletedAt = o.optLong("deletedAt"),
+                format = format,
+                pages = o.optInt("pages"),
+                unit = ProgressUnit.of(o.optString("unit")),
+                manualProgress = o.optDouble("manualProgress", 0.0).toFloat(),
+                isbn = o.optString("isbn"),
+                publisher = o.optString("publisher"),
+                year = o.optString("year"),
             )
         }
     }

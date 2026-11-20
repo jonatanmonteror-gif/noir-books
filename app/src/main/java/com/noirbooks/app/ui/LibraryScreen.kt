@@ -87,13 +87,9 @@ fun LibraryScreen() {
     var filter by rememberSaveable { mutableStateOf("all") }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var menuFor by remember { mutableStateOf<Book?>(null) }
     val cpm = remember(all.size) { Stats.charsPerMinute() }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) scope.launch { AppState.importAll(ctx, uris, openIfSingle = false) }
-    }
-    fun open(b: Book) { AppState.screen.value = Screen.Reader(b.id) }
+    fun open(b: Book) = AppState.openBook(b)
 
     val current = books.filter { it.status == BookStatus.Reading }.maxByOrNull { it.lastOpened }
     val q = fold(query.trim())
@@ -130,7 +126,7 @@ fun LibraryScreen() {
             IconButton(onClick = { AppState.screen.value = Screen.Settings }) {
                 Icon(Icons.Filled.Settings, "Ajustes", tint = NB.text)
             }
-            IconButton(onClick = { picker.launch(EPUB_TYPES) }) {
+            IconButton(onClick = { AppState.addBook.value = true }) {
                 Box(Modifier.size(30.dp).clip(CircleShape).background(NB.text), contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.Add, "Añadir libros", tint = Color.Black, modifier = Modifier.size(20.dp))
                 }
@@ -157,7 +153,7 @@ fun LibraryScreen() {
         }
 
         if (books.isEmpty()) {
-            EmptyLibrary(onAdd = { picker.launch(EPUB_TYPES) })
+            EmptyLibrary(onAdd = { AppState.addBook.value = true })
             return@Column
         }
 
@@ -203,7 +199,7 @@ fun LibraryScreen() {
                 }
             }
             items(shown, key = { it.id }) { b ->
-                Column(Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { menuFor = b })) {
+                Column(Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
                     BookCover(b, Modifier.fillMaxWidth())
                     if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(6.dp))
@@ -218,6 +214,7 @@ fun LibraryScreen() {
                         b.rating > 0f -> "★ ${ratingLabel(b.rating)}" + if (b.author.isNotBlank()) " · ${b.author}" else ""
                         b.status == BookStatus.Read -> "Leído" + if (b.author.isNotBlank()) " · ${b.author}" else ""
                         b.status == BookStatus.Abandoned -> "Abandonado"
+                        !b.isEpub && b.status == BookStatus.Reading -> b.format.label + " · " + b.progressLabel()
                         else -> b.author
                     }
                     if (sub.isNotBlank()) Text(sub, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -226,7 +223,6 @@ fun LibraryScreen() {
         }
     }
 
-    menuFor?.let { b -> BookMenu(b.id, onDismiss = { menuFor = null }) }
 }
 
 @Composable
@@ -241,14 +237,23 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
         BookCover(b, Modifier.width(92.dp), titleSize = 11)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text("SEGUIR LEYENDO", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
+            Text(if (b.isEpub) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
             Text(b.title, fontFamily = Playfair, fontSize = 21.sp, lineHeight = 25.sp, color = NB.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (b.author.isNotBlank()) Text(b.author, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
             ThinProgress(b.progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
-            Text("${(b.progress * 100).toInt()} % · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
+            if (b.isEpub) {
+                Text("${(b.progress * 100).toInt()} % · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
+            } else {
+                Text("${b.format.label} · ${b.progressLabel()}", color = NB.text3, fontSize = 12.sp)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (AppState.timer.value?.first != b.id) Chip("Empiezo a leer", true) { AppState.startTimer(b.id) }
+                    Chip("Apuntar lectura", false) { AppState.logSession.value = LogRequest(b.id) }
+                }
+            }
         }
     }
 }
@@ -276,7 +281,7 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
         Text("Tu biblioteca está vacía", fontFamily = Playfair, fontSize = 26.sp, color = NB.text, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Añade libros en formato EPUB desde tu móvil, o ábrelos con Noir Books desde otra app (Archivos, Drive, correo…). Lo que leas aparecerá solo en tu calendario y tus estadísticas.",
+            "Busca el libro que lees (en Kindle, en papel o en audio) o importa un EPUB para leerlo aquí. Lo que leas aparecerá en tu calendario y tus estadísticas.",
             color = NB.text2, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp,
         )
         Spacer(Modifier.height(24.dp))
@@ -284,7 +289,7 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
             Modifier.clip(RoundedCornerShape(50)).background(NB.text).clickable(onClick = onAdd)
                 .padding(horizontal = 26.dp, vertical = 13.dp),
         ) {
-            Text("Añadir libros", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text("Añadir un libro", color = Color.Black, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
         Spacer(Modifier.height(28.dp))
         Text(
@@ -300,6 +305,10 @@ private val ABANDON_REASONS = listOf("Lento", "No era el momento", "No me enganc
 @Composable
 fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch { Library.setCover(ctx, bookId, uri) }
+    }
     val all by Library.books
     val b = all.firstOrNull { it.id == bookId }
     if (b == null) { onDismiss(); return }
@@ -350,9 +359,11 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 val secs = Stats.secondsForBook(b.id)
                 val info = buildString {
                     append(b.status.label)
-                    if (b.status == BookStatus.Reading) append(" · ${(b.progress * 100).toInt()} %")
+                    if (b.status == BookStatus.Reading) append(" · ${b.progressLabel()}")
                     if (b.status == BookStatus.Abandoned && b.abandonReason.isNotBlank()) append(" · ${b.abandonReason}")
-                    append("\n${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
+                    if (b.isEpub) append("\n${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
+                    else append("\n${b.format.label}" + if (b.pages > 0) " · ${b.pages} ${if (b.unit == com.noirbooks.app.data.ProgressUnit.Location) "posiciones" else "páginas"}" else "")
+                    if (!b.isEpub && (b.publisher.isNotBlank() || b.year.isNotBlank())) append("\n" + listOf(b.publisher, b.year).filter { it.isNotBlank() }.joinToString(", "))
                     if (secs > 0) append("\nLlevas ${durationLabel(secs)} leyendo este libro")
                     if (b.timesRead > 1) append("\nLeído ${b.timesRead} veces")
                     b.readings.lastOrNull { it.end > 0 }?.let { append("\nTerminado el ${date.format(Date(it.end))}") }
@@ -364,7 +375,14 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                     Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair)
                 }
                 Spacer(Modifier.height(10.dp))
-                MenuRow(if (b.status == BookStatus.Read) "Volver a leer" else "Leer") { onDismiss(); AppState.screen.value = Screen.Reader(b.id) }
+                if (b.isEpub) MenuRow(if (b.status == BookStatus.Read) "Volver a leer" else "Leer") { onDismiss(); AppState.screen.value = Screen.Reader(b.id) }
+                if (!b.isEpub && b.status != BookStatus.Read) {
+                    if (AppState.timer.value?.first == b.id) MenuRow("Terminar cronómetro") { onDismiss(); AppState.stopTimer() }
+                    else MenuRow("Empiezo a leer (cronómetro)") { onDismiss(); AppState.startTimer(b.id) }
+                }
+                MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
+                if (!b.isEpub) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
+                MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
                 if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
                     scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()
                 }

@@ -52,6 +52,35 @@ object Stats {
         version.intValue++
     }
 
+    /**
+     * Sesión apuntada a mano (Kindle, papel…): se reparte por las horas en que ocurrió.
+     */
+    @Synchronized
+    fun addSession(bookId: String, startMillis: Long, seconds: Long, pages: Int) {
+        if (seconds <= 0 && pages <= 0) return
+        var remaining = seconds
+        val cal = Calendar.getInstance().apply { timeInMillis = startMillis }
+        var first = true
+        while (remaining > 0 || first) {
+            val day = dayOf(cal.timeInMillis)
+            val key = "$day|$bookId"
+            val old = data[key] ?: DayRead(day, bookId, 0, 0)
+            val hours = old.hourSeconds.copyOf()
+            val h = cal.get(Calendar.HOUR_OF_DAY)
+            val inHour = (3600 - cal.get(Calendar.MINUTE) * 60 - cal.get(Calendar.SECOND)).toLong()
+            val chunk = minOf(remaining, inHour)
+            hours[h] = hours[h] + chunk
+            data[key] = old.copy(seconds = old.seconds + chunk, pages = old.pages + if (first) pages else 0, hourSeconds = hours)
+            remaining -= chunk
+            cal.add(Calendar.SECOND, chunk.toInt().coerceAtLeast(1))
+            first = false
+            if (chunk <= 0) break
+        }
+        dirty = true
+        version.intValue++
+        flush()
+    }
+
     @Synchronized
     fun flush() {
         if (!dirty || !::file.isInitialized) return
@@ -95,6 +124,7 @@ object Stats {
         var seconds = 0L
         all().groupBy { it.bookId }.forEach { (id, days) ->
             val b = books[id] ?: return@forEach
+            if (!b.isEpub) return@forEach
             val s = days.sumOf { it.seconds }
             if (s < 600) return@forEach
             chars += b.progress * b.totalChars

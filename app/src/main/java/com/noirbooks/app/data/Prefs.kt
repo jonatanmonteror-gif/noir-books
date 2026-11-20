@@ -38,12 +38,36 @@ enum class Margins(val key: String, val label: String, val px: Int) {
     }
 }
 
+/** Lo que se puede mostrar en el pie de página del lector. */
+enum class FooterInfo(val key: String, val label: String) {
+    ChapterTime("chapter_time", "Tiempo que queda del capítulo"),
+    BookTime("book_time", "Tiempo que queda del libro"),
+    ChapterPages("chapter_pages", "Página del capítulo"),
+    BookPercent("book_percent", "% del libro"),
+    Clock("clock", "Hora"),
+    Battery("battery", "Batería"),
+    None("none", "Nada");
+
+    companion object {
+        fun of(k: String?, d: FooterInfo) = entries.firstOrNull { it.key == k } ?: d
+    }
+}
+
 data class ReaderSettings(
     val theme: ReaderTheme = ReaderTheme.Dark,
     val font: ReaderFont = ReaderFont.Literata,
     val fontSize: Int = 19,          // px CSS
     val lineHeight: Float = 1.55f,
-    val margins: Margins = Margins.Normal,
+    val marginH: Int = 24,            // px a cada lado
+    val marginV: Int = 22,            // px arriba (abajo, un poco menos: ya está el pie)
+    /** Espacio entre párrafos en em (-1 = el del libro). */
+    val paraSpacing: Float = -1f,
+    /** Sangría de la primera línea en em (-1 = la del libro). */
+    val indent: Float = -1f,
+    /** Respetar el diseño del libro: no cambiar letra, interlineado, justificado ni párrafos. */
+    val publisher: Boolean = false,
+    val footerLeft: FooterInfo = FooterInfo.ChapterTime,
+    val footerRight: FooterInfo = FooterInfo.BookPercent,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
     val twoPages: Boolean = true,    // dos páginas en horizontal en pantallas anchas
@@ -56,7 +80,9 @@ data class ReaderSettings(
         put("bg", css(theme.bg)); put("fg", css(theme.fg)); put("dark", theme.dark)
         put("font", font.css ?: JSONObject.NULL)
         put("size", fontSize); put("lh", lineHeight.toDouble())
-        put("margin", margins.px); put("justify", justify); put("hyphens", hyphens)
+        put("margin", marginH); put("mtop", marginV); put("mbottom", (marginV * 0.6f).toInt().coerceAtLeast(6))
+        put("para", paraSpacing.toDouble()); put("indent", indent.toDouble()); put("publisher", publisher)
+        put("justify", justify); put("hyphens", hyphens)
         put("twoPages", twoPages)
     }
 
@@ -84,7 +110,13 @@ object Prefs {
             .putString("reader_font", s.font.key)
             .putInt("reader_font_size", s.fontSize)
             .putFloat("reader_line_height", s.lineHeight)
-            .putString("reader_margins", s.margins.key)
+            .putInt("reader_margin_h", s.marginH)
+            .putInt("reader_margin_v", s.marginV)
+            .putFloat("reader_para_spacing", s.paraSpacing)
+            .putFloat("reader_indent", s.indent)
+            .putBoolean("reader_publisher", s.publisher)
+            .putString("reader_footer_left", s.footerLeft.key)
+            .putString("reader_footer_right", s.footerRight.key)
             .putBoolean("reader_justify", s.justify)
             .putBoolean("reader_hyphens", s.hyphens)
             .putBoolean("reader_two_pages", s.twoPages)
@@ -101,7 +133,14 @@ object Prefs {
             font = ReaderFont.of(sp.getString("reader_font", d.font.key) ?: d.font.key),
             fontSize = sp.getInt("reader_font_size", d.fontSize).coerceIn(12, 40),
             lineHeight = sp.getFloat("reader_line_height", d.lineHeight).coerceIn(1.1f, 2.4f),
-            margins = Margins.of(sp.getString("reader_margins", d.margins.key) ?: d.margins.key),
+            // Antes los márgenes eran tres opciones fijas: se respeta la que hubiera elegida.
+            marginH = sp.getInt("reader_margin_h", Margins.of(sp.getString("reader_margins", "normal") ?: "normal").px).coerceIn(4, 80),
+            marginV = sp.getInt("reader_margin_v", d.marginV).coerceIn(4, 80),
+            paraSpacing = sp.getFloat("reader_para_spacing", d.paraSpacing),
+            indent = sp.getFloat("reader_indent", d.indent),
+            publisher = sp.getBoolean("reader_publisher", d.publisher),
+            footerLeft = FooterInfo.of(sp.getString("reader_footer_left", null), d.footerLeft),
+            footerRight = FooterInfo.of(sp.getString("reader_footer_right", null), d.footerRight),
             justify = sp.getBoolean("reader_justify", d.justify),
             hyphens = sp.getBoolean("reader_hyphens", d.hyphens),
             twoPages = sp.getBoolean("reader_two_pages", d.twoPages),
@@ -130,6 +169,14 @@ object Prefs {
     var crashSeenAt: Long
         get() = sp.getLong("errors_crash_seen_at", 0L)
         set(v) { sp.edit().putLong("errors_crash_seen_at", v).apply() }
+
+    // Cronómetro de lectura fuera de la app (Kindle, papel): sobrevive a cerrar la app.
+    var timerBook: String
+        get() = sp.getString("timer_book", "") ?: ""
+        set(v) { sp.edit().putString("timer_book", v).apply() }
+    var timerStart: Long
+        get() = sp.getLong("timer_start", 0L)
+        set(v) { sp.edit().putLong("timer_start", v).apply() }
 
     var lastUpdateCheck: Long
         get() = sp.getLong("updates_last_check", 0L)

@@ -84,6 +84,7 @@ fun MainScreen() {
                 else -> StatsScreen()
             }
         }
+        TimerBar()
         Row(
             Modifier.fillMaxWidth().background(NB.bg).navigationBarsPadding().height(58.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -373,11 +374,11 @@ fun QuotesScreen() {
                 open = null
             },
             onDismiss = { open = null },
-            onOpen = {
+            onOpen = if (!b.isEpub || h.range.isBlank()) null else ({
                 AppState.jumpTo.value = b.id to h
                 AppState.screen.value = Screen.Reader(b.id)
                 open = null
-            },
+            }),
         )
     }
     defineWord?.let { DictionarySheet(it, onDismiss = { defineWord = null }) }

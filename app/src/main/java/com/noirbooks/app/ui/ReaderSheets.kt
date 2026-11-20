@@ -37,6 +37,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,7 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.noirbooks.app.data.Margins
+import com.noirbooks.app.data.FooterInfo
 import com.noirbooks.app.data.Prefs
 import com.noirbooks.app.data.ReaderFont
 import com.noirbooks.app.data.ReaderSettings
@@ -62,6 +63,7 @@ fun TocSheet(c: ReaderController, onDismiss: () -> Unit) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var tab by remember { mutableIntStateOf(0) }
     val book = c.book
+    val tocCpm = remember { com.noirbooks.app.data.Stats.charsPerMinute() }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f)) {
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -95,7 +97,7 @@ fun TocSheet(c: ReaderController, onDismiss: () -> Unit) {
                             )
                             if (e.level == 0 && ch >= 0 && book != null && e.anchor == null) {
                                 val len = book.chapterLengths.getOrNull(ch) ?: 0
-                                if (len > 0) Text(minutesLabel(len), color = NB.text3, fontSize = 12.sp)
+                                if (len > 0) Text(minutesLabel(len, tocCpm), color = NB.text3, fontSize = 12.sp)
                             }
                         }
                     }
@@ -234,7 +236,10 @@ fun ReadingControls(showPreview: Boolean = false) {
 
     // Segundo y tercer nivel, plegados: lo rápido arriba, lo demás a un toque.
     Spacer(Modifier.height(14.dp))
-    FoldSection("Letra y página", "Tipo de letra, interlineado, márgenes") {
+    FoldSection("Letra y página", "Tipo de letra, interlineado, márgenes, párrafos") {
+        Toggle("Respetar el diseño del libro", s.publisher) { set(s.copy(publisher = it)) }
+        if (s.publisher) Text("Se usa la letra, el interlineado y los párrafos del propio libro. Solo cambian el tema, el tamaño y los márgenes.",
+            color = NB.text3, fontSize = 12.sp, lineHeight = 17.sp)
         Label("Tipo de letra")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ReaderFont.entries.take(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
@@ -252,13 +257,34 @@ fun ReadingControls(showPreview: Boolean = false) {
             }
         }
 
-        Label("Márgenes")
+        Label("Márgenes laterales")
+        PxSlider(s.marginH, 4, 72) { set(s.copy(marginH = it)) }
+        Label("Márgenes arriba y abajo")
+        PxSlider(s.marginV, 6, 72) { set(s.copy(marginV = it)) }
+
+        Label("Espacio entre párrafos")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Margins.entries.forEach { m -> Choice(m.label, s.margins == m, Modifier.weight(1f)) { set(s.copy(margins = m)) } }
+            listOf(-1f to "Del libro", 0f to "Ninguno", 0.5f to "Poco", 1f to "Mucho").forEach { (v, l) ->
+                Choice(l, kotlin.math.abs(s.paraSpacing - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(paraSpacing = v)) }
+            }
+        }
+        Label("Sangría")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(-1f to "Del libro", 0f to "Sin sangría", 1.5f to "Con sangría").forEach { (v, l) ->
+                Choice(l, kotlin.math.abs(s.indent - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(indent = v)) }
+            }
         }
         Spacer(Modifier.height(8.dp))
         Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
         Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
+    }
+    FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
+        Label("A la izquierda")
+        FooterChoices(s.footerLeft) { set(s.copy(footerLeft = it)) }
+        Label("A la derecha")
+        FooterChoices(s.footerRight) { set(s.copy(footerRight = it)) }
+        Spacer(Modifier.height(6.dp))
+        Text("Con \"Nada\" en los dos lados, el texto ocupa también esa línea.", color = NB.text3, fontSize = 12.sp)
     }
     FoldSection("Avanzado", "Tablet, botones y pantalla") {
         Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
@@ -276,13 +302,40 @@ private fun Preview(s: ReaderSettings) {
     }
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(s.theme.bg))
-            .border(1.dp, NB.line, RoundedCornerShape(14.dp)).padding(horizontal = (s.margins.px * 0.7f).dp, vertical = 16.dp),
+            .border(1.dp, NB.line, RoundedCornerShape(14.dp)).padding(horizontal = (s.marginH * 0.7f).dp, vertical = 16.dp),
     ) {
         Text(
             "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero.",
             color = Color(s.theme.fg), fontFamily = family, fontSize = (s.fontSize * 0.85f).sp,
             lineHeight = (s.fontSize * 0.85f * s.lineHeight).sp,
         )
+    }
+}
+
+/** Deslizador que solo aplica el cambio al soltar (cada cambio vuelve a maquetar el capítulo). */
+@Composable
+private fun PxSlider(value: Int, min: Int, max: Int, onDone: (Int) -> Unit) {
+    var v by remember(value) { mutableStateOf(value.toFloat()) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Slider(
+            value = v, onValueChange = { v = it }, valueRange = min.toFloat()..max.toFloat(),
+            onValueChangeFinished = { onDone(v.toInt()) },
+            colors = SliderDefaults.colors(thumbColor = NB.text, activeTrackColor = NB.text, inactiveTrackColor = NB.line),
+            modifier = Modifier.weight(1f),
+        )
+        Text("${v.toInt()}", color = NB.text2, fontSize = 13.sp, modifier = Modifier.width(34.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End)
+    }
+}
+
+@Composable
+private fun FooterChoices(value: FooterInfo, onPick: (FooterInfo) -> Unit) {
+    val items = FooterInfo.entries
+    items.chunked(2).forEach { row ->
+        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { f -> Choice(f.label, f == value, Modifier.weight(1f)) { onPick(f) } }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+        }
     }
 }
 

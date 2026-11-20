@@ -41,6 +41,8 @@ sealed class UpdateState {
     data class Failed(val reason: String) : UpdateState()
 }
 
+data class LogRequest(val bookId: String, val start: Long = 0L, val end: Long = 0L, val onlyProgress: Boolean = false)
+
 object AppState {
     val screen = mutableStateOf<Screen>(Screen.Library)
     /** Pestaña de la pantalla principal: 0 Biblioteca, 1 Calendario, 2 Citas, 3 Estadísticas. */
@@ -48,6 +50,36 @@ object AppState {
     /** Al abrir un libro desde una cita: ir directamente a esa cita. */
     val jumpTo = mutableStateOf<Pair<String, com.noirbooks.app.data.Highlight>?>(null)
     val resumeCount = mutableIntStateOf(0)
+    /** Ficha del libro abierta (pulsación larga o libro que no se lee en la app). */
+    val bookMenu = mutableStateOf<String?>(null)
+    val addBook = mutableStateOf(false)
+    /** Cronómetro de lectura fuera de la app: libro y hora de inicio (0 = parado). */
+    val timer = mutableStateOf<Pair<String, Long>?>(null)
+    /** Lectura que se está apuntando: libro y, si viene del cronómetro, inicio y fin. */
+    val logSession = mutableStateOf<LogRequest?>(null)
+
+    fun openBook(b: com.noirbooks.app.data.Book) {
+        if (b.isEpub) screen.value = Screen.Reader(b.id) else bookMenu.value = b.id
+    }
+
+    fun startTimer(bookId: String) {
+        val now = System.currentTimeMillis()
+        com.noirbooks.app.data.Prefs.timerBook = bookId
+        com.noirbooks.app.data.Prefs.timerStart = now
+        timer.value = bookId to now
+    }
+
+    fun stopTimer() {
+        val t = timer.value ?: return
+        com.noirbooks.app.data.Prefs.timerStart = 0L
+        timer.value = null
+        logSession.value = LogRequest(t.first, t.second, System.currentTimeMillis())
+    }
+
+    fun discardTimer() {
+        com.noirbooks.app.data.Prefs.timerStart = 0L
+        timer.value = null
+    }
     val importing = mutableIntStateOf(0)
     val update = mutableStateOf<UpdateState>(UpdateState.Idle)
     /** El aviso de "Nueva versión lista" solo se muestra una vez por versión. */
@@ -115,6 +147,9 @@ fun App() {
         val snack = remember { SnackbarHostState() }
 
         LaunchedEffect(Unit) {
+            val ts = com.noirbooks.app.data.Prefs.timerStart
+            val tb = com.noirbooks.app.data.Prefs.timerBook
+            if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) AppState.timer.value = tb to ts
             for (m in AppState.messages) snack.showSnackbar(m)
         }
         val resume by AppState.resumeCount
@@ -134,6 +169,11 @@ fun App() {
                 }
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+            if (screen !is Screen.Reader) {
+                AppState.bookMenu.value?.let { id -> BookMenu(id, onDismiss = { AppState.bookMenu.value = null }) }
+                if (AppState.addBook.value) AddBookScreen(onClose = { AppState.addBook.value = false })
+            }
+            AppState.logSession.value?.let { r -> LogSessionDialog(r, onDismiss = { AppState.logSession.value = null }) }
             UpdatePrompt()
             CrashReportPrompt()
         }
