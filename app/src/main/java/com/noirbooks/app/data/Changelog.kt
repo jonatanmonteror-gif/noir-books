@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.34", "20 nov 2026", listOf(
+            "Política de privacidad y condiciones de uso (Ajustes → Acerca de)",
+            "Preparada la firma con claves guardadas como secretos (necesario para Google Play)",
+        )),
         Entry("1.0.33", "20 nov 2026", listOf(
             "Estanterías con su propia pantalla: toca el icono de la estantería arriba en la biblioteca",
             "Cada estantería se ve como un estante con sus portadas; tócala para ver solo esos libros",

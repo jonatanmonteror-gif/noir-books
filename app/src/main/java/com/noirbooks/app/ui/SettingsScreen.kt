@@ -158,6 +158,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                             "Tipografías con licencia SIL Open Font License: Literata, Inter, Atkinson Hyperlegible y Playfair Display.",
                         color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp,
                     )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Sin cuenta, sin publicidad y sin rastreadores: tus datos se quedan en el móvil (y en tu Drive si lo activas).",
+                        color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    val docs = "https://github.com/jonatanmonteror-gif/noir-books/blob/main/docs/"
+                    fun openUrl(u: String) = runCatching {
+                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u)))
+                    }.onFailure { AppState.toast("No se pudo abrir el navegador") }
+                    ButtonRow {
+                        PillButton("Privacidad") { openUrl(docs + "privacidad.md") }
+                        PillButton("Condiciones de uso") { openUrl(docs + "condiciones.md") }
+                    }
                 }
                 Spacer(Modifier.height(30.dp))
             }

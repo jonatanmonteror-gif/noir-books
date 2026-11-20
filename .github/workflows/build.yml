@@ -30,10 +30,32 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Claves de firma (desde los secretos)
+        env:
+          KEY_GITHUB: ${{ secrets.SIGNING_KEY_GITHUB }}
+          KEY_PLAY: ${{ secrets.SIGNING_KEY_PLAY }}
+        run: |
+          if [ -n "$KEY_GITHUB" ]; then
+            echo "$KEY_GITHUB" | base64 -d > "$RUNNER_TEMP/github.jks"
+            echo "SIGNING_KEY_GITHUB_FILE=$RUNNER_TEMP/github.jks" >> "$GITHUB_ENV"
+            echo "APK de GitHub: clave de los secretos"
+          else
+            echo "::warning::Falta el secreto SIGNING_KEY_GITHUB: se usa la clave antigua del repositorio"
+          fi
+          if [ -n "$KEY_PLAY" ]; then
+            echo "$KEY_PLAY" | base64 -d > "$RUNNER_TEMP/play.jks"
+            echo "SIGNING_KEY_PLAY_FILE=$RUNNER_TEMP/play.jks" >> "$GITHUB_ENV"
+            echo "Google Play: clave de subida de los secretos"
+          else
+            echo "::warning::Falta el secreto SIGNING_KEY_PLAY: el AAB NO sirve para subir a Google Play"
+          fi
+
       - name: Compilar
         run: gradle assembleGithubRelease bundlePlayRelease --no-daemon --stacktrace
         env:
           VERSION_CODE: ${{ github.run_number }}
+          SIGNING_PASS_GITHUB: ${{ secrets.SIGNING_PASS_GITHUB }}
+          SIGNING_PASS_PLAY: ${{ secrets.SIGNING_PASS_PLAY }}
 
       - name: Preparar APK y huella SHA-256
         run: |

@@ -18,13 +18,32 @@ android {
         versionName = "1.0.$buildNumber"
     }
 
-    // Firma fija del proyecto (la misma en todas las versiones, para que las actualizaciones se instalen encima).
+    // Firmas. Las claves vienen de los secretos de GitHub (el flujo de Actions las deja en un archivo temporal).
+    //  - release: la del APK de GitHub (siempre la misma, para que las actualizaciones se instalen encima).
+    //  - upload: la clave de subida a Google Play (Google firma la app final con la suya).
+    // Mientras no existan los secretos, se usa la clave antigua del repositorio para no romper las compilaciones.
+    fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+    val ghKey = env("SIGNING_KEY_GITHUB_FILE")
+    val playKey = env("SIGNING_KEY_PLAY_FILE")
     signingConfigs {
         create("release") {
-            storeFile = file("release.jks")
-            storePassword = "noirbooks2026"
+            storeFile = file(ghKey ?: "release.jks")
+            storePassword = (if (ghKey != null) env("SIGNING_PASS_GITHUB") else null) ?: "noirbooks2026"
             keyAlias = "noirbooks"
-            keyPassword = "noirbooks2026"
+            keyPassword = storePassword
+        }
+        create("upload") {
+            if (playKey != null) {
+                storeFile = file(playKey)
+                storePassword = env("SIGNING_PASS_PLAY")
+                keyAlias = "noirbooks-upload"
+                keyPassword = storePassword
+            } else {
+                storeFile = file(ghKey ?: "release.jks")
+                storePassword = (if (ghKey != null) env("SIGNING_PASS_GITHUB") else null) ?: "noirbooks2026"
+                keyAlias = "noirbooks"
+                keyPassword = storePassword
+            }
         }
     }
 
@@ -36,10 +55,12 @@ android {
         create("github") {
             dimension = "store"
             buildConfigField("boolean", "SELF_UPDATE", "true")
+            signingConfig = signingConfigs.getByName("release")
         }
         create("play") {
             dimension = "store"
             buildConfigField("boolean", "SELF_UPDATE", "false")
+            signingConfig = signingConfigs.getByName("upload")
         }
     }
 
@@ -47,7 +68,6 @@ android {
         release {
             // Sin R8: prioridad a la estabilidad sobre el tamaño.
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 
