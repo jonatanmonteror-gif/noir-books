@@ -40,8 +40,8 @@ enum class Margins(val key: String, val label: String, val px: Int) {
 
 /** Lo que se puede mostrar en el pie de página del lector. */
 enum class FooterInfo(val key: String, val label: String) {
-    ChapterTime("chapter_time", "Tiempo que queda del capítulo"),
-    BookTime("book_time", "Tiempo que queda del libro"),
+    ChapterTime("chapter_time", "Queda del capítulo"),
+    BookTime("book_time", "Queda del libro"),
     ChapterPages("chapter_pages", "Página del capítulo"),
     BookPercent("book_percent", "% del libro"),
     Clock("clock", "Hora"),
@@ -49,7 +49,12 @@ enum class FooterInfo(val key: String, val label: String) {
     None("none", "Nada");
 
     companion object {
-        fun of(k: String?, d: FooterInfo) = entries.firstOrNull { it.key == k } ?: d
+        /** Cada lado tiene sus propias opciones, para que no se repita lo mismo a los dos lados. */
+        val LEFT = listOf(ChapterTime, BookTime, ChapterPages, None)
+        val RIGHT = listOf(BookPercent, Clock, Battery, None)
+        fun of(k: String?, d: FooterInfo, allowed: List<FooterInfo>) =
+            entries.firstOrNull { it.key == k }?.takeIf { it in allowed } ?: d
+        fun next(f: FooterInfo, list: List<FooterInfo>) = list[(list.indexOf(f) + 1).mod(list.size)]
     }
 }
 
@@ -68,6 +73,8 @@ data class ReaderSettings(
     val publisher: Boolean = false,
     val footerLeft: FooterInfo = FooterInfo.ChapterTime,
     val footerRight: FooterInfo = FooterInfo.BookPercent,
+    /** Modo concentración: solo el texto, sin pie de página ni avisos. */
+    val focus: Boolean = false,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
     val twoPages: Boolean = true,    // dos páginas en horizontal en pantallas anchas
@@ -117,6 +124,7 @@ object Prefs {
             .putBoolean("reader_publisher", s.publisher)
             .putString("reader_footer_left", s.footerLeft.key)
             .putString("reader_footer_right", s.footerRight.key)
+            .putBoolean("reader_focus", s.focus)
             .putBoolean("reader_justify", s.justify)
             .putBoolean("reader_hyphens", s.hyphens)
             .putBoolean("reader_two_pages", s.twoPages)
@@ -139,8 +147,9 @@ object Prefs {
             paraSpacing = sp.getFloat("reader_para_spacing", d.paraSpacing),
             indent = sp.getFloat("reader_indent", d.indent),
             publisher = sp.getBoolean("reader_publisher", d.publisher),
-            footerLeft = FooterInfo.of(sp.getString("reader_footer_left", null), d.footerLeft),
-            footerRight = FooterInfo.of(sp.getString("reader_footer_right", null), d.footerRight),
+            footerLeft = FooterInfo.of(sp.getString("reader_footer_left", null), d.footerLeft, FooterInfo.LEFT),
+            footerRight = FooterInfo.of(sp.getString("reader_footer_right", null), d.footerRight, FooterInfo.RIGHT),
+            focus = sp.getBoolean("reader_focus", d.focus),
             justify = sp.getBoolean("reader_justify", d.justify),
             hyphens = sp.getBoolean("reader_hyphens", d.hyphens),
             twoPages = sp.getBoolean("reader_two_pages", d.twoPages),

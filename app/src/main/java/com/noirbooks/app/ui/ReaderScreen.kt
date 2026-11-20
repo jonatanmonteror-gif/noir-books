@@ -253,7 +253,9 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         onDispose { MainActivity.keyHandler = null }
     }
     var firstSettings by remember { mutableStateOf(true) }
-    val layoutKey = settings.copy(volumeKeys = false, brightness = 0f, keepScreenOn = false)
+    // El pie y el modo concentración no cambian la maqueta (el tamaño lo detecta el propio lector).
+    val layoutKey = settings.copy(volumeKeys = false, brightness = 0f, keepScreenOn = false,
+        footerLeft = FooterInfo.None, footerRight = FooterInfo.None, focus = false)
     LaunchedEffect(layoutKey) {
         if (firstSettings) firstSettings = false else c.applySettings()
     }
@@ -280,7 +282,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             }
-            if (settings.footerLeft != FooterInfo.None || settings.footerRight != FooterInfo.None) {
+            if (!settings.focus) {
                 val chLen = book?.chapterLengths?.getOrNull(c.chapter) ?: 0
                 val frac = (c.page + 1f) / c.count.coerceAtLeast(1)
                 val leftInChapter = (chLen * (1f - frac)).toInt().coerceAtLeast(0)
@@ -300,20 +302,35 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     }
                     FooterInfo.None -> ""
                 }
+                // Tocar cada lado del pie cambia lo que se ve en ese lado.
+                val noRipple = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                 Row(
                     Modifier.fillMaxWidth().height(28.dp).padding(horizontal = settings.marginH.dp.coerceAtLeast(16.dp)),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    Text(info(settings.footerLeft), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(info(settings.footerRight), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1)
+                    Box(
+                        Modifier.weight(1.4f).fillMaxHeight().clickable(noRipple, null) {
+                            Prefs.setReader(settings.copy(footerLeft = FooterInfo.next(settings.footerLeft, FooterInfo.LEFT)))
+                        },
+                    ) {
+                        Text(info(settings.footerLeft), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                    }
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().clickable(noRipple, null) {
+                            Prefs.setReader(settings.copy(footerRight = FooterInfo.next(settings.footerRight, FooterInfo.RIGHT)))
+                        },
+                        contentAlignment = Alignment.TopEnd,
+                    ) {
+                        Text(info(settings.footerRight), color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1)
+                    }
                 }
             } else {
                 Spacer(Modifier.navigationBarsPadding())
             }
         }
 
-        if (c.ready && c.currentBookmark() != null && !bars) {
+        if (c.ready && c.currentBookmark() != null && !bars && !settings.focus) {
             Icon(
                 painterResource(R.drawable.ic_bookmark_filled), null, tint = muted,
                 modifier = Modifier.align(Alignment.TopEnd).padding(end = 14.dp).size(18.dp),
@@ -321,7 +338,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         }
 
         // Volver a donde estabas (discreto)
-        AnimatedVisibility(showBack && !bars && c.selection == null, enter = fadeIn(), exit = fadeOut(),
+        AnimatedVisibility(showBack && !bars && c.selection == null && !settings.focus, enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 12.dp, bottom = 30.dp)) {
             Row(
                 Modifier.clip(RoundedCornerShape(50)).background(muted.copy(alpha = 0.16f)).clickable { c.goBack() }
@@ -365,7 +382,13 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         AnimatedVisibility(bars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             BottomBar(c, fg, muted, bg,
                 onToc = { sheet = Sheet.Toc; bars = false },
-                onStyle = { sheet = Sheet.Style; bars = false })
+                onStyle = { sheet = Sheet.Style; bars = false },
+                onFocus = {
+                    val f = !settings.focus
+                    Prefs.setReader(settings.copy(focus = f))
+                    bars = false
+                    AppState.toast(if (f) "Modo concentración: solo el texto. Toca el centro para salir." else "Modo concentración desactivado")
+                })
         }
 
         // Barra de selección propia (subrayar, nota, copiar, compartir, diccionario)
@@ -432,7 +455,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 }
 
 @Composable
-private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit) {
+private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit, onFocus: () -> Unit) {
+    val focus = Prefs.reader.value.focus
     var dragging by remember { mutableStateOf<Float?>(null) }
     val book = c.book
     Column(
@@ -477,7 +501,7 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                 Icon(Icons.Filled.KeyboardArrowLeft, "Capítulo anterior", tint = if (c.chapter > 0) fg else muted.copy(alpha = 0.4f))
             }
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onToc).padding(horizontal = 12.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -491,6 +515,19 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                 ) {
                     Text("Aa", color = fg, fontSize = 18.sp, fontFamily = Playfair, modifier = Modifier.height(22.dp))
                     Text("Lectura", color = fg, fontSize = 11.sp, fontFamily = Inter)
+                }
+                Column(
+                    Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onFocus).padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.height(22.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.size(17.dp).clip(CircleShape)
+                                .background(if (focus) fg else Color.Transparent)
+                                .border(1.5.dp, fg, CircleShape),
+                        )
+                    }
+                    Text(if (focus) "Concentración" else "Concentrar", color = fg, fontSize = 11.sp, fontFamily = Inter)
                 }
             }
             Spacer(Modifier.weight(1f))

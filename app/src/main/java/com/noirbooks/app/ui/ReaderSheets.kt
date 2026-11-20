@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -165,131 +166,138 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Ajustes rápidos de lectura (se aplican al momento y se guardan para todos los libros). */
+/** Ajustes de lectura dentro del libro (se aplican al momento y se guardan para todos los libros). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StyleSheet(onDismiss: () -> Unit) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text,
+        dragHandle = { Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(NB.line)) },
+    ) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
         ) {
             ReadingControls()
         }
     }
 }
 
-/** Controles de lectura compartidos entre el lector y la pantalla de Ajustes. */
+/**
+ * Controles de lectura compartidos entre el lector y Ajustes.
+ * Arriba lo de cada día (tema, tamaño, brillo); debajo, en pestañas pequeñas, el resto.
+ */
 @Composable
 fun ReadingControls(showPreview: Boolean = false) {
     val s by Prefs.reader
     fun set(n: ReaderSettings) = Prefs.setReader(n)
+    var tab by remember { mutableIntStateOf(0) }
 
     if (showPreview) {
         Preview(s)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
     }
 
-    Label("Tema")
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Tema: cuatro muestras pequeñas
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ReaderTheme.entries.forEach { t ->
             val sel = s.theme == t
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { set(s.copy(theme = t)) },
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Box(
+                Modifier.weight(1f).height(38.dp).clip(RoundedCornerShape(10.dp)).background(Color(t.bg))
+                    .border(if (sel) 1.5.dp else 1.dp, if (sel) NB.text else NB.line, RoundedCornerShape(10.dp))
+                    .clickable { set(s.copy(theme = t)) },
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).background(Color(t.bg))
-                        .border(if (sel) 2.dp else 1.dp, if (sel) NB.text else NB.line, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) { Text("Aa", color = Color(t.fg), fontFamily = Playfair, fontSize = 17.sp) }
-                Spacer(Modifier.height(5.dp))
-                Text(t.label, fontSize = 12.sp, color = if (sel) NB.text else NB.text3)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Aa", color = Color(t.fg), fontFamily = Playfair, fontSize = 14.sp)
+                    Spacer(Modifier.width(5.dp))
+                    Text(t.label, color = Color(t.fg).copy(alpha = 0.75f), fontSize = 11.sp)
+                }
             }
         }
     }
+    Spacer(Modifier.height(12.dp))
 
-    Label("Tamaño de letra")
+    // Tamaño y brillo en una sola franja cada uno
     Row(verticalAlignment = Alignment.CenterVertically) {
-        StepButton("A−", 14) { set(s.copy(fontSize = (s.fontSize - 1).coerceAtLeast(12))) }
-        Text("${s.fontSize}", modifier = Modifier.weight(1f), color = NB.text, fontSize = 16.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        StepButton("A+", 19) { set(s.copy(fontSize = (s.fontSize + 1).coerceAtMost(40))) }
+        Segmented(Modifier.weight(1f)) {
+            SegItem("A−", false, Modifier.weight(1f), Playfair) { set(s.copy(fontSize = (s.fontSize - 1).coerceAtLeast(12))) }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { Text("${s.fontSize}", color = NB.text, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+            SegItem("A+", false, Modifier.weight(1f), Playfair, size = 15) { set(s.copy(fontSize = (s.fontSize + 1).coerceAtMost(40))) }
+        }
     }
-
-    Label("Brillo")
+    Spacer(Modifier.height(6.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Slider(
-            value = if (s.brightness < 0) 0.5f else s.brightness,
-            onValueChange = { set(s.copy(brightness = it.coerceIn(0.02f, 1f))) },
-            enabled = s.brightness >= 0,
-            colors = SliderDefaults.colors(thumbColor = NB.text, activeTrackColor = NB.text, inactiveTrackColor = NB.line),
+        Text("Brillo", color = NB.text3, fontSize = 12.sp, modifier = Modifier.width(52.dp))
+        CompactSlider(
+            value = if (s.brightness < 0) 0.5f else s.brightness, range = 0.02f..1f, enabled = s.brightness >= 0,
             modifier = Modifier.weight(1f),
+            onChange = { set(s.copy(brightness = it)) },
         )
-        Spacer(Modifier.width(10.dp))
-        Choice("Sistema", s.brightness < 0, Modifier) {
-            set(s.copy(brightness = if (s.brightness < 0) 0.5f else -1f))
-        }
+        Spacer(Modifier.width(8.dp))
+        SmallChip("Auto", s.brightness < 0) { set(s.copy(brightness = if (s.brightness < 0) 0.5f else -1f)) }
     }
 
-
-    // Segundo y tercer nivel, plegados: lo rápido arriba, lo demás a un toque.
     Spacer(Modifier.height(14.dp))
-    FoldSection("Letra y página", "Tipo de letra, interlineado, márgenes, párrafos") {
-        Toggle("Respetar el diseño del libro", s.publisher) { set(s.copy(publisher = it)) }
-        if (s.publisher) Text("Se usa la letra, el interlineado y los párrafos del propio libro. Solo cambian el tema, el tamaño y los márgenes.",
-            color = NB.text3, fontSize = 12.sp, lineHeight = 17.sp)
-        Label("Tipo de letra")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ReaderFont.entries.take(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ReaderFont.entries.drop(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-            Spacer(Modifier.weight(1f))
-        }
-
-        Label("Interlineado")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1.3f to "Junto", 1.55f to "Normal", 1.8f to "Amplio", 2.1f to "Muy amplio").forEach { (v, l) ->
-                Choice(l, kotlin.math.abs(s.lineHeight - v) < 0.05f, Modifier.weight(1f)) { set(s.copy(lineHeight = v)) }
-            }
-        }
-
-        Label("Márgenes laterales")
-        PxSlider(s.marginH, 4, 72) { set(s.copy(marginH = it)) }
-        Label("Márgenes arriba y abajo")
-        PxSlider(s.marginV, 6, 72) { set(s.copy(marginV = it)) }
-
-        Label("Espacio entre párrafos")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(-1f to "Del libro", 0f to "Ninguno", 0.5f to "Poco", 1f to "Mucho").forEach { (v, l) ->
-                Choice(l, kotlin.math.abs(s.paraSpacing - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(paraSpacing = v)) }
-            }
-        }
-        Label("Sangría")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(-1f to "Del libro", 0f to "Sin sangría", 1.5f to "Con sangría").forEach { (v, l) ->
-                Choice(l, kotlin.math.abs(s.indent - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(indent = v)) }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
-        Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
+    Segmented(Modifier.fillMaxWidth()) {
+        listOf("Texto", "Página", "Pie", "Más").forEachIndexed { i, l -> SegItem(l, tab == i, Modifier.weight(1f)) { tab = i } }
     }
-    FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
-        Label("A la izquierda")
-        FooterChoices(s.footerLeft) { set(s.copy(footerLeft = it)) }
-        Label("A la derecha")
-        FooterChoices(s.footerRight) { set(s.copy(footerRight = it)) }
-        Spacer(Modifier.height(6.dp))
-        Text("Con \"Nada\" en los dos lados, el texto ocupa también esa línea.", color = NB.text3, fontSize = 12.sp)
-    }
-    FoldSection("Avanzado", "Tablet, botones y pantalla") {
-        Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
-        Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
-        Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
+    Spacer(Modifier.height(4.dp))
+
+    when (tab) {
+        0 -> {
+            Label("Tipo de letra")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ReaderFont.entries.forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
+            }
+            Label("Interlineado")
+            Segmented(Modifier.fillMaxWidth()) {
+                listOf(1.3f to "Junto", 1.55f to "Normal", 1.8f to "Amplio", 2.1f to "Muy amplio").forEach { (v, l) ->
+                    SegItem(l, kotlin.math.abs(s.lineHeight - v) < 0.05f, Modifier.weight(1f)) { set(s.copy(lineHeight = v)) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
+            Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
+            Toggle("Respetar el diseño del libro", s.publisher) { set(s.copy(publisher = it)) }
+            if (s.publisher) Hint("Se usan la letra, el interlineado y los párrafos del libro. Solo cambian tema, tamaño y márgenes.")
+        }
+        1 -> {
+            Label("Márgenes laterales")
+            PxSlider(s.marginH, 4, 72) { set(s.copy(marginH = it)) }
+            Label("Márgenes arriba y abajo")
+            PxSlider(s.marginV, 6, 72) { set(s.copy(marginV = it)) }
+            Label("Espacio entre párrafos")
+            Segmented(Modifier.fillMaxWidth()) {
+                listOf(-1f to "Del libro", 0f to "Ninguno", 0.5f to "Poco", 1f to "Mucho").forEach { (v, l) ->
+                    SegItem(l, kotlin.math.abs(s.paraSpacing - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(paraSpacing = v)) }
+                }
+            }
+            Label("Sangría")
+            Segmented(Modifier.fillMaxWidth()) {
+                listOf(-1f to "Del libro", 0f to "Sin sangría", 1.5f to "Con sangría").forEach { (v, l) ->
+                    SegItem(l, kotlin.math.abs(s.indent - v) < 0.01f, Modifier.weight(1f)) { set(s.copy(indent = v)) }
+                }
+            }
+        }
+        2 -> {
+            Label("A la izquierda")
+            FooterChoices(FooterInfo.LEFT, s.footerLeft) { set(s.copy(footerLeft = it)) }
+            Label("A la derecha")
+            FooterChoices(FooterInfo.RIGHT, s.footerRight) { set(s.copy(footerRight = it)) }
+            Spacer(Modifier.height(8.dp))
+            Hint("También puedes tocar cada lado del pie de página mientras lees para ir cambiándolo.")
+        }
+        else -> {
+            Spacer(Modifier.height(8.dp))
+            Toggle("Modo concentración", s.focus) { set(s.copy(focus = it)) }
+            Hint("Solo el texto: sin pie de página ni avisos. Toca el centro para ver los menús.")
+            Spacer(Modifier.height(6.dp))
+            Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
+            Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
+            Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
+        }
     }
 }
 
@@ -301,15 +309,72 @@ private fun Preview(s: ReaderSettings) {
         ReaderFont.Atkinson -> FontFamily.SansSerif
     }
     Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(s.theme.bg))
-            .border(1.dp, NB.line, RoundedCornerShape(14.dp)).padding(horizontal = (s.marginH * 0.7f).dp, vertical = 16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(s.theme.bg))
+            .border(1.dp, NB.line, RoundedCornerShape(12.dp)).padding(horizontal = (s.marginH * 0.7f).dp, vertical = 14.dp),
     ) {
         Text(
             "En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero.",
-            color = Color(s.theme.fg), fontFamily = family, fontSize = (s.fontSize * 0.85f).sp,
-            lineHeight = (s.fontSize * 0.85f * s.lineHeight).sp,
+            color = Color(s.theme.fg), fontFamily = family, fontSize = (s.fontSize * 0.8f).sp,
+            lineHeight = (s.fontSize * 0.8f * s.lineHeight).sp,
         )
     }
+}
+
+@Composable
+private fun Label(text: String) {
+    Spacer(Modifier.height(14.dp))
+    Text(text.uppercase(), fontSize = 10.sp, letterSpacing = 1.3.sp, color = NB.text3, fontWeight = FontWeight.Medium)
+    Spacer(Modifier.height(7.dp))
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(text, color = NB.text3, fontSize = 11.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp))
+}
+
+/** Grupo de opciones en una sola pieza (como un control segmentado). */
+@Composable
+private fun Segmented(modifier: Modifier, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(
+        modifier.height(34.dp).clip(RoundedCornerShape(10.dp)).background(NB.surface2).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically, content = content,
+    )
+}
+
+@Composable
+private fun SegItem(label: String, selected: Boolean, modifier: Modifier, family: FontFamily = Inter, size: Int = 12, onClick: () -> Unit) {
+    Box(
+        modifier.fillMaxHeight().clip(RoundedCornerShape(8.dp))
+            .background(if (selected) NB.text else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (selected) Color.Black else NB.text2, fontSize = size.sp, fontFamily = family,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun SmallChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.height(28.dp).clip(RoundedCornerShape(50))
+            .background(if (selected) NB.text else Color.Transparent)
+            .border(1.dp, if (selected) NB.text else NB.line, RoundedCornerShape(50))
+            .clickable(onClick = onClick).padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, fontSize = 12.sp, color = if (selected) Color.Black else NB.text2) }
+}
+
+@Composable
+private fun CompactSlider(value: Float, range: ClosedFloatingPointRange<Float>, enabled: Boolean = true, modifier: Modifier,
+                          onDone: (() -> Unit)? = null, onChange: (Float) -> Unit) {
+    Slider(
+        value = value, onValueChange = onChange, valueRange = range, enabled = enabled,
+        onValueChangeFinished = onDone,
+        colors = SliderDefaults.colors(thumbColor = NB.text, activeTrackColor = NB.text, inactiveTrackColor = NB.line,
+            disabledThumbColor = NB.text3, disabledActiveTrackColor = NB.line, disabledInactiveTrackColor = NB.line),
+        modifier = modifier.height(30.dp),
+    )
 }
 
 /** Deslizador que solo aplica el cambio al soltar (cada cambio vuelve a maquetar el capítulo). */
@@ -317,76 +382,47 @@ private fun Preview(s: ReaderSettings) {
 private fun PxSlider(value: Int, min: Int, max: Int, onDone: (Int) -> Unit) {
     var v by remember(value) { mutableStateOf(value.toFloat()) }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Slider(
-            value = v, onValueChange = { v = it }, valueRange = min.toFloat()..max.toFloat(),
-            onValueChangeFinished = { onDone(v.toInt()) },
-            colors = SliderDefaults.colors(thumbColor = NB.text, activeTrackColor = NB.text, inactiveTrackColor = NB.line),
-            modifier = Modifier.weight(1f),
-        )
-        Text("${v.toInt()}", color = NB.text2, fontSize = 13.sp, modifier = Modifier.width(34.dp),
+        CompactSlider(v, min.toFloat()..max.toFloat(), modifier = Modifier.weight(1f), onDone = { onDone(v.toInt()) }) { v = it }
+        Text("${v.toInt()}", color = NB.text2, fontSize = 12.sp, modifier = Modifier.width(30.dp),
             textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
 
 @Composable
-private fun FooterChoices(value: FooterInfo, onPick: (FooterInfo) -> Unit) {
-    val items = FooterInfo.entries
-    items.chunked(2).forEach { row ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            row.forEach { f -> Choice(f.label, f == value, Modifier.weight(1f)) { onPick(f) } }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
-        }
+private fun FooterChoices(items: List<FooterInfo>, value: FooterInfo, onPick: (FooterInfo) -> Unit) {
+    Segmented(Modifier.fillMaxWidth()) {
+        items.forEach { f -> SegItem(f.label, f == value, Modifier.weight(1f), size = 11) { onPick(f) } }
     }
-}
-
-@Composable
-private fun Label(text: String) {
-    Spacer(Modifier.height(18.dp))
-    Text(text.uppercase(), fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text3, fontWeight = FontWeight.Medium)
-    Spacer(Modifier.height(8.dp))
-}
-
-@Composable
-private fun StepButton(label: String, size: Int, onClick: () -> Unit) {
-    Box(
-        Modifier.size(width = 72.dp, height = 44.dp).clip(RoundedCornerShape(12.dp)).background(NB.surface2).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = NB.text, fontSize = size.sp, fontFamily = Playfair) }
 }
 
 @Composable
 private fun FontChip(f: ReaderFont, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val family = when (f) {
-        ReaderFont.Inter -> Inter
+        ReaderFont.Inter, ReaderFont.Original -> Inter
         ReaderFont.Atkinson -> FontFamily.SansSerif
-        ReaderFont.Original -> Inter
         else -> FontFamily.Serif
     }
-    Choice(f.label, selected, modifier, family, onClick)
-}
-
-@Composable
-private fun Choice(label: String, selected: Boolean, modifier: Modifier, family: FontFamily = Inter, onClick: () -> Unit) {
-    Box(
+    Column(
         modifier.clip(RoundedCornerShape(10.dp))
             .background(if (selected) NB.text else NB.surface2)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 11.dp),
-        contentAlignment = Alignment.Center,
+            .clickable(onClick = onClick).padding(vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(label, color = if (selected) Color.Black else NB.text2, fontSize = 13.sp, fontFamily = family, maxLines = 1)
+        Text("Aa", color = if (selected) Color.Black else NB.text, fontSize = 16.sp, fontFamily = family)
+        Text(f.label, color = if (selected) Color.Black else NB.text3, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onChange(!value) }.padding(vertical = 6.dp),
+        Modifier.fillMaxWidth().height(42.dp).clip(RoundedCornerShape(8.dp)).clickable { onChange(!value) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = NB.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(label, color = NB.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Switch(
             checked = value, onCheckedChange = onChange,
+            modifier = Modifier.scale(0.8f),
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.Black, checkedTrackColor = NB.text,
                 uncheckedThumbColor = NB.text3, uncheckedTrackColor = NB.surface2, uncheckedBorderColor = NB.line,
