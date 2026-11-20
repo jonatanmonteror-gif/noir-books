@@ -124,7 +124,8 @@ object Backup {
                 if (old.isDirectory) {
                     val epub = File(old, "book.epub")
                     val incoming = File(newBooks, old.name)
-                    if (epub.isFile && incoming.isDirectory && !File(incoming, "book.epub").exists()) {
+                    if (epub.isFile && !File(incoming, "book.epub").exists()) {
+                        incoming.mkdirs()
                         epub.copyTo(File(incoming, "book.epub"), overwrite = true)
                     }
                 }
