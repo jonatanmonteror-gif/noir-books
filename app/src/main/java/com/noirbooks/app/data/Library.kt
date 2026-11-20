@@ -20,6 +20,8 @@ import java.util.zip.ZipFile
 /** Estados de un libro (como Openreads): leyendo, pendiente, leído o abandonado. */
 enum class BookStatus(val key: String, val label: String) {
     Reading("reading", "Leyendo"),
+    /** El siguiente que vas a leer. */
+    Next("next", "Próximo"),
     ToRead("toread", "Pendiente"),
     Read("read", "Leído"),
     Abandoned("abandoned", "Abandonado");
@@ -399,7 +401,7 @@ object Library {
     suspend fun setProgress(id: String, p: Float) {
         val v = p.coerceIn(0f, 1f)
         update(id) { b ->
-            val base = b.copy(lastOpened = System.currentTimeMillis(), status = if (b.status == BookStatus.ToRead || b.status == BookStatus.Abandoned) BookStatus.Reading else b.status,
+            val base = b.copy(lastOpened = System.currentTimeMillis(), status = if (b.status == BookStatus.ToRead || b.status == BookStatus.Next || b.status == BookStatus.Abandoned) BookStatus.Reading else b.status,
                 readings = if (b.readings.any { it.end == 0L }) b.readings else b.readings + Reading(System.currentTimeMillis()))
             if (!b.isEpub) base.copy(manualProgress = v)
             else {

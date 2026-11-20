@@ -256,8 +256,12 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit) {
         )
         if (unit == ProgressUnit.Location) Text("En el Kindle: Ir a → Posición muestra el total.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(16.dp))
-        Label("Estado")
-        ChipRow(listOf(BookStatus.Reading, BookStatus.ToRead, BookStatus.Read), status, { it.label }) { status = it }
+        Label("¿Cuándo lo vas a leer?")
+        WHEN_OPTIONS.chunked(2).forEach { row ->
+            Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (st, label) -> Chip(label, status == st) { status = st } }
+            }
+        }
         Spacer(Modifier.height(26.dp))
         PrimaryButton(if (saving) "Añadiendo…" else "Añadir a la biblioteca", Modifier.fillMaxWidth(), enabled = title.isNotBlank() && !saving) {
             saving = true
@@ -289,6 +293,46 @@ private fun <T> ChipRow(items: List<T>, selected: T, label: (T) -> String, onPic
 // ---------------------------------------------------------------------------------------------
 // Apuntar una lectura hecha fuera de la app: de tal hora a tal hora, hasta tal punto
 // ---------------------------------------------------------------------------------------------
+
+/** Opciones al añadir un libro: lo encasilla directamente. */
+val WHEN_OPTIONS = listOf(
+    BookStatus.Reading to "Lo empiezo ahora",
+    BookStatus.Next to "Será mi próximo libro",
+    BookStatus.ToRead to "Para más adelante",
+    BookStatus.Read to "Ya lo he leído",
+)
+
+/** Tras importar un EPUB: preguntar cuándo se va a leer. */
+@Composable
+fun WhenToReadDialog(bookId: String, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val b = Library.get(bookId)
+    if (b == null) { onDismiss(); return }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = {
+            Column {
+                Text("¿Cuándo lo vas a leer?", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+                Text(b.title, fontSize = 14.sp, color = NB.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        text = {
+            Column {
+                WHEN_OPTIONS.forEach { (st, label) ->
+                    MenuRow(label) {
+                        onDismiss()
+                        when (st) {
+                            BookStatus.Reading -> AppState.openBook(b)
+                            BookStatus.ToRead -> AppState.toast("Añadido a pendientes")
+                            else -> scope.launch { Library.setStatus(b.id, st) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Luego", color = NB.text2) } },
+    )
+}
 
 private fun roundTo5(t: Long): Long = t - t % (5 * 60_000L)
 
@@ -538,7 +582,7 @@ fun SessionsDialog(bookId: String, onDismiss: () -> Unit) {
 fun BookPickerDialog(onPick: (Book) -> Unit, onDismiss: () -> Unit) {
     val books by Library.books
     val list = books.filter { !it.inTrash }.sortedWith(
-        compareBy<Book>({ if (it.status == BookStatus.Reading) 0 else if (it.status == BookStatus.ToRead) 1 else 2 }, { -maxOf(it.lastOpened, it.addedAt) })
+        compareBy<Book>({ when (it.status) { BookStatus.Reading -> 0; BookStatus.Next -> 1; BookStatus.ToRead -> 2; else -> 3 } }, { -maxOf(it.lastOpened, it.addedAt) })
     )
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = NB.surface2,

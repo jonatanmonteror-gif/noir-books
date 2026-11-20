@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.11", "20 nov 2026", listOf(
+            "Al añadir un libro eliges cuándo lo vas a leer: lo empiezo ahora, será mi próximo libro, para más adelante o ya leído",
+            "Nuevo estado «Próximo» en la biblioteca y en la ficha del libro",
+        )),
         Entry("1.0.10", "20 nov 2026", listOf(
             "Borrar todas las lecturas de un libro (registro, calendario y estadísticas) desde su ficha o manteniendo pulsada una lectura",
             "En el calendario, mantener pulsado un libro de un día para borrar lo de ese día o todo lo de ese libro",

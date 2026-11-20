@@ -53,6 +53,8 @@ object AppState {
     /** Ficha del libro abierta (pulsación larga o libro que no se lee en la app). */
     val bookMenu = mutableStateOf<String?>(null)
     val addBook = mutableStateOf(false)
+    /** Libro recién añadido al que preguntar cuándo se va a leer. */
+    val askStatus = mutableStateOf<String?>(null)
     /** Cronómetro de lectura fuera de la app: libro y hora de inicio (0 = parado). */
     val timer = mutableStateOf<Pair<String, Long>?>(null)
     /** Lectura que se está apuntando: libro y, si viene del cronómetro, inicio y fin. */
@@ -107,8 +109,8 @@ object AppState {
             errors.size == 1 && uris.size == 1 -> toast(errors.first().substringAfter(": "))
             errors.isNotEmpty() -> toast("No se pudieron añadir ${errors.size} de ${uris.size} archivos")
             added > 1 -> toast("$added libros añadidos")
-            added == 1 && !openIfSingle -> toast("Libro añadido")
         }
+        if (added == 1 && !openIfSingle) last?.let { askStatus.value = it }
         if (openIfSingle && uris.size == 1) last?.let { screen.value = Screen.Reader(it) }
     }
 
@@ -166,6 +168,7 @@ fun App() {
             if (screen !is Screen.Reader) {
                 AppState.bookMenu.value?.let { id -> BookMenu(id, onDismiss = { AppState.bookMenu.value = null }) }
                 if (AppState.addBook.value) AddBookScreen(onClose = { AppState.addBook.value = false })
+                AppState.askStatus.value?.let { id -> WhenToReadDialog(id, onDismiss = { AppState.askStatus.value = null }) }
             }
             AppState.logSession.value?.let { r -> LogSessionDialog(r, onDismiss = { AppState.logSession.value = null }) }
             UpdatePrompt()

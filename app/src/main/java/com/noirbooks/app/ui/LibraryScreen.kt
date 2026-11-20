@@ -233,6 +233,7 @@ fun LibraryScreen() {
                         b.rating > 0f -> "★ ${ratingLabel(b.rating)}" + if (b.author.isNotBlank()) " · ${b.author}" else ""
                         b.status == BookStatus.Read -> "Leído" + if (b.author.isNotBlank()) " · ${b.author}" else ""
                         b.status == BookStatus.Abandoned -> "Abandonado"
+                        b.status == BookStatus.Next -> "Próximo" + if (b.author.isNotBlank()) " · ${b.author}" else ""
                         !b.isEpub && b.status == BookStatus.Reading -> b.format.label + " · " + b.progressLabel()
                         else -> b.author
                     }
@@ -435,6 +436,9 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
                 if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
                     scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()
+                }
+                if (b.status == BookStatus.ToRead || b.status == BookStatus.Abandoned) MenuRow("Será mi próximo libro") {
+                    scope.launch { Library.setStatus(b.id, BookStatus.Next) }; onDismiss()
                 }
                 if (b.status != BookStatus.ToRead) MenuRow("Pasar a pendientes") {
                     scope.launch { Library.setStatus(b.id, BookStatus.ToRead) }; onDismiss()
