@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.combinedClickable
+import java.text.SimpleDateFormat
+import java.util.Locale
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -81,6 +84,7 @@ fun MainScreen() {
                 0 -> LibraryScreen()
                 1 -> CalendarScreen()
                 2 -> QuotesScreen()
+                4 -> LogScreen()
                 else -> StatsScreen()
             }
         }
@@ -89,8 +93,10 @@ fun MainScreen() {
             Modifier.fillMaxWidth().background(NB.bg).navigationBarsPadding().height(58.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(R.drawable.ic_library to "Biblioteca", R.drawable.ic_calendar to "Calendario",
-                R.drawable.ic_quote to "Citas", R.drawable.ic_stats to "Estadísticas").forEachIndexed { i, (icon, label) ->
+            // Orden en pantalla: Biblioteca, Calendario, Registro, Citas, Estadísticas (el número es la pestaña).
+            listOf(Triple(0, R.drawable.ic_library, "Biblioteca"), Triple(1, R.drawable.ic_calendar, "Calendario"),
+                Triple(4, R.drawable.ic_log, "Registro de lecturas"), Triple(2, R.drawable.ic_quote, "Citas"),
+                Triple(3, R.drawable.ic_stats, "Estadísticas")).forEach { (i, icon, label) ->
                 Box(
                     Modifier.weight(1f).height(58.dp).clickable { AppState.tab.intValue = i },
                     contentAlignment = Alignment.Center,
@@ -99,6 +105,89 @@ fun MainScreen() {
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Registro de lecturas: cada lectura (en la app o apuntada) en una lista; mantener pulsado para borrar
+// ---------------------------------------------------------------------------------------------
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun LogScreen() {
+    val v by Stats.version
+    val books by Library.books
+    val byId = books.associateBy { it.id }
+    val list = remember(v) { Stats.sessions() }
+    var picking by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf<com.noirbooks.app.data.Session?>(null) }
+    val hm = remember { SimpleDateFormat("HH:mm", Locale("es", "ES")) }
+    val dayFmt = remember { SimpleDateFormat("EEEE d 'de' MMMM", Locale("es", "ES")) }
+    val today = Stats.today()
+    val yesterday = Stats.dayOf(System.currentTimeMillis() - 24 * 3600_000L)
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenTitle("Registro") {
+            Box(
+                Modifier.padding(end = 10.dp).clip(RoundedCornerShape(50)).background(NB.text)
+                    .clickable { picking = true }.padding(horizontal = 14.dp, vertical = 8.dp),
+            ) { Text("+ Apuntar lectura", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        }
+        if (list.isEmpty()) {
+            Text(
+                "Aquí aparecerá cada lectura: lo que leas en la app y lo que apuntes de Kindle o papel. Mantén pulsada una lectura para borrarla.",
+                color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(20.dp),
+            )
+            return@Column
+        }
+        Text("Mantén pulsada una lectura para borrarla.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
+            list.groupBy { Stats.dayOf(it.start) }.forEach { (day, items) ->
+                item(key = "d$day") {
+                    val label = when (day) {
+                        today -> "Hoy"
+                        yesterday -> "Ayer"
+                        else -> dayFmt.format(items.first().start).replaceFirstChar { it.uppercase() }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.Bottom) {
+                        Text(label, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(durationLabel(items.sumOf { it.seconds }), color = NB.text3, fontSize = 13.sp)
+                    }
+                }
+                items(items, key = { "s${it.id}" }) { s ->
+                    val b = byId[s.bookId]
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .combinedClickable(onClick = { b?.let { AppState.bookMenu.value = it.id } }, onLongClick = { confirm = s })
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (b != null) BookCover(b, Modifier.width(38.dp), titleSize = 6) else Box(Modifier.width(38.dp))
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(b?.title ?: "Libro eliminado", color = NB.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${hm.format(s.start)} – ${hm.format(s.end)}", color = NB.text2, fontSize = 13.sp)
+                            Text(
+                                (if (s.manual) "Apuntada a mano" else "Leída en la app") + if (s.pages > 0) " · ${s.pages} páginas" else "",
+                                color = NB.text3, fontSize = 12.sp,
+                            )
+                        }
+                        Text(durationLabel(s.seconds), color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+
+    if (picking) BookPickerDialog(onPick = { b -> picking = false; AppState.logSession.value = LogRequest(b.id) }, onDismiss = { picking = false })
+    confirm?.let { s ->
+        AlertDialog(
+            onDismissRequest = { confirm = null }, containerColor = NB.surface2,
+            title = { Text("¿Borrar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = { Text("Se quitan ${durationLabel(s.seconds)} del calendario y de las estadísticas. El progreso del libro no cambia.", color = NB.text2) },
+            confirmButton = { TextButton(onClick = { Stats.deleteSession(s.id); confirm = null; AppState.toast("Lectura borrada") }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = NB.text2) } },
+        )
     }
 }
 
