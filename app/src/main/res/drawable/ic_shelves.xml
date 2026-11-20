@@ -1,0 +1,4 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Tres libros de pie (uno inclinado) sobre una balda -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,5h3.2v13H3zM7.4,3h3.2v15H7.4zM11.8,7h3.2v11h-3.2zM16.1,6.9l3.05,-0.95 3.2,10.3 -3.05,0.95zM2,19.5h20V21.5H2z" />
+</vector>

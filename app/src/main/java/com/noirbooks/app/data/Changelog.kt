@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.33", "20 nov 2026", listOf(
+            "Estanterías con su propia pantalla: toca el icono de la estantería arriba en la biblioteca",
+            "Cada estantería se ve como un estante con sus portadas; tócala para ver solo esos libros",
+            "Añadir libros a una estantería desde la propia estantería, y filtro «Sin estantería»",
+            "Ya no aparecen etiquetas de estanterías ocupando la biblioteca",
+        )),
         Entry("1.0.32", "20 nov 2026", listOf(
             "Los botones que no caben pasan a la línea de abajo en vez de partirse en dos (p. ej. Restaurar de Drive)",
         )),

@@ -94,7 +94,9 @@ fun LibraryScreen() {
     val cpm = remember(all.size) { Stats.charsPerMinute() }
     val shelves by Library.shelves
     var shelf by rememberSaveable { mutableStateOf<String?>(null) }
-    if (shelf != null && shelf !in shelves) shelf = null
+    if (shelf != null && shelf != NO_SHELF && shelf !in shelves) shelf = null
+    var shelvesView by rememberSaveable { mutableStateOf(false) }
+    var addToShelf by remember { mutableStateOf<String?>(null) }
     // Selección de varios libros para moverlos en grupo
     var selecting by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
@@ -114,7 +116,7 @@ fun LibraryScreen() {
     val shown = books
         .filter { q.isEmpty() || fold(it.title).contains(q) || fold(it.author).contains(q) }
         .filter { filter == "all" || it.status.key == filter }
-        .filter { shelf == null || shelf in it.shelves }
+        .filter { inShelf(it, shelf) }
         .let { list ->
             when (sort) {
                 "title" -> list.sortedBy { fold(it.title) }
@@ -123,6 +125,11 @@ fun LibraryScreen() {
                 else -> list.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }
             }
         }
+
+    if (shelvesView) {
+        ShelvesScreen(books, shelf, onPick = { shelf = it; shelvesView = false }, onBack = { shelvesView = false })
+        return
+    }
 
     Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding()) {
         Row(
@@ -140,6 +147,12 @@ fun LibraryScreen() {
             if (books.isNotEmpty()) {
                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                     Icon(if (searching) Icons.Filled.Close else Icons.Filled.Search, "Buscar", tint = NB.text)
+                }
+            }
+            if (books.isNotEmpty()) {
+                IconButton(onClick = { shelvesView = true }) {
+                    Icon(androidx.compose.ui.res.painterResource(com.noirbooks.app.R.drawable.ic_shelves), "Estanterías",
+                        tint = if (shelf != null) NB.text else NB.text2)
                 }
             }
             IconButton(onClick = { AppState.screen.value = Screen.Settings }) {
@@ -231,15 +244,21 @@ fun LibraryScreen() {
                             if (n > 0) Chip("${st.label} · $n", filter == st.key) { filter = st.key }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    // Estanterías propias: tocar filtra; mantener pulsado para renombrar o borrar
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        shelves.forEach { s ->
-                            val n = books.count { s in it.shelves }
-                            ShelfChip("$s · $n", shelf == s, onClick = { shelf = if (shelf == s) null else s }, onLongClick = { editShelf = s })
+                    // Estantería elegida (desde el icono de arriba): una sola franja, no una fila de etiquetas
+                    shelf?.let { s ->
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(NB.surface2)
+                                .clickable { shelvesView = true }.padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(androidx.compose.ui.res.painterResource(com.noirbooks.app.R.drawable.ic_shelves), null, tint = NB.text, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(shelfLabel(s), color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (s != NO_SHELF) TextButton(onClick = { addToShelf = s }) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
+                            IconButton(onClick = { shelf = null }) { Icon(Icons.Filled.Close, "Quitar filtro", tint = NB.text2, modifier = Modifier.size(20.dp)) }
                         }
-                        ShelfChip(if (shelves.isEmpty()) "+ Nueva estantería" else "+", false, onClick = { newShelf = true })
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -315,6 +334,7 @@ fun LibraryScreen() {
     statusFor?.let { ids -> StatusManyDialog(ids, onDismiss = { statusFor = null; endSelection() }) }
     if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) shelf = n }
     editShelf?.let { s -> EditShelfDialog(s) { n -> editShelf = null; if (shelf == s) shelf = n } }
+    addToShelf?.let { s -> AddToShelfDialog(s, books) { addToShelf = null } }
 }
 
 @Composable

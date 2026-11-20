@@ -1,0 +1,227 @@
+package com.noirbooks.app.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.noirbooks.app.data.Book
+import com.noirbooks.app.data.Library
+import kotlinx.coroutines.launch
+
+/** Filtro especial: libros que no están en ninguna estantería. */
+const val NO_SHELF = "\u0001sin"
+
+fun shelfLabel(s: String) = if (s == NO_SHELF) "Sin estantería" else s
+
+fun inShelf(b: Book, s: String?) = when (s) {
+    null -> true
+    NO_SHELF -> b.shelves.isEmpty()
+    else -> s in b.shelves
+}
+
+/**
+ * Pantalla de estanterías: cada estantería se ve como un estante con sus portadas de pie.
+ * Tocar un estante abre la biblioteca filtrada por él.
+ */
+@Composable
+fun ShelvesScreen(books: List<Book>, current: String?, onPick: (String?) -> Unit, onBack: () -> Unit) {
+    val shelves by Library.shelves
+    var newShelf by remember { mutableStateOf(false) }
+    var editShelf by remember { mutableStateOf<String?>(null) }
+    var addTo by remember { mutableStateOf<String?>(null) }
+    BackHandler { onBack() }
+
+    Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding()) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = NB.text) }
+            Text("Estanterías", fontFamily = Playfair, fontSize = 26.sp, color = NB.text, modifier = Modifier.weight(1f))
+            IconButton(onClick = { newShelf = true }) {
+                Box(Modifier.size(30.dp).clip(RoundedCornerShape(50)).background(NB.text), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Add, "Nueva estantería", tint = NB.onText, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+
+        LazyColumn(
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(26.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            // Accesos rápidos: toda la biblioteca y lo que aún no está ordenado
+            item(key = "quick") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    QuickTile("Toda la biblioteca", books.size, current == null, Modifier.weight(1f)) { onPick(null) }
+                    QuickTile("Sin estantería", books.count { it.shelves.isEmpty() }, current == NO_SHELF, Modifier.weight(1f)) { onPick(NO_SHELF) }
+                }
+            }
+            if (shelves.isEmpty()) {
+                item(key = "empty") {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .border(BorderStroke(1.dp, NB.line), RoundedCornerShape(16.dp))
+                            .clickable { newShelf = true }.padding(22.dp),
+                    ) {
+                        Text("Ordena tus libros a tu manera", color = NB.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Crea estanterías como «Clásicos», «Para el verano» o «Regalos». Un libro puede estar en varias.",
+                            color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        PillButton("Crear la primera", primary = true) { newShelf = true }
+                    }
+                }
+            }
+            items(shelves, key = { it }) { s ->
+                val inside = books.filter { s in it.shelves }.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }
+                ShelfRow(
+                    name = s, books = inside, selected = current == s,
+                    onOpen = { onPick(s) }, onAdd = { addTo = s }, onEdit = { editShelf = s },
+                )
+            }
+        }
+    }
+
+    if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) addTo = n }
+    editShelf?.let { s -> EditShelfDialog(s) { editShelf = null } }
+    addTo?.let { s -> AddToShelfDialog(s, books) { addTo = null } }
+}
+
+@Composable
+private fun QuickTile(label: String, n: Int, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp))
+            .background(if (selected) NB.text else NB.surface)
+            .border(1.dp, if (selected) NB.text else NB.line, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text("$n", fontFamily = Playfair, fontSize = 24.sp, color = if (selected) NB.onText else NB.text)
+        Text(label, fontSize = 13.sp, color = if (selected) NB.onText else NB.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Un estante: nombre arriba, portadas de pie y la tabla debajo. */
+@Composable
+private fun ShelfRow(name: String, books: List<Book>, selected: Boolean, onOpen: () -> Unit, onAdd: () -> Unit, onEdit: () -> Unit) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
+                Text(name, fontFamily = Playfair, fontSize = 21.sp, color = NB.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    (if (books.size == 1) "1 libro" else "${books.size} libros") + if (selected) " · viendo ahora" else "",
+                    fontSize = 13.sp, color = NB.text3,
+                )
+            }
+            TextButton(onClick = onAdd) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
+            IconButton(onClick = onEdit) { Icon(Icons.Filled.MoreVert, "Renombrar o borrar", tint = NB.text2) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(112.dp).clickable(onClick = onOpen), contentAlignment = Alignment.BottomStart) {
+            if (books.isEmpty()) {
+                Text("Vacía. Pulsa Añadir para poner libros.", color = NB.text3, fontSize = 14.sp, modifier = Modifier.padding(bottom = 14.dp))
+            } else {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    books.take(15).forEach { b ->
+                        Box(Modifier.width(70.dp).clickable(onClick = onOpen)) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 10) }
+                    }
+                    if (books.size > 15) {
+                        Box(Modifier.width(70.dp).height(105.dp), contentAlignment = Alignment.Center) {
+                            Text("+${books.size - 15}", color = NB.text2, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+        // La tabla del estante
+        Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(2.dp)).background(if (selected) NB.text else NB.text2))
+        Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp).height(4.dp).background(NB.line))
+    }
+}
+
+/** Poner o quitar libros de una estantería desde la propia estantería. */
+@Composable
+fun AddToShelfDialog(shelf: String, books: List<Book>, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val live by Library.books
+    val list = remember(books) { books.sortedBy { fold(it.title) } }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = {
+            Column {
+                Text(shelf, fontFamily = Inter, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Marca los libros que van en esta estantería", fontSize = 14.sp, color = NB.text2)
+            }
+        },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                list.forEach { b ->
+                    val on = live.firstOrNull { it.id == b.id }?.shelves?.contains(shelf) == true
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                            .clickable { scope.launch { Library.setShelf(setOf(b.id), shelf, !on) } },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(on, { v -> scope.launch { Library.setShelf(setOf(b.id), shelf, v) } },
+                            colors = CheckboxDefaults.colors(checkedColor = NB.text, checkmarkColor = NB.onText, uncheckedColor = NB.text3))
+                        Column(Modifier.weight(1f)) {
+                            Text(b.title, color = NB.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (b.author.isNotBlank()) Text(b.author, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Listo", color = NB.text, fontWeight = FontWeight.SemiBold) } },
+    )
+}
