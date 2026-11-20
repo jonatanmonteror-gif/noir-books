@@ -23,6 +23,12 @@ class EpubBook(
     val toc: List<TocEntry>,
     val coverPath: String?,
     val manifest: Map<String, ManifestItem>, // por ruta
+    /** Identificador único del libro (para desproteger fuentes ofuscadas). */
+    val uniqueId: String = "",
+    /** Identificador urn:uuid (ofuscación de Adobe), si lo hay. */
+    val uuidId: String = "",
+    /** Fuentes ofuscadas: ruta → algoritmo. */
+    val obfuscated: Map<String, String> = emptyMap(),
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -90,7 +96,11 @@ object Epub {
                 toc = spine.mapIndexed { i, p -> TocEntry("Capítulo ${i + 1}", p, null, 0) }
             }
 
-            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath)
+            val uidRef = opf.selectFirst("package")?.attr("unique-identifier").orEmpty()
+            val ids = meta?.select("dc|identifier, identifier").orEmpty()
+            val uniqueId = (ids.firstOrNull { it.attr("id") == uidRef } ?: ids.firstOrNull())?.text()?.trim().orEmpty()
+            val uuidId = ids.map { it.text().trim() }.firstOrNull { it.startsWith("urn:uuid:", true) }.orEmpty()
+            EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z))
         }
     }
 
@@ -109,6 +119,41 @@ object Epub {
             val isFont = uri.endsWith(".ttf") || uri.endsWith(".otf") || uri.endsWith(".woff") || uri.endsWith(".woff2")
             if (algo !in fontAlgos && !isFont) throw DrmException()
         }
+    }
+
+    private fun obfuscatedFonts(z: ZipFile): Map<String, String> = runCatching {
+        val enc = z.text("META-INF/encryption.xml") ?: return emptyMap()
+        val out = HashMap<String, String>()
+        xml(enc).select("EncryptedData, enc|EncryptedData").forEach { ed ->
+            val algo = ed.selectFirst("EncryptionMethod, enc|EncryptionMethod")?.attr("Algorithm").orEmpty()
+            val uri = ed.selectFirst("CipherReference, enc|CipherReference")?.attr("URI").orEmpty()
+            if (uri.isNotEmpty()) out[resolve("", uri)] = algo
+        }
+        out
+    }.getOrDefault(emptyMap())
+
+    /**
+     * Desprotege una fuente ofuscada (algoritmos IDPF y Adobe). No es DRM: solo evita que la fuente
+     * se copie fuera del libro, y sin desprotegerla el navegador la ignora.
+     */
+    fun deobfuscate(bytes: ByteArray, algo: String, book: EpubBook): ByteArray {
+        val out = bytes.copyOf()
+        when (algo) {
+            "http://www.idpf.org/2008/embedding" -> {
+                val id = book.uniqueId.filterNot { it == ' ' || it == '\t' || it == '\r' || it == '\n' }
+                if (id.isEmpty()) return bytes
+                val key = java.security.MessageDigest.getInstance("SHA-1").digest(id.toByteArray(Charsets.UTF_8))
+                for (i in 0 until minOf(1040, out.size)) out[i] = (out[i].toInt() xor key[i % key.size].toInt()).toByte()
+            }
+            "http://ns.adobe.com/pdf/enc#RC" -> {
+                val hex = book.uuidId.substringAfter("urn:uuid:").replace("-", "")
+                if (hex.length < 32) return bytes
+                val key = ByteArray(16) { i -> hex.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+                for (i in 0 until minOf(1024, out.size)) out[i] = (out[i].toInt() xor key[i % 16].toInt()).toByte()
+            }
+            else -> return bytes
+        }
+        return out
     }
 
     private fun parseNav(z: ZipFile, path: String): List<TocEntry> {

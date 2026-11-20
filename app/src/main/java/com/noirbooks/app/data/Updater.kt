@@ -10,7 +10,6 @@ import com.noirbooks.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -23,21 +22,21 @@ object Updater {
 
     val currentCode: Int get() = BuildConfig.VERSION_CODE
 
-    suspend fun latest(): Release? = runCatching {
-        val o = JSONObject(Http.get("https://api.github.com/repos/$REPO/releases/latest"))
-        val code = o.optString("tag_name").substringAfterLast('.').toIntOrNull() ?: return null
-        val assets = o.optJSONArray("assets") ?: return null
-        var apk: String? = null
-        var sha: String? = null
-        for (i in 0 until assets.length()) {
-            val a = assets.optJSONObject(i) ?: continue
-            when (a.optString("name")) {
-                "NoirBooks.apk" -> apk = a.optString("browser_download_url")
-                "NoirBooks.apk.sha256" -> sha = a.optString("browser_download_url")
-            }
-        }
-        Release(code, o.optString("name").ifEmpty { "Noir Books 1.0.$code" }, apk ?: return null, sha)
-    }.getOrNull()
+    /**
+     * Lee la versión más reciente siguiendo la redirección de github.com/…/releases/latest
+     * (lección de Noir+: la API de GitHub limita a 60 consultas por hora).
+     */
+    suspend fun latest(): Release? = withContext(Dispatchers.IO) {
+        runCatching {
+            val client = Http.client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+            val req = Request.Builder().url("https://github.com/$REPO/releases/latest").head().header("User-Agent", Http.UA).build()
+            val location = client.newCall(req).execute().use { it.header("Location") } ?: return@runCatching null
+            val tag = location.substringAfterLast("/tag/", "").ifEmpty { return@runCatching null }
+            val code = tag.substringAfterLast('.').toIntOrNull() ?: return@runCatching null
+            val base = "https://github.com/$REPO/releases/download/$tag"
+            Release(code, "Noir Books 1.0.$code", "$base/NoirBooks.apk", "$base/NoirBooks.apk.sha256")
+        }.getOrNull()
+    }
 
     /** Descarga el APK a la caché y verifica la huella. Devuelve el archivo listo para instalar. */
     suspend fun download(ctx: Context, rel: Release, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {

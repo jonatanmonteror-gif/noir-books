@@ -1,6 +1,13 @@
 # Noir Books
 
-Lector de libros EPUB para Android (móvil y tablet), con el estilo de Noir+.
+Lector de libros EPUB y diario de lectura para Android (móvil y tablet), con el estilo de Noir+.
+El diario se rellena solo: el tiempo de cada página se mide mientras lees (5–120 s por página, como KOReader).
+
+- **Diario:** calendario con portadas, estadísticas gratis (horas, páginas, días seguidos, hora del día, velocidad), meta anual.
+- **Estados:** leyendo, pendiente, leído, abandonado (con motivo); relecturas; valoración en cuartos de estrella; opinión privada; papelera de 30 días.
+- **Citas:** subrayados en 4 colores con significado, notas, cuaderno con cita del día, exportar a Markdown, compartir como imagen.
+- **Diccionario:** definir una palabra (RAE) y guardarla en "Mis palabras" con su frase.
+- **Lector:** posición exacta que no se mueve al cambiar la letra, "Volver a donde estabas", buscar en el libro, mapa del libro en la barra, resumen de sesión al cerrar, pista de gestos, fuentes ofuscadas del EPUB.
 
 - Biblioteca con portadas, "Seguir leyendo", búsqueda y orden (recientes, título, autor).
 - Añadir libros desde el selector de archivos, o "Abrir con" / "Compartir" desde otra app.

@@ -111,6 +111,16 @@ object Prefs {
         )
     }
 
+    // Meta anual de libros (0 = sin meta)
+    var yearGoal: Int
+        get() = sp.getInt("goal_books_year", 12)
+        set(v) { sp.edit().putInt("goal_books_year", v).apply() }
+
+    // Pista de gestos del lector: se muestra solo la primera vez
+    var gestureHintShown: Boolean
+        get() = sp.getBoolean("reader_gesture_hint_shown", false)
+        set(v) { sp.edit().putBoolean("reader_gesture_hint_shown", v).apply() }
+
     // Biblioteca
     var sortOrder: String
         get() = sp.getString("library_sort", "recent") ?: "recent"

@@ -17,6 +17,30 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 
+/** Estados de un libro (como Openreads): leyendo, pendiente, leído o abandonado. */
+enum class BookStatus(val key: String, val label: String) {
+    Reading("reading", "Leyendo"),
+    ToRead("toread", "Pendiente"),
+    Read("read", "Leído"),
+    Abandoned("abandoned", "Abandonado");
+
+    companion object {
+        fun of(k: String?) = entries.firstOrNull { it.key == k } ?: ToRead
+    }
+}
+
+/** Colores de los subrayados, cada uno con un significado (se puede ignorar). */
+enum class HighlightColor(val label: String, val meaning: String, val argb: Long, val css: String) {
+    Yellow("Amarillo", "Frase bonita", 0xFFE8C547, "rgba(232,197,71,0.42)"),
+    Blue("Azul", "Idea", 0xFF6FA8DC, "rgba(111,168,220,0.40)"),
+    Green("Verde", "Para recordar", 0xFF7BC67E, "rgba(123,198,126,0.40)"),
+    Pink("Rosa", "Duda o desacuerdo", 0xFFE88AA8, "rgba(232,138,168,0.40)");
+
+    companion object {
+        fun of(i: Int) = entries.getOrElse(i) { Yellow }
+    }
+}
+
 data class Bookmark(
     val chapter: Int,
     val fraction: Float,
@@ -25,22 +49,49 @@ data class Bookmark(
     val createdAt: Long,
 )
 
+/** Subrayado o nota. [range] es la posición exacta dentro del capítulo, tal como la devuelve el lector. */
+data class Highlight(
+    val id: Long,
+    val chapter: Int,
+    val fraction: Float,
+    val range: String,
+    val text: String,
+    val color: Int,
+    val note: String = "",
+    val chapterTitle: String = "",
+)
+
+/** Una lectura completa o en curso (para las relecturas). */
+data class Reading(val start: Long, val end: Long = 0L)
+
 data class Book(
     val id: String,
     val title: String,
     val author: String,
     val addedAt: Long,
     val lastOpened: Long = 0L,
-    /** Capítulo actual (posición en el orden de lectura) y fracción leída dentro de él (0..1). */
+    /** Capítulo actual y fracción leída dentro de él (0..1). */
     val chapter: Int = 0,
     val fraction: Float = 0f,
+    /** Posición exacta dentro del capítulo (elemento + letra), para no moverse al cambiar la letra. */
+    val anchor: String = "",
     /** Letras de cada capítulo: sirve para el % del libro y el tiempo que queda. */
     val chapterLengths: List<Int> = emptyList(),
-    val finished: Boolean = false,
+    val status: BookStatus = BookStatus.ToRead,
+    /** Valoración en cuartos de estrella (0 = sin valorar). */
+    val rating: Float = 0f,
+    val abandonReason: String = "",
+    val review: String = "",
+    val readings: List<Reading> = emptyList(),
     val bookmarks: List<Bookmark> = emptyList(),
+    val highlights: List<Highlight> = emptyList(),
     val hasCover: Boolean = false,
+    /** En la papelera desde esta fecha (0 = no está en la papelera). */
+    val deletedAt: Long = 0L,
 ) {
     val totalChars: Int get() = chapterLengths.sum().coerceAtLeast(1)
+    val finished: Boolean get() = status == BookStatus.Read
+    val inTrash: Boolean get() = deletedAt > 0L
 
     /** Progreso del libro entero (0..1). */
     fun progressAt(ch: Int, f: Float): Float {
@@ -52,25 +103,37 @@ data class Book(
 
     val progress: Float get() = if (finished) 1f else progressAt(chapter, fraction)
     val started: Boolean get() = lastOpened > 0L
+    val timesRead: Int get() = readings.count { it.end > 0L }
 }
 
-/** Velocidad de lectura media (letras por minuto, unas 230 palabras/min en español). */
+/** Palabra buscada en el diccionario, con la frase del libro. */
+data class VocabWord(val word: String, val sentence: String, val bookId: String, val bookTitle: String, val createdAt: Long)
+
+/** Velocidad de lectura media de partida (letras por minuto, unas 230 palabras/min en español). */
 const val CHARS_PER_MINUTE = 1300
 
-fun minutesLabel(chars: Int): String {
-    val min = (chars / CHARS_PER_MINUTE.toFloat()).let { kotlin.math.ceil(it).toInt() }.coerceAtLeast(1)
-    return if (min < 60) "$min min" else {
-        val h = min / 60
-        val m = min % 60
-        if (m == 0) "$h h" else "$h h $m min"
-    }
+fun minutesLabel(chars: Int, charsPerMinute: Int = CHARS_PER_MINUTE): String {
+    val min = (chars / charsPerMinute.coerceAtLeast(200).toFloat()).let { kotlin.math.ceil(it).toInt() }.coerceAtLeast(1)
+    return durationLabel(min * 60L)
+}
+
+fun durationLabel(seconds: Long): String {
+    val min = ((seconds + 59) / 60).toInt()
+    if (min < 60) return "$min min"
+    val h = min / 60
+    val m = min % 60
+    return if (m == 0) "$h h" else "$h h $m min"
 }
 
 /** Biblioteca: los libros se copian dentro de la app (así no se pierden si se mueve el archivo original). */
 object Library {
     private lateinit var root: File
     private val lock = Mutex()
+    /** Todos los libros, incluidos los de la papelera. Para mostrar, usar [visible]. */
     val books = mutableStateOf<List<Book>>(emptyList())
+    val vocabulary = mutableStateOf<List<VocabWord>>(emptyList())
+
+    val visible: List<Book> get() = books.value.filter { !it.inTrash }
 
     fun init(ctx: Context) {
         if (::root.isInitialized) return
@@ -78,6 +141,15 @@ object Library {
         books.value = runCatching { load() }.getOrElse {
             ErrorLog.note("Leer biblioteca", it)
             emptyList()
+        }
+        vocabulary.value = runCatching { loadVocab() }.getOrDefault(emptyList())
+        // La papelera se vacía sola a los 30 días.
+        val limit = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+        val old = books.value.filter { it.inTrash && it.deletedAt < limit }
+        if (old.isNotEmpty()) {
+            books.value = books.value - old.toSet()
+            old.forEach { dirOf(it.id).deleteRecursively() }
+            runCatching { save() }
         }
     }
 
@@ -102,7 +174,14 @@ object Library {
                 tmp.outputStream().use { input.copyTo(it, 64 * 1024) }
             }
             val id = sha1(tmp).take(16)
-            get(id)?.let { tmp.delete(); return@withContext ImportResult.Existing(it) }
+            get(id)?.let { existing ->
+                tmp.delete()
+                if (existing.inTrash) {
+                    update(id) { it.copy(deletedAt = 0L) }
+                    return@withContext ImportResult.Added(existing.copy(deletedAt = 0L))
+                }
+                return@withContext ImportResult.Existing(existing)
+            }
 
             val epub = Epub.open(tmp, name?.substringBeforeLast('.'))
             val lengths = ZipFile(tmp).use { z -> epub.spine.map { Epub.plainTextLength(z, it) } }
@@ -113,6 +192,7 @@ object Library {
                 tmp.copyTo(epubOf(id), overwrite = true)
                 tmp.delete()
             }
+            if (!dir.exists()) throw IOException("No se pudo guardar el libro.")
             val book = Book(
                 id = id,
                 title = epub.title,
@@ -121,7 +201,6 @@ object Library {
                 chapterLengths = lengths,
                 hasCover = hasCover,
             )
-            if (!dir.exists()) throw IOException("No se pudo guardar el libro.")
             lock.withLock {
                 books.value = books.value + book
                 save()
@@ -147,13 +226,73 @@ object Library {
         }
     }
 
-    suspend fun delete(id: String) = withContext(Dispatchers.IO) {
+    // ---- Estados y lecturas ----
+
+    /** Al abrir un libro: pasa a "Leyendo" y empieza una lectura si no había una abierta. */
+    suspend fun markOpened(id: String) = update(id) { b ->
+        val now = System.currentTimeMillis()
+        val open = b.readings.any { it.end == 0L }
+        val status = if (b.status == BookStatus.Reading) b.status
+        else if (b.status == BookStatus.Read && !open) BookStatus.Reading // relectura
+        else BookStatus.Reading
+        val restart = b.status == BookStatus.Read
+        b.copy(
+            lastOpened = now,
+            status = status,
+            readings = if (open) b.readings else b.readings + Reading(now),
+            chapter = if (restart) 0 else b.chapter,
+            fraction = if (restart) 0f else b.fraction,
+            anchor = if (restart) "" else b.anchor,
+            abandonReason = if (b.status == BookStatus.Abandoned) "" else b.abandonReason,
+        )
+    }
+
+    suspend fun setStatus(id: String, status: BookStatus, reason: String = "") = update(id) { b ->
+        val now = System.currentTimeMillis()
+        val closing = status == BookStatus.Read || status == BookStatus.Abandoned
+        val readings = when {
+            closing && b.readings.any { it.end == 0L } -> b.readings.map { if (it.end == 0L) it.copy(end = now) else it }
+            status == BookStatus.Read && b.readings.isEmpty() -> listOf(Reading(b.addedAt, now))
+            else -> b.readings
+        }
+        b.copy(
+            status = status,
+            readings = readings,
+            abandonReason = if (status == BookStatus.Abandoned) reason else "",
+            fraction = if (status == BookStatus.ToRead) 0f else b.fraction,
+        )
+    }
+
+    suspend fun moveToTrash(id: String) = update(id) { it.copy(deletedAt = System.currentTimeMillis()) }
+    suspend fun restore(id: String) = update(id) { it.copy(deletedAt = 0L) }
+
+    suspend fun deleteForever(id: String) = withContext(Dispatchers.IO) {
         lock.withLock {
             books.value = books.value.filterNot { it.id == id }
             runCatching { save() }
             dirOf(id).deleteRecursively()
         }
     }
+
+    // ---- Vocabulario ----
+
+    suspend fun addWord(w: VocabWord) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val clean = w.word.trim()
+            if (clean.isEmpty()) return@withLock
+            vocabulary.value = listOf(w.copy(word = clean)) + vocabulary.value.filterNot { it.word.equals(clean, true) }
+            runCatching { saveVocab() }
+        }
+    }
+
+    suspend fun removeWord(word: String) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            vocabulary.value = vocabulary.value.filterNot { it.word == word }
+            runCatching { saveVocab() }
+        }
+    }
+
+    // ---- Portadas, nombres y huellas ----
 
     private fun saveCover(epub: File, path: String, out: File): Boolean = runCatching {
         val bytes = ZipFile(epub).use { z -> z.getEntry(path)?.let { e -> z.getInputStream(e).use { it.readBytes() } } }
@@ -189,9 +328,19 @@ object Library {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
-    // ---- Guardado en JSON ----
+    // ---- Guardado en JSON (escritura atómica: archivo temporal y renombrar) ----
 
     private val indexFile get() = File(root, "library.json")
+    private val vocabFile get() = File(root, "vocabulary.json")
+
+    private fun writeAtomic(target: File, text: String) {
+        val tmp = File(target.parentFile, target.name + ".tmp")
+        tmp.writeText(text)
+        if (!tmp.renameTo(target)) {
+            target.writeText(text)
+            tmp.delete()
+        }
+    }
 
     private fun save() {
         val arr = JSONArray()
@@ -199,9 +348,14 @@ object Library {
             arr.put(JSONObject().apply {
                 put("id", b.id); put("title", b.title); put("author", b.author)
                 put("addedAt", b.addedAt); put("lastOpened", b.lastOpened)
-                put("chapter", b.chapter); put("fraction", b.fraction.toDouble())
+                put("chapter", b.chapter); put("fraction", b.fraction.toDouble()); put("anchor", b.anchor)
                 put("lengths", JSONArray(b.chapterLengths))
-                put("finished", b.finished); put("hasCover", b.hasCover)
+                put("status", b.status.key); put("rating", b.rating.toDouble())
+                put("abandonReason", b.abandonReason); put("review", b.review)
+                put("hasCover", b.hasCover); put("deletedAt", b.deletedAt)
+                put("readings", JSONArray().apply {
+                    b.readings.forEach { r -> put(JSONObject().put("start", r.start).put("end", r.end)) }
+                })
                 put("bookmarks", JSONArray().apply {
                     b.bookmarks.forEach { m ->
                         put(JSONObject().apply {
@@ -210,34 +364,60 @@ object Library {
                         })
                     }
                 })
+                put("highlights", JSONArray().apply {
+                    b.highlights.forEach { h ->
+                        put(JSONObject().apply {
+                            put("id", h.id); put("chapter", h.chapter); put("fraction", h.fraction.toDouble())
+                            put("range", h.range); put("text", h.text); put("color", h.color)
+                            put("note", h.note); put("chapterTitle", h.chapterTitle)
+                        })
+                    }
+                })
             })
         }
-        val tmp = File(root, "library.json.tmp")
-        tmp.writeText(JSONObject().put("version", 1).put("books", arr).toString())
-        if (!tmp.renameTo(indexFile)) {
-            indexFile.writeText(tmp.readText())
-            tmp.delete()
-        }
+        writeAtomic(indexFile, JSONObject().put("version", 2).put("books", arr).toString())
     }
 
     private fun load(): List<Book> {
         val f = indexFile
         if (!f.exists()) return emptyList()
         val arr = JSONObject(f.readText()).optJSONArray("books") ?: return emptyList()
+        val seen = HashSet<String>()
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val id = o.optString("id")
-            if (id.isEmpty() || !epubOf(id).exists()) return@mapNotNull null
+            if (id.isEmpty() || !epubOf(id).exists() || !seen.add(id)) return@mapNotNull null
             val lengths = o.optJSONArray("lengths")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty()
             val marks = o.optJSONArray("bookmarks")?.let { a ->
                 (0 until a.length()).mapNotNull { j ->
                     val m = a.optJSONObject(j) ?: return@mapNotNull null
                     Bookmark(
-                        m.optInt("chapter"), m.optDouble("fraction").toFloat(),
+                        m.optInt("chapter"), m.optDouble("fraction", 0.0).toFloat(),
                         m.optString("label"), m.optString("snippet"), m.optLong("createdAt"),
                     )
                 }
             }.orEmpty()
+            val highlights = o.optJSONArray("highlights")?.let { a ->
+                (0 until a.length()).mapNotNull { j ->
+                    val h = a.optJSONObject(j) ?: return@mapNotNull null
+                    Highlight(
+                        id = h.optLong("id"), chapter = h.optInt("chapter"),
+                        fraction = h.optDouble("fraction", 0.0).toFloat(), range = h.optString("range"),
+                        text = h.optString("text"), color = h.optInt("color"), note = h.optString("note"),
+                        chapterTitle = h.optString("chapterTitle"),
+                    )
+                }.distinctBy { it.id }
+            }.orEmpty()
+            val readings = o.optJSONArray("readings")?.let { a ->
+                (0 until a.length()).mapNotNull { j ->
+                    val r = a.optJSONObject(j) ?: return@mapNotNull null
+                    Reading(r.optLong("start"), r.optLong("end"))
+                }
+            }.orEmpty()
+            // Versión 1: "finished" en lugar de "status".
+            val status = if (o.has("status")) BookStatus.of(o.optString("status"))
+            else if (o.optBoolean("finished")) BookStatus.Read
+            else if (o.optLong("lastOpened") > 0) BookStatus.Reading else BookStatus.ToRead
             Book(
                 id = id,
                 title = o.optString("title"),
@@ -246,11 +426,39 @@ object Library {
                 lastOpened = o.optLong("lastOpened"),
                 chapter = o.optInt("chapter"),
                 fraction = o.optDouble("fraction", 0.0).toFloat(),
+                anchor = o.optString("anchor"),
                 chapterLengths = lengths,
-                finished = o.optBoolean("finished"),
+                status = status,
+                rating = o.optDouble("rating", 0.0).toFloat(),
+                abandonReason = o.optString("abandonReason"),
+                review = o.optString("review"),
+                readings = readings,
                 bookmarks = marks,
+                highlights = highlights,
                 hasCover = o.optBoolean("hasCover") && coverOf(id).exists(),
+                deletedAt = o.optLong("deletedAt"),
             )
         }
+    }
+
+    private fun saveVocab() {
+        val arr = JSONArray()
+        vocabulary.value.forEach { w ->
+            arr.put(JSONObject().apply {
+                put("word", w.word); put("sentence", w.sentence); put("bookId", w.bookId)
+                put("bookTitle", w.bookTitle); put("createdAt", w.createdAt)
+            })
+        }
+        writeAtomic(vocabFile, arr.toString())
+    }
+
+    private fun loadVocab(): List<VocabWord> {
+        val f = vocabFile
+        if (!f.exists()) return emptyList()
+        val arr = JSONArray(f.readText())
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            VocabWord(o.optString("word"), o.optString("sentence"), o.optString("bookId"), o.optString("bookTitle"), o.optLong("createdAt"))
+        }.distinctBy { it.word.lowercase() }
     }
 }

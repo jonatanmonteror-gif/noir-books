@@ -43,6 +43,10 @@ sealed class UpdateState {
 
 object AppState {
     val screen = mutableStateOf<Screen>(Screen.Library)
+    /** Pestaña de la pantalla principal: 0 Biblioteca, 1 Calendario, 2 Citas, 3 Estadísticas. */
+    val tab = mutableIntStateOf(0)
+    /** Al abrir un libro desde una cita: ir directamente a esa cita. */
+    val jumpTo = mutableStateOf<Pair<String, com.noirbooks.app.data.Highlight>?>(null)
     val resumeCount = mutableIntStateOf(0)
     val importing = mutableIntStateOf(0)
     val update = mutableStateOf<UpdateState>(UpdateState.Idle)
@@ -120,13 +124,12 @@ fun App() {
 
         Box(Modifier.fillMaxSize().background(NB.bg)) {
             when (val s = screen) {
-                Screen.Library -> LibraryScreen()
+                Screen.Library -> MainScreen()
                 Screen.Settings -> {
                     BackHandler { AppState.screen.value = Screen.Library }
                     SettingsScreen(onBack = { AppState.screen.value = Screen.Library })
                 }
                 is Screen.Reader -> {
-                    BackHandler { AppState.screen.value = Screen.Library }
                     ReaderScreen(s.bookId, onClose = { AppState.screen.value = Screen.Library })
                 }
             }

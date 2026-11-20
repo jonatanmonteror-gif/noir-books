@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -106,7 +108,23 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 }
 
-                FoldSection("Acerca de", "${books.size} libros en la biblioteca") {
+                val trash = books.filter { it.inTrash }
+                FoldSection("Papelera", if (trash.isEmpty()) "Vacía" else "${trash.size} libros · se vacía sola a los 30 días") {
+                    if (trash.isEmpty()) {
+                        Text("Los libros que quites de la biblioteca se guardan aquí 30 días, con su progreso y sus citas.", color = NB.text2, fontSize = 14.sp)
+                    }
+                    trash.forEach { b ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            BookCover(b, Modifier.width(34.dp), titleSize = 7)
+                            Spacer(Modifier.width(12.dp))
+                            Text(b.title, color = NB.text, fontSize = 14.sp, maxLines = 2, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { scope.launch { com.noirbooks.app.data.Library.restore(b.id) } }) { Text("Recuperar", color = NB.text) }
+                            TextButton(onClick = { scope.launch { com.noirbooks.app.data.Library.deleteForever(b.id) } }) { Text("Borrar", color = Color(0xFFFF6B6B)) }
+                        }
+                    }
+                }
+
+                FoldSection("Acerca de", "${books.count { !it.inTrash }} libros en la biblioteca") {
                     Text(
                         "Noir Books abre libros EPUB sin protección DRM. Los libros de Kindle y muchos de Kobo llevan DRM y no se pueden abrir; " +
                             "Kobo indica en cada libro si lo lleva.\n\n" +

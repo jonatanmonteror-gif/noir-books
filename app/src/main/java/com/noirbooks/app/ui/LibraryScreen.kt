@@ -7,28 +7,28 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -61,11 +61,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noirbooks.app.data.Book
+import com.noirbooks.app.data.BookStatus
 import com.noirbooks.app.data.Library
 import com.noirbooks.app.data.Prefs
+import com.noirbooks.app.data.Stats
+import com.noirbooks.app.data.durationLabel
 import com.noirbooks.app.data.minutesLabel
 import kotlinx.coroutines.launch
 import java.text.Normalizer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val EPUB_TYPES = arrayOf("application/epub+zip", "application/octet-stream", "application/zip")
 
@@ -74,32 +80,36 @@ private val EPUB_TYPES = arrayOf("application/epub+zip", "application/octet-stre
 fun LibraryScreen() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val books by Library.books
+    val all by Library.books
+    val books = all.filter { !it.inTrash }
     val importing by AppState.importing
     var sort by remember { mutableStateOf(Prefs.sortOrder) }
+    var filter by rememberSaveable { mutableStateOf("all") }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuFor by remember { mutableStateOf<Book?>(null) }
+    val cpm = remember(all.size) { Stats.charsPerMinute() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) scope.launch { AppState.importAll(ctx, uris, openIfSingle = false) }
     }
     fun open(b: Book) { AppState.screen.value = Screen.Reader(b.id) }
 
-    val current = books.filter { it.started && !it.finished }.maxByOrNull { it.lastOpened }
+    val current = books.filter { it.status == BookStatus.Reading }.maxByOrNull { it.lastOpened }
     val q = fold(query.trim())
     val shown = books
         .filter { q.isEmpty() || fold(it.title).contains(q) || fold(it.author).contains(q) }
+        .filter { filter == "all" || it.status.key == filter }
         .let { list ->
             when (sort) {
                 "title" -> list.sortedBy { fold(it.title) }
                 "author" -> list.sortedWith(compareBy({ fold(it.author.ifBlank { "~" }) }, { fold(it.title) }))
+                "rating" -> list.sortedByDescending { it.rating }
                 else -> list.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }
             }
         }
 
     Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding()) {
-        // Cabecera
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -128,11 +138,9 @@ fun LibraryScreen() {
         }
         if (searching) {
             OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
+                value = query, onValueChange = { query = it },
                 placeholder = { Text("Título o autor", color = NB.text3) },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                singleLine = true, shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line,
                     focusedContainerColor = NB.surface, unfocusedContainerColor = NB.surface, cursorColor = NB.text,
@@ -155,14 +163,14 @@ fun LibraryScreen() {
 
         LazyVerticalGrid(
             columns = GridCells.Adaptive(112.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             if (current != null && q.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "continue") {
-                    ContinueCard(current, onOpen = { open(current) })
+                    ContinueCard(current, cpm, onOpen = { open(current) })
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }, key = "header") {
@@ -174,19 +182,30 @@ fun LibraryScreen() {
                         Text("${shown.size}", color = NB.text3, fontSize = 15.sp)
                     }
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("recent" to "Recientes", "title" to "Título", "author" to "Autor").forEach { (k, label) ->
-                            Chip(label, selected = sort == k) { sort = k; Prefs.sortOrder = k }
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("Todos", filter == "all") { filter = "all" }
+                        BookStatus.entries.forEach { st ->
+                            val n = books.count { it.status == st }
+                            if (n > 0) Chip("${st.label} · $n", filter == st.key) { filter = st.key }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        listOf("recent" to "Recientes", "title" to "Título", "author" to "Autor", "rating" to "Valoración").forEach { (k, label) ->
+                            Text(
+                                label, fontSize = 13.sp, fontFamily = Inter,
+                                fontWeight = if (sort == k) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (sort == k) NB.text else NB.text3,
+                                modifier = Modifier.clickable { sort = k; Prefs.sortOrder = k }.padding(vertical = 4.dp),
+                            )
                         }
                     }
                 }
             }
             items(shown, key = { it.id }) { b ->
-                Column(
-                    Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { menuFor = b }),
-                ) {
+                Column(Modifier.combinedClickable(onClick = { open(b) }, onLongClick = { menuFor = b })) {
                     BookCover(b, Modifier.fillMaxWidth())
-                    if (b.started || b.finished) {
+                    if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(6.dp))
                         ThinProgress(b.progress, Modifier.fillMaxWidth())
                     }
@@ -195,34 +214,28 @@ fun LibraryScreen() {
                         b.title, color = NB.text, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
-                    if (b.author.isNotBlank()) {
-                        Text(b.author, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val sub = when {
+                        b.rating > 0f -> "★ ${ratingLabel(b.rating)}" + if (b.author.isNotBlank()) " · ${b.author}" else ""
+                        b.status == BookStatus.Read -> "Leído" + if (b.author.isNotBlank()) " · ${b.author}" else ""
+                        b.status == BookStatus.Abandoned -> "Abandonado"
+                        else -> b.author
                     }
-                }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column {
-                    Spacer(Modifier.height(24.dp))
-                    Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+                    if (sub.isNotBlank()) Text(sub, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
     }
 
-    menuFor?.let { b -> BookMenu(b, onDismiss = { menuFor = null }) }
+    menuFor?.let { b -> BookMenu(b.id, onDismiss = { menuFor = null }) }
 }
 
 @Composable
-private fun ContinueCard(b: Book, onOpen: () -> Unit) {
+private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
     val left = (b.totalChars * (1f - b.progress)).toInt()
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 6.dp, bottom = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(16.dp))
             .background(Brush.horizontalGradient(listOf(NB.surface2, NB.surface)))
-            .clickable(onClick = onOpen)
-            .padding(14.dp),
+            .clickable(onClick = onOpen).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BookCover(b, Modifier.width(92.dp), titleSize = 11)
@@ -231,28 +244,25 @@ private fun ContinueCard(b: Book, onOpen: () -> Unit) {
             Text("SEGUIR LEYENDO", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
             Text(b.title, fontFamily = Playfair, fontSize = 21.sp, lineHeight = 25.sp, color = NB.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (b.author.isNotBlank()) {
-                Text(b.author, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            if (b.author.isNotBlank()) Text(b.author, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(12.dp))
             ThinProgress(b.progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
-            Text("${(b.progress * 100).toInt()} % · quedan ${minutesLabel(left)}", color = NB.text3, fontSize = 12.sp)
+            Text("${(b.progress * 100).toInt()} % · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
         }
     }
 }
 
 @Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
+        Modifier.clip(RoundedCornerShape(50))
             .background(if (selected) NB.text else Color.Transparent)
             .border(1.dp, if (selected) NB.text else NB.line, RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        Text(label, fontSize = 13.sp, color = if (selected) Color.Black else NB.text2, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 13.sp, color = if (selected) Color.Black else NB.text2, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -266,7 +276,7 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
         Text("Tu biblioteca está vacía", fontFamily = Playfair, fontSize = 26.sp, color = NB.text, textAlign = TextAlign.Center)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Añade libros en formato EPUB desde tu móvil, o ábrelos con Noir Books desde otra app (Archivos, Drive, correo…).",
+            "Añade libros en formato EPUB desde tu móvil, o ábrelos con Noir Books desde otra app (Archivos, Drive, correo…). Lo que leas aparecerá solo en tu calendario y tus estadísticas.",
             color = NB.text2, fontSize = 15.sp, textAlign = TextAlign.Center, lineHeight = 21.sp,
         )
         Spacer(Modifier.height(24.dp))
@@ -284,23 +294,44 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
     }
 }
 
+private val ABANDON_REASONS = listOf("Lento", "No era el momento", "No me engancha", "No me gusta cómo está escrito", "Otro")
+
+/** Ficha del libro (pulsación larga): estado, valoración, relecturas, abandonar o mover a la papelera. */
 @Composable
-private fun BookMenu(b: Book, onDismiss: () -> Unit) {
+fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var confirmDelete by remember { mutableStateOf(false) }
-    if (confirmDelete) {
+    val all by Library.books
+    val b = all.firstOrNull { it.id == bookId }
+    if (b == null) { onDismiss(); return }
+    var abandoning by remember { mutableStateOf(false) }
+    var reviewing by remember { mutableStateOf(false) }
+    val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
+
+    if (abandoning) {
         AlertDialog(
-            onDismissRequest = onDismiss,
+            onDismissRequest = { abandoning = false },
             containerColor = NB.surface2,
-            title = { Text("¿Eliminar este libro?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            text = { Text("Se borra de Noir Books con su progreso y marcadores. El archivo original no se toca.", color = NB.text2) },
-            confirmButton = {
-                TextButton(onClick = { scope.launch { Library.delete(b.id) }; onDismiss() }) {
-                    Text("Eliminar", color = Color(0xFFFF6B6B), fontWeight = FontWeight.SemiBold)
+            title = { Text("¿Por qué lo dejas?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column {
+                    Text("Se guarda dónde lo dejaste, por si vuelves.", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(10.dp))
+                    ABANDON_REASONS.forEach { r ->
+                        MenuRow(r) {
+                            scope.launch { Library.setStatus(b.id, BookStatus.Abandoned, r) }
+                            abandoning = false; onDismiss()
+                        }
+                    }
                 }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
+            confirmButton = { TextButton(onClick = { abandoning = false }) { Text("Cancelar", color = NB.text2) } },
         )
+        return
+    }
+    if (reviewing) {
+        NoteDialog("Tu opinión (privada)", b.review,
+            onSave = { t -> scope.launch { Library.update(b.id) { it.copy(review = t) } }; reviewing = false },
+            onDismiss = { reviewing = false })
         return
     }
     AlertDialog(
@@ -313,26 +344,40 @@ private fun BookMenu(b: Book, onDismiss: () -> Unit) {
             }
         },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                StarRating(b.rating, size = 30) { v -> scope.launch { Library.update(b.id) { it.copy(rating = v) } } }
+                Spacer(Modifier.height(10.dp))
+                val secs = Stats.secondsForBook(b.id)
                 val info = buildString {
-                    append("${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
-                    if (b.started) append("\nLeído: ${(b.progress * 100).toInt()} %")
-                    if (b.bookmarks.isNotEmpty()) append(" · ${b.bookmarks.size} marcadores")
+                    append(b.status.label)
+                    if (b.status == BookStatus.Reading) append(" · ${(b.progress * 100).toInt()} %")
+                    if (b.status == BookStatus.Abandoned && b.abandonReason.isNotBlank()) append(" · ${b.abandonReason}")
+                    append("\n${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
+                    if (secs > 0) append("\nLlevas ${durationLabel(secs)} leyendo este libro")
+                    if (b.timesRead > 1) append("\nLeído ${b.timesRead} veces")
+                    b.readings.lastOrNull { it.end > 0 }?.let { append("\nTerminado el ${date.format(Date(it.end))}") }
+                    if (b.highlights.isNotEmpty()) append("\n${b.highlights.size} citas")
                 }
-                Text(info, color = NB.text2, fontSize = 14.sp)
-                Spacer(Modifier.height(14.dp))
-                MenuRow("Abrir") { onDismiss(); AppState.screen.value = Screen.Reader(b.id) }
-                MenuRow(if (b.finished) "Marcar como no leído" else "Marcar como leído") {
-                    scope.launch { Library.update(b.id) { it.copy(finished = !it.finished) } }
+                Text(info, color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+                if (b.review.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair)
+                }
+                Spacer(Modifier.height(10.dp))
+                MenuRow(if (b.status == BookStatus.Read) "Volver a leer" else "Leer") { onDismiss(); AppState.screen.value = Screen.Reader(b.id) }
+                if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
+                    scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()
+                }
+                if (b.status != BookStatus.ToRead) MenuRow("Pasar a pendientes") {
+                    scope.launch { Library.setStatus(b.id, BookStatus.ToRead) }; onDismiss()
+                }
+                if (b.status == BookStatus.Reading) MenuRow("Abandonar…") { abandoning = true }
+                MenuRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
+                MenuRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
+                    scope.launch { Library.moveToTrash(b.id) }
+                    AppState.toast("Movido a la papelera (Ajustes → Papelera)")
                     onDismiss()
                 }
-                if (b.started) {
-                    MenuRow("Volver al principio") {
-                        scope.launch { Library.update(b.id) { it.copy(chapter = 0, fraction = 0f, finished = false) } }
-                        onDismiss()
-                    }
-                }
-                MenuRow("Eliminar", color = Color(0xFFFF6B6B)) { confirmDelete = true }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
@@ -340,7 +385,7 @@ private fun BookMenu(b: Book, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun MenuRow(label: String, color: Color = NB.text, onClick: () -> Unit) {
+fun MenuRow(label: String, color: Color = NB.text, onClick: () -> Unit) {
     Text(
         label, color = color, fontSize = 16.sp,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
@@ -348,5 +393,5 @@ private fun MenuRow(label: String, color: Color = NB.text, onClick: () -> Unit) 
 }
 
 /** Para buscar y ordenar sin distinguir mayúsculas ni tildes. */
-private fun fold(s: String): String =
+fun fold(s: String): String =
     Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")

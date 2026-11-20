@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
         ErrorLog.init(this)
         Prefs.init(this)
         Library.init(this)
+        com.noirbooks.app.data.Stats.init(this)
         enableEdgeToEdge()
         setContent { App() }
         if (savedInstanceState == null) handleIntent(intent)
@@ -30,6 +31,11 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.noirbooks.app.data.Stats.flush()
     }
 
     override fun onStart() {

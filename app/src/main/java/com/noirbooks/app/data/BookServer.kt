@@ -37,6 +37,11 @@ class BookServer(ctx: Context, file: File, private val book: EpubBook) : Closeab
                 zip.getInputStream(e).use { it.readBytes() }
             }
             val mime = book.manifest[path]?.mediaType?.takeIf { it.isNotBlank() } ?: mimeOf(path)
+            book.obfuscated[path]?.let { algo ->
+                return WebResourceResponse(mime, null, ByteArrayInputStream(Epub.deobfuscate(bytes, algo, book))).apply {
+                    responseHeaders = mapOf("Access-Control-Allow-Origin" to "*")
+                }
+            }
             if (mime == "application/xhtml+xml" || mime == "text/html") {
                 val html = inject(decodeText(bytes))
                 WebResourceResponse(mime, "utf-8", ByteArrayInputStream(html.toByteArray(Charsets.UTF_8)))
@@ -48,6 +53,15 @@ class BookServer(ctx: Context, file: File, private val book: EpubBook) : Closeab
             empty(500)
         }
     }
+
+    /** Texto plano de un capítulo (para buscar dentro del libro). */
+    fun chapterText(path: String): String = runCatching {
+        val bytes = synchronized(zip) {
+            val e = zip.getEntry(path) ?: return ""
+            zip.getInputStream(e).use { it.readBytes() }
+        }
+        org.jsoup.Jsoup.parse(decodeText(bytes)).body()?.text().orEmpty()
+    }.getOrDefault("")
 
     private fun asset(name: String): WebResourceResponse {
         val mime = mimeOf(name)

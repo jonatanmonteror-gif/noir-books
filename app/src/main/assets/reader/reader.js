@@ -1,7 +1,8 @@
 /*
  * Noir Books — maquetación por páginas dentro del WebView.
  * Cada capítulo se reparte en columnas del ancho de la pantalla; pasar página es desplazar una pantalla.
- * Se comunica con la app mediante el objeto "Android" (ver ReaderBridge en Kotlin).
+ * Además: posición exacta (elemento + letra), subrayados sin tocar el libro (CSS Custom Highlight),
+ * selección de texto y búsqueda. Habla con la app mediante el objeto "Android".
  */
 (function () {
   'use strict';
@@ -10,6 +11,8 @@
   var page = 0, count = 1;
   var ready = false;
   var styleEl = null;
+  var HL = { 0: 'rgba(232,197,71,0.42)', 1: 'rgba(111,168,220,0.40)', 2: 'rgba(123,198,126,0.40)', 3: 'rgba(232,138,168,0.40)' };
+  var highlights = [];    // [{id, color, range}]
 
   var offset = 0;         // desplazamiento actual en px (página * ancho)
   function vw() { return window.innerWidth || document.documentElement.clientWidth; }
@@ -56,6 +59,8 @@
     if (s.dark) {
       c.push('img{filter:brightness(0.9);}');
     }
+    Object.keys(HL).forEach(function (k) { c.push('::highlight(nb-' + k + '){background-color:' + HL[k] + ';color:inherit;}'); });
+    c.push('::highlight(nb-search){background-color:' + (s.dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.22)') + ';}');
     c.push('#__noir_end{display:block!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}');
     return c.join('\n');
   }
@@ -82,10 +87,91 @@
     count = Math.max(1, Math.floor((x + 1) / w) + 1);
   }
 
+  // ---- Posición exacta: ruta de nodos desde <body> + letra ----
+
+  function pathOf(node) {
+    var p = [];
+    var body = document.body;
+    while (node && node !== body) {
+      var parent = node.parentNode;
+      if (!parent) return null;
+      p.unshift(Array.prototype.indexOf.call(parent.childNodes, node));
+      node = parent;
+    }
+    return node === body ? p : null;
+  }
+
+  function nodeAt(p) {
+    var n = document.body;
+    for (var i = 0; i < p.length; i++) {
+      if (!n || !n.childNodes || p[i] < 0 || p[i] >= n.childNodes.length) return null;
+      n = n.childNodes[p[i]];
+    }
+    return n;
+  }
+
+  function nodeLen(n) { return n.nodeType === 3 ? n.length : n.childNodes.length; }
+
+  function toRange(o) {
+    try {
+      var sn = nodeAt(o.s), en = nodeAt(o.e);
+      if (!sn || !en) return null;
+      var r = document.createRange();
+      r.setStart(sn, Math.min(o.so, nodeLen(sn)));
+      r.setEnd(en, Math.min(o.eo, nodeLen(en)));
+      return r.collapsed && (o.s.join() !== o.e.join() || o.so !== o.eo) ? null : r;
+    } catch (e) { return null; }
+  }
+
+  function fromRange(r) {
+    var s = pathOf(r.startContainer), e = pathOf(r.endContainer);
+    if (!s || !e) return null;
+    return { s: s, so: r.startOffset, e: e, eo: r.endOffset };
+  }
+
+  function pageOfRect(rect) {
+    return Math.max(0, Math.min(count - 1, Math.floor((rect.left + offset + 1) / vw())));
+  }
+
+  function pageOfRange(r) {
+    var rects = r.getClientRects();
+    var rect = rects.length ? rects[0] : r.getBoundingClientRect();
+    return pageOfRect(rect);
+  }
+
+  /** Posición del principio de la página visible. */
+  function anchorNow() {
+    try {
+      var m = S ? S.margin : 20;
+      var r = document.caretRangeFromPoint(m + 2, 26);
+      if (!r || !r.startContainer || !document.body.contains(r.startContainer)) return '';
+      var p = pathOf(r.startContainer);
+      return p ? JSON.stringify({ p: p, o: r.startOffset }) : '';
+    } catch (e) { return ''; }
+  }
+
+  function pageOfAnchor(a) {
+    try {
+      var o = typeof a === 'string' ? JSON.parse(a) : a;
+      var n = nodeAt(o.p);
+      if (!n) return -1;
+      var r = document.createRange();
+      r.setStart(n, Math.min(o.o, nodeLen(n)));
+      r.collapse(true);
+      var rect = r.getBoundingClientRect();
+      if (!rect || (rect.left === 0 && rect.top === 0 && rect.width === 0)) {
+        var el = n.nodeType === 1 ? n : n.parentElement;
+        if (!el) return -1;
+        rect = el.getBoundingClientRect();
+      }
+      return pageOfRect(rect);
+    } catch (e) { return -1; }
+  }
+
   function show(p, notify) {
     page = Math.max(0, Math.min(count - 1, p));
     setOffset(page * vw());
-    if (notify !== false) A.onPage(page, count);
+    if (notify !== false) A.onPage(page, count, anchorNow());
   }
 
   function anchorPage(id) {
@@ -93,43 +179,120 @@
     var el = document.getElementById(id);
     if (!el) { var byName = document.getElementsByName(id); el = byName && byName[0]; }
     if (!el) return 0;
-    var r = el.getBoundingClientRect();
-    var x = r.left + offset;
-    return Math.max(0, Math.floor((x + 1) / vw()));
+    return pageOfRect(el.getBoundingClientRect());
   }
 
-  function place(t) {
-    if (!t || t.type === 'start') return 0;
-    if (t.type === 'end') return count - 1;
-    if (t.type === 'fraction') return Math.round(t.value * count);
-    if (t.type === 'anchor') return anchorPage(t.value);
-    return 0;
+  // ---- Búsqueda (sin distinguir mayúsculas ni tildes) ----
+
+  function fold(c) {
+    var f = c.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    return f.length ? f.charAt(0) : c;
   }
 
-  function whenStable(cb) {
-    var done = false;
-    function go() { if (done) return; done = true; requestAnimationFrame(function () { requestAnimationFrame(cb); }); }
-    // Fuerza la maquetación para que se pidan las tipografías y luego espera a fuentes e imágenes.
-    void document.documentElement.offsetHeight;
-    var waits = [];
-    if (document.fonts && document.fonts.ready) waits.push(document.fonts.ready);
-    Array.prototype.forEach.call(document.images || [], function (img) {
-      if (!img.complete) waits.push(new Promise(function (res) { img.addEventListener('load', res); img.addEventListener('error', res); }));
+  function findRange(query, nth) {
+    var q = '';
+    for (var i = 0; i < query.length; i++) q += fold(query.charAt(i));
+    if (!q) return null;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var nodes = [], starts = [], text = '', n;
+    while ((n = walker.nextNode())) {
+      nodes.push(n); starts.push(text.length);
+      var t = n.data, f = '';
+      for (var j = 0; j < t.length; j++) f += fold(t.charAt(j));
+      text += f;
+    }
+    var idx = -1, from = 0;
+    for (var k = 0; k <= (nth || 0); k++) {
+      idx = text.indexOf(q, from);
+      if (idx < 0) return null;
+      from = idx + 1;
+    }
+    function locate(pos) {
+      var lo = 0;
+      for (var x = 0; x < starts.length; x++) if (starts[x] <= pos) lo = x; else break;
+      return [nodes[lo], pos - starts[lo]];
+    }
+    var a = locate(idx), b = locate(idx + q.length);
+    var r = document.createRange();
+    r.setStart(a[0], a[1]);
+    r.setEnd(b[0], Math.min(b[1], b[0].length));
+    return r;
+  }
+
+  function markSearch(r) {
+    if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+    CSS.highlights.set('nb-search', new Highlight(r));
+    setTimeout(function () { CSS.highlights.delete('nb-search'); }, 4000);
+  }
+
+  // ---- Subrayados (no se toca el libro: CSS Custom Highlight API) ----
+
+  function paintHighlights() {
+    if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
+    [0, 1, 2, 3].forEach(function (c) { CSS.highlights.delete('nb-' + c); });
+    var groups = { 0: [], 1: [], 2: [], 3: [] };
+    highlights.forEach(function (h) {
+      if (!h._r) h._r = toRange(h.range);
+      if (h._r && groups[h.color]) groups[h.color].push(h._r);
     });
-    Promise.all(waits).then(go, go);
-    setTimeout(go, 2500);
-  }
-
-  function relayout(keepFraction) {
-    var f = count > 0 ? page / count : 0;
-    applyStyle();
-    whenStable(function () {
-      measure();
-      show(keepFraction ? Math.round(f * count) : page);
+    Object.keys(groups).forEach(function (c) {
+      if (!groups[c].length) return;
+      var hl = new Highlight();
+      groups[c].forEach(function (r) { hl.add(r); });
+      CSS.highlights.set('nb-' + c, hl);
     });
   }
 
-  // ---- Gestos: deslizar para pasar página, tocar para que la app decida (zonas izquierda/centro/derecha) ----
+  function highlightAt(x, y) {
+    try {
+      var p = document.caretRangeFromPoint(x, y);
+      if (!p) return null;
+      for (var i = highlights.length - 1; i >= 0; i--) {
+        var r = highlights[i]._r;
+        if (r && r.isPointInRange(p.startContainer, p.startOffset)) return highlights[i];
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  // ---- Selección de texto: la app muestra su propia barra (subrayar, nota, diccionario…) ----
+
+  function sentenceAround(r) {
+    var el = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+    while (el && el !== document.body && getComputedStyle(el).display === 'inline') el = el.parentElement;
+    var whole = (el && el.textContent) || '';
+    var sel = r.toString();
+    var at = whole.indexOf(sel);
+    if (at < 0) return sel;
+    var a = Math.max(whole.lastIndexOf('.', at), whole.lastIndexOf('!', at), whole.lastIndexOf('?', at), whole.lastIndexOf('…', at));
+    var endCandidates = ['.', '!', '?', '…'].map(function (c) { var k = whole.indexOf(c, at + sel.length); return k < 0 ? whole.length : k + 1; });
+    var b = Math.min.apply(null, endCandidates);
+    return whole.substring(a + 1, b).replace(/\s+/g, ' ').trim().substring(0, 400);
+  }
+
+  var selTimer = null, lastSel = '';
+  document.addEventListener('selectionchange', function () {
+    clearTimeout(selTimer);
+    selTimer = setTimeout(function () {
+      var sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !String(sel).trim()) {
+        if (lastSel) { lastSel = ''; A.onSelection(''); }
+        return;
+      }
+      var r = sel.getRangeAt(0);
+      var data = fromRange(r);
+      if (!data) return;
+      var rect = r.getBoundingClientRect();
+      var payload = JSON.stringify({
+        range: data, text: String(sel).replace(/\s+/g, ' ').trim().substring(0, 4000),
+        sentence: sentenceAround(r), fraction: count > 0 ? pageOfRange(r) / count : 0,
+        top: rect.top / window.innerHeight, bottom: rect.bottom / window.innerHeight
+      });
+      if (payload !== lastSel) { lastSel = payload; A.onSelection(payload); }
+    }, 250);
+  });
+
+  // ---- Gestos: deslizar para pasar página, tocar para que la app decida ----
   var sx = 0, sy = 0, st = 0, multi = false;
   document.addEventListener('touchstart', function (e) {
     multi = e.touches.length > 1;
@@ -163,7 +326,9 @@
       return;
     }
     var sel = window.getSelection && window.getSelection();
-    if (sel && String(sel).length > 0) return;
+    if (sel && String(sel).length > 0) { sel.removeAllRanges(); return; }
+    var h = highlightAt(e.clientX, e.clientY);
+    if (h) { A.onHighlightTap(String(h.id)); return; }
     A.onTap(e.clientX / vw(), e.clientY / window.innerHeight);
   }, true);
 
@@ -171,23 +336,62 @@
   window.addEventListener('resize', function () {
     if (!ready) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { relayout(true); }, 180);
+    resizeTimer = setTimeout(function () { relayout(); }, 180);
   });
 
+  function whenStable(cb) {
+    var done = false;
+    function go() { if (done) return; done = true; requestAnimationFrame(function () { requestAnimationFrame(cb); }); }
+    void document.documentElement.offsetHeight;
+    var waits = [];
+    if (document.fonts && document.fonts.ready) waits.push(document.fonts.ready);
+    Array.prototype.forEach.call(document.images || [], function (img) {
+      if (!img.complete) waits.push(new Promise(function (res) { img.addEventListener('load', res); img.addEventListener('error', res); }));
+    });
+    Promise.all(waits).then(go, go);
+    setTimeout(go, 2500);
+  }
+
+  /** Vuelve a maquetar conservando la posición exacta (no la fracción). */
+  function relayout() {
+    var a = anchorNow();
+    var f = count > 0 ? page / count : 0;
+    applyStyle();
+    whenStable(function () {
+      measure();
+      var p = a ? pageOfAnchor(a) : -1;
+      show(p >= 0 ? p : Math.round(f * count));
+    });
+  }
+
+  function place(t) {
+    if (!t || t.type === 'start') return 0;
+    if (t.type === 'end') return count - 1;
+    if (t.type === 'pos') { var p = pageOfAnchor(t.value); if (p >= 0) return p; return Math.round((t.fraction || 0) * count); }
+    if (t.type === 'fraction') return Math.round(t.value * count);
+    if (t.type === 'anchor') return anchorPage(t.value);
+    if (t.type === 'range') { var r = toRange(t.value); return r ? pageOfRange(r) : 0; }
+    if (t.type === 'search') {
+      var sr = findRange(t.value, t.n || 0);
+      if (sr) { markSearch(sr); return pageOfRange(sr); }
+      return 0;
+    }
+    return 0;
+  }
+
   var api = {
-    next: function () {
-      if (page < count - 1) show(page + 1); else A.onEnd();
-    },
-    prev: function () {
-      if (page > 0) show(page - 1); else A.onStart();
-    },
+    next: function () { if (page < count - 1) show(page + 1); else A.onEnd(); },
+    prev: function () { if (page > 0) show(page - 1); else A.onStart(); },
     goFraction: function (f) { show(Math.round(f * count)); },
     goPage: function (p) { show(p); },
     goAnchor: function (id) { show(anchorPage(id)); },
-    apply: function (json) {
-      S = typeof json === 'string' ? JSON.parse(json) : json;
-      relayout(true);
+    apply: function (json) { S = typeof json === 'string' ? JSON.parse(json) : json; relayout(); },
+    setHighlights: function (json) {
+      highlights = (typeof json === 'string' ? JSON.parse(json) : json) || [];
+      paintHighlights();
     },
+    clearSelection: function () { var s = window.getSelection(); if (s) s.removeAllRanges(); lastSel = ''; },
+    pageOfRangeJson: function (json) { var r = toRange(JSON.parse(json)); return r ? pageOfRange(r) : -1; },
     /** Primeras palabras de la página visible (para los marcadores). */
     snippet: function () {
       try {
@@ -214,16 +418,18 @@
     var cfg;
     try { cfg = JSON.parse(A.init()); } catch (e) { cfg = {}; }
     S = cfg.settings || { bg: '#1C1C1E', fg: '#D6D6D6', size: 19, lh: 1.5, margin: 24, justify: true, hyphens: true, twoPages: true };
+    highlights = cfg.highlights || [];
     if (cfg.lang && !document.documentElement.getAttribute('lang')) {
       document.documentElement.setAttribute('lang', cfg.lang);
     }
     applyStyle();
     whenStable(function () {
       measure();
+      paintHighlights();
       show(place(cfg.target), false);
       document.documentElement.style.setProperty('visibility', 'visible', 'important');
       ready = true;
-      A.onReady(page, count);
+      A.onReady(page, count, anchorNow());
     });
   }
 

@@ -67,6 +67,7 @@ fun TocSheet(c: ReaderController, onDismiss: () -> Unit) {
             Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Tab("Índice", tab == 0) { tab = 0 }
                 Tab("Marcadores${book?.bookmarks?.size?.takeIf { it > 0 }?.let { " ($it)" } ?: ""}", tab == 1) { tab = 1 }
+                Tab("Citas${book?.highlights?.size?.takeIf { it > 0 }?.let { " ($it)" } ?: ""}", tab == 2) { tab = 2 }
             }
             Spacer(Modifier.height(10.dp))
             if (tab == 0) {
@@ -96,6 +97,20 @@ fun TocSheet(c: ReaderController, onDismiss: () -> Unit) {
                                 val len = book.chapterLengths.getOrNull(ch) ?: 0
                                 if (len > 0) Text(minutesLabel(len), color = NB.text3, fontSize = 12.sp)
                             }
+                        }
+                    }
+                }
+            } else if (tab == 2) {
+                val hs = book?.highlights.orEmpty()
+                if (hs.isEmpty()) {
+                    Text(
+                        "Mantén pulsada una palabra y arrastra para seleccionar. Luego elige un color o añade una nota.",
+                        color = NB.text3, fontSize = 14.sp, modifier = Modifier.padding(20.dp),
+                    )
+                } else {
+                    LazyColumn(modifier = Modifier.navigationBarsPadding()) {
+                        items(hs, key = { it.id }) { h ->
+                            QuoteRow(h, onClick = { c.goToHighlight(h); onDismiss() })
                         }
                     }
                 }
@@ -201,28 +216,6 @@ fun ReadingControls(showPreview: Boolean = false) {
         StepButton("A+", 19) { set(s.copy(fontSize = (s.fontSize + 1).coerceAtMost(40))) }
     }
 
-    Label("Tipo de letra")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ReaderFont.entries.take(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-    }
-    Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ReaderFont.entries.drop(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-        Spacer(Modifier.weight(1f))
-    }
-
-    Label("Interlineado")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(1.3f to "Junto", 1.55f to "Normal", 1.8f to "Amplio", 2.1f to "Muy amplio").forEach { (v, l) ->
-            Choice(l, kotlin.math.abs(s.lineHeight - v) < 0.05f, Modifier.weight(1f)) { set(s.copy(lineHeight = v)) }
-        }
-    }
-
-    Label("Márgenes")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Margins.entries.forEach { m -> Choice(m.label, s.margins == m, Modifier.weight(1f)) { set(s.copy(margins = m)) } }
-    }
-
     Label("Brillo")
     Row(verticalAlignment = Alignment.CenterVertically) {
         Slider(
@@ -238,12 +231,40 @@ fun ReadingControls(showPreview: Boolean = false) {
         }
     }
 
-    Spacer(Modifier.height(8.dp))
-    Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
-    Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
-    Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
-    Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
-    Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
+
+    // Segundo y tercer nivel, plegados: lo rápido arriba, lo demás a un toque.
+    Spacer(Modifier.height(14.dp))
+    FoldSection("Letra y página", "Tipo de letra, interlineado, márgenes") {
+        Label("Tipo de letra")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReaderFont.entries.take(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ReaderFont.entries.drop(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
+            Spacer(Modifier.weight(1f))
+        }
+
+        Label("Interlineado")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(1.3f to "Junto", 1.55f to "Normal", 1.8f to "Amplio", 2.1f to "Muy amplio").forEach { (v, l) ->
+                Choice(l, kotlin.math.abs(s.lineHeight - v) < 0.05f, Modifier.weight(1f)) { set(s.copy(lineHeight = v)) }
+            }
+        }
+
+        Label("Márgenes")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Margins.entries.forEach { m -> Choice(m.label, s.margins == m, Modifier.weight(1f)) { set(s.copy(margins = m)) } }
+        }
+        Spacer(Modifier.height(8.dp))
+        Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
+        Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
+    }
+    FoldSection("Avanzado", "Tablet, botones y pantalla") {
+        Toggle("Dos páginas en horizontal (tablet)", s.twoPages) { set(s.copy(twoPages = it)) }
+        Toggle("Pasar página con el volumen", s.volumeKeys) { set(s.copy(volumeKeys = it)) }
+        Toggle("Mantener la pantalla encendida", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
+    }
 }
 
 @Composable
