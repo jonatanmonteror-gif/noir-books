@@ -78,6 +78,36 @@ object Stats {
     fun sessions(bookId: String? = null): List<Session> =
         sessions.filter { bookId == null || it.bookId == bookId }.sortedByDescending { it.start }
 
+    /** Un trozo de lectura en la app: página dejada a tal hora, con sus segundos. */
+    data class Chunk(val at: Long, val seconds: Long, val page: Boolean)
+
+    /**
+     * Guarda una lectura hecha en la app (solo cuando el usuario confirma "Guardar lectura"):
+     * cada página en su día y su hora, y una entrada en el registro.
+     */
+    @Synchronized
+    fun commitAppReading(bookId: String, chunks: List<Chunk>) {
+        if (chunks.isEmpty()) return
+        val cal = Calendar.getInstance()
+        chunks.forEach { c ->
+            val day = dayOf(c.at)
+            val key = "$day|$bookId"
+            val old = data[key] ?: DayRead(day, bookId, 0, 0)
+            val hours = old.hourSeconds.copyOf()
+            cal.timeInMillis = c.at
+            val h = cal.get(Calendar.HOUR_OF_DAY)
+            hours[h] = hours[h] + c.seconds
+            data[key] = old.copy(seconds = old.seconds + c.seconds, pages = old.pages + if (c.page) 1 else 0, hourSeconds = hours)
+        }
+        dirty = true
+        version.intValue++
+        val total = chunks.sumOf { it.seconds }
+        val start = chunks.first().let { it.at - it.seconds * 1000 }
+        sessions.add(Session(System.currentTimeMillis(), bookId, start, total, chunks.count { it.page }, manual = false))
+        saveSessions()
+        flush()
+    }
+
     /** Tramo leído en la app (se une al anterior si fue hace menos de 10 minutos). */
     @Synchronized
     fun logAppSession(bookId: String, start: Long, seconds: Long, pages: Int) {

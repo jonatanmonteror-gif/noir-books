@@ -371,8 +371,20 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
         AlertDialog(
             onDismissRequest = { restarting = false }, containerColor = NB.surface2,
             title = { Text("¿Reiniciar el libro?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            text = { Text("Vuelve al principio (0 %). Tus citas, marcadores y el tiempo leído se quedan.", color = NB.text2) },
-            confirmButton = { TextButton(onClick = { scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado"); onDismiss() }) { Text("Reiniciar", color = NB.text) } },
+            text = {
+                Column {
+                    Text("Vuelve al principio (0 %). Tus citas y marcadores se quedan.", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(10.dp))
+                    MenuRow("Reiniciar y borrar sus lecturas del calendario") {
+                        Stats.deleteBook(b.id)
+                        scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado y lecturas borradas"); onDismiss()
+                    }
+                    MenuRow("Reiniciar y conservar sus lecturas") {
+                        scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado"); onDismiss()
+                    }
+                }
+            },
+            confirmButton = {},
             dismissButton = { TextButton(onClick = { restarting = false }) { Text("Cancelar", color = NB.text2) } },
         )
         return

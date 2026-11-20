@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.16", "20 nov 2026", listOf(
+            "Lo que lees en la app solo cuenta en el calendario y las estadísticas si al salir eliges «Guardar lectura»",
+            "«No guardar» deja el libro donde estaba y no suma tiempo: para cuando solo estás mirando",
+            "Al reiniciar un libro puedes borrar también sus lecturas del calendario",
+        )),
         Entry("1.0.15", "20 nov 2026", listOf(
             "Al salir del libro, si te has movido, te pregunta si guardas por dónde vas (página y %) o lo dejas donde estaba",
             "Reiniciar libro: empezarlo desde cero desde su ficha",

@@ -690,3 +690,45 @@ fun DeleteReadingDialog(bookId: String, session: com.noirbooks.app.data.Session?
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
     )
 }
+
+/**
+ * Si la app se cerró con el libro abierto sin confirmar la lectura, se pregunta al volver a abrirla.
+ */
+@Composable
+fun PendingReadingPrompt() {
+    val scope = rememberCoroutineScope()
+    var data by remember {
+        mutableStateOf(
+            if (AppState.pendingChecked) null
+            else { AppState.pendingChecked = true; com.noirbooks.app.data.Prefs.pendingReading.takeIf { it.isNotBlank() } }
+        )
+    }
+    val raw = data ?: return
+    val o = runCatching { org.json.JSONObject(raw) }.getOrNull()
+    val b = o?.optString("book")?.let { Library.get(it) }
+    if (o == null || b == null) { com.noirbooks.app.data.Prefs.pendingReading = ""; data = null; return }
+    val arr = o.optJSONArray("chunks") ?: org.json.JSONArray()
+    val chunks = (0 until arr.length()).mapNotNull { i ->
+        arr.optJSONArray(i)?.let { Stats.Chunk(it.optLong(0), it.optLong(1), it.optInt(2) == 1) }
+    }
+    val secs = chunks.sumOf { it.seconds }
+    fun done() { com.noirbooks.app.data.Prefs.pendingReading = ""; data = null }
+    AlertDialog(
+        onDismissRequest = {}, containerColor = NB.surface2,
+        title = { Text("Lectura sin guardar", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                Text("«${b.title}»" + if (secs > 0) " · ${durationLabel(secs)}" else "", color = NB.text, fontSize = 15.sp)
+                Text("La app se cerró antes de confirmar. ¿La guardas?", color = NB.text2, fontSize = 14.sp)
+                Spacer(Modifier.height(10.dp))
+                MenuRow("Guardar lectura") { Stats.commitAppReading(b.id, chunks); done() }
+                MenuRow("No guardar") {
+                    val ch = o.optInt("ch"); val f = o.optDouble("f", 0.0).toFloat(); val a = o.optString("a")
+                    scope.launch { Library.update(b.id) { it.copy(chapter = ch, fraction = f, anchor = a) } }
+                    done()
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}

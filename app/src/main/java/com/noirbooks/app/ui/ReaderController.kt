@@ -130,10 +130,9 @@ class ReaderController(
     val startProgress: Float = Library.get(bookId)?.progress ?: 0f
     private var pageSince = 0L
     private var paused = false
-    // Tramo de lectura desde la última pausa: se guarda en el historial de lecturas (para poder borrarlo).
-    private var segStart = 0L
-    private var segSeconds = 0L
-    private var segPages = 0
+    /** Tiempo leído en esta sesión que aún no cuenta: solo se suma si al salir eliges "Guardar lectura". */
+    private val pending = ArrayList<Stats.Chunk>()
+    val pendingSeconds: Long get() = pending.sumOf { it.seconds }
 
     /** Cuenta el tiempo de la página que se deja: menos de 5 s no cuenta, más de 120 s se recorta. */
     private fun closePage(turned: Boolean) {
@@ -142,12 +141,9 @@ class ReaderController(
             val s = (now - pageSince) / 1000
             if (s >= Stats.MIN_PAGE_SECONDS) {
                 val counted = s.coerceAtMost(Stats.MAX_PAGE_SECONDS)
-                Stats.addPage(bookId, counted, turned)
+                pending += Stats.Chunk(now, counted, turned)
                 sessionSeconds += counted.toInt()
                 if (turned) sessionPages++
-                if (segSeconds == 0L) segStart = now - counted * 1000
-                segSeconds += counted
-                if (turned) segPages++
             }
         }
         pageSince = now
@@ -156,10 +152,31 @@ class ReaderController(
     fun pause() {
         closePage(turned = false)
         paused = true
-        if (segSeconds > 0) Stats.logAppSession(bookId, segStart, segSeconds, segPages)
-        segSeconds = 0; segPages = 0
-        Stats.flush()
+        persistPending()
         saveNow()
+    }
+
+    /** Se guarda en preferencias por si la app se cierra antes de confirmar. */
+    private fun persistPending() {
+        if (pending.isEmpty() && !movedSinceOpen()) { Prefs.pendingReading = ""; return }
+        val arr = JSONArray()
+        pending.forEach { arr.put(JSONArray().put(it.at).put(it.seconds).put(if (it.page) 1 else 0)) }
+        Prefs.pendingReading = JSONObject().put("book", bookId).put("chunks", arr)
+            .put("ch", openChapter).put("f", openFraction.toDouble()).put("a", openAnchor).toString()
+    }
+
+    /** "Guardar lectura": el tiempo cuenta y la posición se queda. */
+    fun commitReading() {
+        Stats.commitAppReading(bookId, pending.toList())
+        pending.clear()
+        Prefs.pendingReading = ""
+    }
+
+    /** "No guardar": ni el tiempo ni la posición. */
+    suspend fun discardReading() {
+        pending.clear()
+        Prefs.pendingReading = ""
+        restoreOpenPosition()
     }
 
     fun resume() {

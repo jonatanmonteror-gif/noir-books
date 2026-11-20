@@ -60,6 +60,9 @@ object AppState {
     /** Lectura que se está apuntando: libro y, si viene del cronómetro, inicio y fin. */
     val logSession = mutableStateOf<LogRequest?>(null)
 
+    /** La lectura sin guardar de una sesión anterior solo se pregunta una vez al arrancar la app. */
+    var pendingChecked = false
+
     fun openBook(b: com.noirbooks.app.data.Book) {
         if (b.isEpub) screen.value = Screen.Reader(b.id) else bookMenu.value = b.id
     }
@@ -174,6 +177,7 @@ fun App() {
             UpdatePrompt()
             CrashReportPrompt()
             if (screen !is Screen.Reader) WhatsNewPrompt()
+            if (screen !is Screen.Reader) PendingReadingPrompt()
         }
     }
 }

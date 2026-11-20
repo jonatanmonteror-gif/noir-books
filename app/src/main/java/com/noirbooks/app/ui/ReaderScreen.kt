@@ -178,7 +178,10 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     }
     fun requestClose() {
         c.pause()
-        if (c.ready && c.movedSinceOpen()) askSave = true else finishClose()
+        when {
+            c.pendingSeconds >= 60 || (c.ready && c.movedSinceOpen()) -> askSave = true
+            else -> { c.commitReading(); finishClose() }
+        }
     }
     BackHandler {
         when {
@@ -485,9 +488,14 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { askSave = false; c.resume() },
             containerColor = NB.surface2,
-            title = { Text("¿Guardar por dónde vas?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            title = { Text("¿Guardar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
             text = {
                 Column {
+                    if (c.pendingSeconds >= 60) {
+                        Text("Has leído ${durationLabel(c.pendingSeconds)}" + if (c.sessionPages > 0) " · ${c.sessionPages} páginas" else "",
+                            color = NB.text, fontSize = 15.sp)
+                        Spacer(Modifier.height(10.dp))
+                    }
                     Text("Ahora", color = NB.text3, fontSize = 12.sp)
                     Text("${book.printedPageLabel(nowP, c.printed, c.printedTotal)} · ${percentLabel(nowP)}", color = NB.text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     val ch = c.chapterTitle()
@@ -496,10 +504,10 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     Text("Al abrirlo estabas en", color = NB.text3, fontSize = 12.sp)
                     Text("${book.printedPageLabel(openP)} · ${percentLabel(openP)}", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(14.dp))
-                    MenuRow("Guardar aquí") { askSave = false; finishClose() }
-                    MenuRow("Dejarlo donde estaba") {
+                    MenuRow("Guardar lectura") { askSave = false; c.commitReading(); finishClose() }
+                    MenuRow("No guardar (solo estaba mirando)") {
                         askSave = false
-                        scope.launch { c.restoreOpenPosition(); finishClose() }
+                        scope.launch { c.discardReading(); onClose() }
                     }
                     MenuRow("Seguir leyendo", color = NB.text2) { askSave = false; c.resume() }
                 }

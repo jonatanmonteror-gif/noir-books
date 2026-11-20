@@ -210,6 +210,11 @@ object Prefs {
         get() = sp.getInt("updates_seen_version_code", 0)
         set(v) { sp.edit().putInt("updates_seen_version_code", v).apply() }
 
+    /** Lectura en la app aún sin confirmar (JSON), por si la app se cierra antes de guardarla. */
+    var pendingReading: String
+        get() = sp.getString("reader_pending_reading", "") ?: ""
+        set(v) { sp.edit().putString("reader_pending_reading", v).apply() }
+
     var lastUpdateCheck: Long
         get() = sp.getLong("updates_last_check", 0L)
         set(v) { sp.edit().putLong("updates_last_check", v).apply() }
