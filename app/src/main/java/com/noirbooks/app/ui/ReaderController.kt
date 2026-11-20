@@ -80,13 +80,13 @@ class ReaderController(
     var count by mutableIntStateOf(1)
         private set
     var ready by mutableStateOf(false)
+        private set
     /** Página de la edición en papel (si el libro trae page-list). */
     var printed by mutableStateOf("")
     val printedTotal: String get() = epub.pageList.lastOrNull()?.label.orEmpty()
     private val marksBySpine: Map<Int, List<com.noirbooks.app.data.PageMark>> by lazy {
         epub.pageList.groupBy { epub.spine.indexOf(it.href) }
     }
-        private set
     var endReached by mutableStateOf(false)
     /** Se incrementa si el motor del WebView se cae, para crear uno nuevo. */
     var webKey by mutableIntStateOf(0)
