@@ -84,8 +84,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     val ready = update as? UpdateState.Ready
                     if (ready != null) {
-                        PillButton("Instalar", primary = true) {
-                            if (!Updater.install(ctx, ready.file)) AppState.toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
+                        PillButton("Descargar ${ready.rel.name}", primary = true) {
+                            if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
                         }
                     } else {
                         PillButton("Buscar actualizaciones", primary = true) { scope.launch { AppState.checkUpdate(ctx, manual = true) } }

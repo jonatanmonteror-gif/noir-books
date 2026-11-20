@@ -128,14 +128,8 @@ object AppState {
             update.value = UpdateState.UpToDate(System.currentTimeMillis())
             return
         }
-        try {
-            update.value = UpdateState.Downloading(rel.name, 0f)
-            val file = Updater.download(ctx, rel) { p -> update.value = UpdateState.Downloading(rel.name, p) }
-            update.value = UpdateState.Ready(rel, file)
-        } catch (e: Exception) {
-            ErrorLog.note("Descargar actualización", e)
-            update.value = UpdateState.Failed(e.message ?: "Error al descargar")
-        }
+        // La descarga la hace el navegador (sin permiso de instalar apps en Noir Books)
+        update.value = UpdateState.Ready(rel, File(""))
     }
 }
 

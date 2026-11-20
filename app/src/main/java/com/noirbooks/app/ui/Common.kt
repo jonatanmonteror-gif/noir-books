@@ -172,19 +172,18 @@ fun UpdatePrompt() {
     AlertDialog(
         onDismissRequest = { AppState.updateDismissed.intValue = ready.rel.versionCode },
         containerColor = NB.surface2,
-        title = { Text("Nueva versión lista", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        title = { Text("Nueva versión", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
         text = {
             Text(
-                "${ready.rel.name} está descargada y verificada. Instálala ahora; tus libros y tu progreso se mantienen.",
+                "Hay una versión nueva: ${ready.rel.name}. Pulsa Descargar: se abrirá el navegador y, al terminar, toca el archivo para instalarla. Tus libros y tu progreso se mantienen.",
                 fontFamily = Inter, color = NB.text2,
             )
         },
         confirmButton = {
             TextButton(onClick = {
-                if (!Updater.install(ctx, ready.file)) {
-                    AppState.toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
-                }
-            }) { Text("Instalar", fontWeight = FontWeight.SemiBold, color = NB.text) }
+                if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
+                AppState.updateDismissed.intValue = ready.rel.versionCode
+            }) { Text("Descargar", fontWeight = FontWeight.SemiBold, color = NB.text) }
         },
         dismissButton = {
             TextButton(onClick = { AppState.updateDismissed.intValue = ready.rel.versionCode }) {

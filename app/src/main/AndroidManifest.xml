@@ -2,8 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Para instalar actualizaciones de la propia app (se descargan de GitHub y se verifica su huella) -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Sin permiso para instalar apps: la actualización se descarga con el navegador (Play Protect desconfía de ese permiso) -->
 
     <application
         android:allowBackup="true"
