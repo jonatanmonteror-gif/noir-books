@@ -302,17 +302,17 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             )
         }
 
-        // Volver a donde estabas
+        // Volver a donde estabas (discreto)
         AnimatedVisibility(showBack && !bars && c.selection == null, enter = fadeIn(), exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 16.dp, bottom = 36.dp)) {
+            modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 12.dp, bottom = 30.dp)) {
             Row(
-                Modifier.clip(RoundedCornerShape(50)).background(fg.copy(alpha = 0.92f)).clickable { c.goBack() }
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                Modifier.clip(RoundedCornerShape(50)).background(muted.copy(alpha = 0.16f)).clickable { c.goBack() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = bg, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Volver a donde estabas", color = bg, fontSize = 13.sp, fontFamily = Inter, fontWeight = FontWeight.Medium)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = muted, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("Volver", color = muted, fontSize = 12.sp, fontFamily = Inter)
             }
         }
 

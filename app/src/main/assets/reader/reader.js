@@ -15,7 +15,10 @@
   var highlights = [];    // [{id, color, range}]
 
   var offset = 0;         // desplazamiento actual en px (página * ancho)
+  // Medidas reales en píxeles. Nada de vh/vw: el WebView de Android calcula esas unidades al crearse,
+  // y si en ese momento mide 0, cada página se queda en una sola línea.
   function vw() { return window.innerWidth || document.documentElement.clientWidth; }
+  function vh() { return window.innerHeight || document.documentElement.clientHeight; }
   // Se desplaza con transform en lugar de scrollLeft: el navegador limita el scroll a la última
   // columna completa y la última página quedaba descolocada.
   function setOffset(x) {
@@ -25,9 +28,10 @@
 
   function cssFor(s) {
     var m = s.margin;
-    var cols = (s.twoPages && vw() > 880 && vw() > window.innerHeight) ? 2 : 1;
+    var W = vw(), H = vh();
+    var cols = (s.twoPages && W > 880 && W > H) ? 2 : 1;
     var c = [];
-    c.push('html{height:100vh!important;width:100vw!important;max-width:none!important;margin:0!important;' +
+    c.push('html{height:' + H + 'px!important;width:' + W + 'px!important;max-width:none!important;margin:0!important;' +
       'padding:22px ' + m + 'px 14px ' + m + 'px!important;box-sizing:border-box!important;' +
       'column-count:' + cols + '!important;column-gap:' + (2 * m) + 'px!important;column-fill:auto!important;' +
       'overflow:hidden!important;background:' + s.bg + '!important;color:' + s.fg + '!important;' +
@@ -39,7 +43,7 @@
     c.push('p,li,blockquote,dd,dt{font-size:inherit!important;}');
     c.push('body *{color:inherit!important;background-color:transparent!important;border-color:currentColor;}');
     c.push('body *:not(img):not(svg):not(table):not(td):not(th){max-width:100%;}');
-    c.push('img,svg,video{max-width:100%!important;max-height:calc(100vh - 44px)!important;height:auto;' +
+    c.push('img,svg,video{max-width:100%!important;max-height:' + Math.max(80, H - 44) + 'px!important;height:auto;' +
       'object-fit:contain;break-inside:avoid;-webkit-column-break-inside:avoid;}');
     c.push('h1,h2,h3,h4,h5,h6{break-after:avoid;-webkit-column-break-after:avoid;line-height:1.25!important;}');
     c.push('pre{white-space:pre-wrap!important;}');
@@ -286,7 +290,7 @@
       var payload = JSON.stringify({
         range: data, text: String(sel).replace(/\s+/g, ' ').trim().substring(0, 4000),
         sentence: sentenceAround(r), fraction: count > 0 ? pageOfRange(r) / count : 0,
-        top: rect.top / window.innerHeight, bottom: rect.bottom / window.innerHeight
+        top: rect.top / vh(), bottom: rect.bottom / vh()
       });
       if (payload !== lastSel) { lastSel = payload; A.onSelection(payload); }
     }, 250);
@@ -329,12 +333,16 @@
     if (sel && String(sel).length > 0) { sel.removeAllRanges(); return; }
     var h = highlightAt(e.clientX, e.clientY);
     if (h) { A.onHighlightTap(String(h.id)); return; }
-    A.onTap(e.clientX / vw(), e.clientY / window.innerHeight);
+    A.onTap(e.clientX / vw(), e.clientY / vh());
   }, true);
 
   var resizeTimer = null;
+  var lastSize = '';
   window.addEventListener('resize', function () {
     if (!ready) return;
+    var sz = vw() + 'x' + vh();
+    if (sz === lastSize) return;
+    lastSize = sz;
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () { relayout(); }, 180);
   });
@@ -422,6 +430,7 @@
     if (cfg.lang && !document.documentElement.getAttribute('lang')) {
       document.documentElement.setAttribute('lang', cfg.lang);
     }
+    waitForSize(function () {
     applyStyle();
     whenStable(function () {
       measure();
@@ -431,6 +440,16 @@
       ready = true;
       A.onReady(page, count, anchorNow());
     });
+    });
+  }
+
+  /** Espera a que la ventana tenga tamaño (hasta 3 s) antes de maquetar. */
+  function waitForSize(cb) {
+    var t0 = Date.now();
+    (function check() {
+      if ((vw() > 100 && vh() > 100) || Date.now() - t0 > 3000) cb();
+      else requestAnimationFrame(check);
+    })();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

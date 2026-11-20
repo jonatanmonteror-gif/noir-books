@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.view.doOnLayout
 import com.noirbooks.app.data.Book
 import com.noirbooks.app.data.BookServer
 import com.noirbooks.app.data.Bookmark
@@ -215,7 +216,8 @@ class ReaderController(
             }
         }
         web = this
-        loadChapter(chapter, target)
+        // Cargar solo cuando el WebView ya tiene tamaño (con 0 de alto, cada página sería una línea).
+        doOnLayout { loadChapter(chapter, target) }
     }
 
     fun release(view: WebView) {
