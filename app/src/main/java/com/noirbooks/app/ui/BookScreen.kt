@@ -63,6 +63,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
     val statsVersion by Stats.version
     var menu by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
+    var shelvesOpen by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var loadingDesc by remember { mutableStateOf(b.description.isBlank()) }
     LaunchedEffect(bookId) { Library.ensureDescription(bookId); loadingDesc = false }
@@ -97,6 +98,10 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                 if (meta.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
                     Text(meta, color = NB.text3, fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+                if (b.shelves.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(b.shelves.joinToString(" · "), color = NB.text2, fontSize = 13.sp, textAlign = TextAlign.Center)
                 }
                 Spacer(Modifier.height(14.dp))
                 StarRating(b.rating, size = 26) { v -> scope.launch { Library.update(b.id) { it.copy(rating = v) } } }
@@ -185,7 +190,8 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("Historial de lecturas", false) { history = true }
+                    Chip("Estanterías", false) { shelvesOpen = true }
+                    Chip("Historial", false) { history = true }
                     Chip("Más opciones", false) { menu = true }
                 }
                 Spacer(Modifier.height(36.dp))
@@ -194,6 +200,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
     }
     if (menu) BookMenu(bookId, onDismiss = { menu = false })
     if (history) SessionsDialog(bookId, onDismiss = { history = false })
+    if (shelvesOpen) ShelvesDialog(setOf(bookId), onDismiss = { shelvesOpen = false })
 }
 
 @Composable

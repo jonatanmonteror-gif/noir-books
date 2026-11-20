@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.29", "20 nov 2026", listOf(
+            "Estanterías propias: créalas en la biblioteca (+ Nueva estantería), filtra tocándolas y mantenlas pulsadas para renombrar o borrar",
+            "Seleccionar varios libros para ponerlos en una estantería o cambiarles el estado de una vez",
+            "Estanterías también en la ficha del libro y en su menú",
+        )),
         Entry("1.0.28", "20 nov 2026", listOf(
             "Tema propio: elige el color del fondo y de la letra (Lectura → Tema propio y automático)",
             "Tema automático: claro de día y oscuro de noche, por horas o como el modo oscuro del móvil",

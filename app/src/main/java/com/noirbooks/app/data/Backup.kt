@@ -175,12 +175,12 @@ object Backup {
                 zip.closeEntry()
             }
             putText("libros.csv", buildString {
-                appendLine(csv("Título", "Autor", "Formato", "Estado", "Valoración", "Progreso %", "Páginas", "ISBN", "Editorial", "Año", "Añadido", "Terminado", "Veces leído", "Minutos leídos", "Opinión"))
+                appendLine(csv("Título", "Autor", "Formato", "Estado", "Valoración", "Progreso %", "Páginas", "ISBN", "Editorial", "Año", "Añadido", "Terminado", "Veces leído", "Minutos leídos", "Opinión", "Estanterías"))
                 books.forEach { b ->
                     appendLine(csv(b.title, b.author, b.format.label, b.status.label, if (b.rating > 0) b.rating else "",
                         "%.1f".format(Locale.US, b.progress * 100), if (b.pages > 0) b.pages else "", b.isbn, b.publisher, b.year,
                         day.format(Date(b.addedAt)), b.readings.lastOrNull { it.end > 0 }?.let { day.format(Date(it.end)) } ?: "",
-                        b.timesRead, Stats.secondsForBook(b.id) / 60, b.review))
+                        b.timesRead, Stats.secondsForBook(b.id) / 60, b.review, b.shelves.joinToString(", ")))
                 }
             })
             putText("lecturas.csv", buildString {

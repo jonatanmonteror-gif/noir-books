@@ -125,6 +125,8 @@ data class Book(
     val year: String = "",
     /** Sinopsis. */
     val description: String = "",
+    /** Estanterías propias en las que está el libro. */
+    val shelves: List<String> = emptyList(),
 ) {
     val isEpub: Boolean get() = format == BookFormat.Epub
     val totalChars: Int get() = chapterLengths.sum().coerceAtLeast(1)
@@ -199,6 +201,8 @@ object Library {
     /** Todos los libros, incluidos los de la papelera. Para mostrar, usar [visible]. */
     val books = mutableStateOf<List<Book>>(emptyList())
     val vocabulary = mutableStateOf<List<VocabWord>>(emptyList())
+    /** Estanterías propias, en el orden en que las creaste. */
+    val shelves = mutableStateOf<List<String>>(emptyList())
 
     val visible: List<Book> get() = books.value.filter { !it.inTrash }
 
@@ -371,6 +375,50 @@ object Library {
         }
         if (d.isNotBlank()) update(id) { it.copy(description = d) }
     }
+
+    // ---- Estanterías propias ----
+
+    suspend fun createShelf(name: String) = withContext(Dispatchers.IO) {
+        val n = name.trim()
+        if (n.isEmpty()) return@withContext
+        lock.withLock {
+            if (shelves.value.none { it.equals(n, ignoreCase = true) }) { shelves.value = shelves.value + n; save() }
+        }
+    }
+
+    suspend fun renameShelf(old: String, new: String) = withContext(Dispatchers.IO) {
+        val n = new.trim()
+        if (n.isEmpty() || n == old) return@withContext
+        lock.withLock {
+            shelves.value = shelves.value.map { if (it == old) n else it }.distinct()
+            books.value = books.value.map { b -> if (old in b.shelves) b.copy(shelves = b.shelves.map { if (it == old) n else it }.distinct()) else b }
+            save()
+        }
+    }
+
+    /** Borra la estantería (los libros se quedan en la biblioteca). */
+    suspend fun deleteShelf(name: String) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            shelves.value = shelves.value - name
+            books.value = books.value.map { b -> if (name in b.shelves) b.copy(shelves = b.shelves - name) else b }
+            save()
+        }
+    }
+
+    /** Pone (o quita) varios libros en una estantería de una vez. */
+    suspend fun setShelf(ids: Collection<String>, name: String, inShelf: Boolean) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            if (inShelf && name !in shelves.value) shelves.value = shelves.value + name
+            books.value = books.value.map { b ->
+                if (b.id !in ids) b
+                else if (inShelf) b.copy(shelves = (b.shelves + name).distinct()) else b.copy(shelves = b.shelves - name)
+            }
+            save()
+        }
+    }
+
+    /** Cambia el estado de varios libros a la vez. */
+    suspend fun setStatusMany(ids: Collection<String>, status: BookStatus) { ids.forEach { setStatus(it, status) } }
 
     suspend fun moveToTrash(id: String) = update(id) { it.copy(deletedAt = System.currentTimeMillis()) }
     suspend fun restore(id: String) = update(id) { it.copy(deletedAt = 0L) }
@@ -548,6 +596,7 @@ object Library {
                 put("format", b.format.key); put("pages", b.pages); put("unit", b.unit.key)
                 put("manualProgress", b.manualProgress.toDouble()); put("isbn", b.isbn)
                 put("publisher", b.publisher); put("year", b.year); put("description", b.description)
+                put("shelves", JSONArray(b.shelves))
                 put("readings", JSONArray().apply {
                     b.readings.forEach { r -> put(JSONObject().put("start", r.start).put("end", r.end)) }
                 })
@@ -570,13 +619,15 @@ object Library {
                 })
             })
         }
-        writeAtomic(indexFile, JSONObject().put("version", 2).put("books", arr).toString())
+        writeAtomic(indexFile, JSONObject().put("version", 2).put("shelves", JSONArray(shelves.value)).put("books", arr).toString())
     }
 
     private fun load(): List<Book> {
         val f = indexFile
         if (!f.exists()) return emptyList()
-        val arr = JSONObject(f.readText()).optJSONArray("books") ?: return emptyList()
+        val root = JSONObject(f.readText())
+        shelves.value = root.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty()
+        val arr = root.optJSONArray("books") ?: return emptyList()
         val seen = HashSet<String>()
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
@@ -642,6 +693,7 @@ object Library {
                 publisher = o.optString("publisher"),
                 year = o.optString("year"),
                 description = o.optString("description"),
+                shelves = o.optJSONArray("shelves")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             )
         }
     }

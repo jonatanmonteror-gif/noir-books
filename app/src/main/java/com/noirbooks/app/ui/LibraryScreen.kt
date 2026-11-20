@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -91,6 +92,18 @@ fun LibraryScreen() {
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val cpm = remember(all.size) { Stats.charsPerMinute() }
+    val shelves by Library.shelves
+    var shelf by rememberSaveable { mutableStateOf<String?>(null) }
+    if (shelf != null && shelf !in shelves) shelf = null
+    // Selección de varios libros para moverlos en grupo
+    var selecting by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var shelvesFor by remember { mutableStateOf<Set<String>?>(null) }
+    var statusFor by remember { mutableStateOf<Set<String>?>(null) }
+    var newShelf by remember { mutableStateOf(false) }
+    var editShelf by remember { mutableStateOf<String?>(null) }
+    fun endSelection() { selecting = false; selected = emptySet() }
+    BackHandler(enabled = selecting) { endSelection() }
 
     fun open(b: Book) = AppState.openBook(b)
     /** Tocar un libro de la biblioteca abre su ficha, no el libro. */
@@ -101,6 +114,7 @@ fun LibraryScreen() {
     val shown = books
         .filter { q.isEmpty() || fold(it.title).contains(q) || fold(it.author).contains(q) }
         .filter { filter == "all" || it.status.key == filter }
+        .filter { shelf == null || shelf in it.shelves }
         .let { list ->
             when (sort) {
                 "title" -> list.sortedBy { fold(it.title) }
@@ -162,6 +176,18 @@ fun LibraryScreen() {
             return@Column
         }
 
+        if (selecting) {
+            Row(
+                Modifier.fillMaxWidth().background(NB.surface2).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (selected.isEmpty()) "Toca los libros" else "${selected.size} seleccionados", color = NB.text, fontSize = 14.sp,
+                    modifier = Modifier.weight(1f))
+                TextButton(enabled = selected.isNotEmpty(), onClick = { shelvesFor = selected }) { Text("Estantería", color = NB.text) }
+                TextButton(enabled = selected.isNotEmpty(), onClick = { statusFor = selected }) { Text("Estado", color = NB.text) }
+                TextButton(onClick = { endSelection() }) { Text("Listo", color = NB.text2) }
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
@@ -193,6 +219,9 @@ fun LibraryScreen() {
                         Text("Biblioteca", style = androidx.compose.material3.MaterialTheme.typography.headlineSmall, color = NB.text)
                         Spacer(Modifier.width(10.dp))
                         Text("${shown.size}", color = NB.text3, fontSize = 15.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("Seleccionar", color = NB.text2, fontSize = 14.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { selecting = true }.padding(horizontal = 8.dp, vertical = 4.dp))
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -201,6 +230,16 @@ fun LibraryScreen() {
                             val n = books.count { it.status == st }
                             if (n > 0) Chip("${st.label} · $n", filter == st.key) { filter = st.key }
                         }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    // Estanterías propias: tocar filtra; mantener pulsado para renombrar o borrar
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        shelves.forEach { s ->
+                            val n = books.count { s in it.shelves }
+                            ShelfChip("$s · $n", shelf == s, onClick = { shelf = if (shelf == s) null else s }, onLongClick = { editShelf = s })
+                        }
+                        ShelfChip(if (shelves.isEmpty()) "+ Nueva estantería" else "+", false, onClick = { newShelf = true })
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,8 +271,23 @@ fun LibraryScreen() {
                 }
             }
             items(shown, key = { it.id }) { b ->
-                Column(Modifier.combinedClickable(onClick = { details(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
-                    BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
+                val isSel = b.id in selected
+                Column(Modifier.combinedClickable(
+                    onClick = { if (selecting) selected = if (isSel) selected - b.id else selected + b.id else details(b) },
+                    onLongClick = { if (selecting) selected = selected + b.id else AppState.bookMenu.value = b.id },
+                )) {
+                    Box {
+                        BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
+                        if (selecting) {
+                            Box(Modifier.matchParentSize().background(if (isSel) Color.Black.copy(alpha = 0.35f) else Color.Transparent))
+                            Box(
+                                Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).clip(CircleShape)
+                                    .background(if (isSel) NB.text else Color.Black.copy(alpha = 0.35f))
+                                    .border(1.5.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) { if (isSel) Text("✓", color = NB.onText, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        }
+                    }
                     if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(6.dp))
                         ThinProgress(b.progress, Modifier.fillMaxWidth())
@@ -257,6 +311,10 @@ fun LibraryScreen() {
         }
     }
 
+    shelvesFor?.let { ids -> ShelvesDialog(ids, onDismiss = { shelvesFor = null; endSelection() }) }
+    statusFor?.let { ids -> StatusManyDialog(ids, onDismiss = { statusFor = null; endSelection() }) }
+    if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) shelf = n }
+    editShelf?.let { s -> EditShelfDialog(s) { n -> editShelf = null; if (shelf == s) shelf = n } }
 }
 
 @Composable
@@ -363,6 +421,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     var reviewing by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(false) }
     var deleteAll by remember { mutableStateOf(false) }
+    var shelvesOpen by remember { mutableStateOf(false) }
     var restarting by remember { mutableStateOf(false) }
     var editPages by remember { mutableStateOf(false) }
     val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
@@ -390,6 +449,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     }
     if (history) { SessionsDialog(b.id, onDismiss = { history = false }); return }
     if (deleteAll) { DeleteReadingDialog(b.id, onDismiss = { deleteAll = false }); return }
+    if (shelvesOpen) { ShelvesDialog(setOf(b.id), onDismiss = { shelvesOpen = false }); return }
     if (restarting) {
         AlertDialog(
             onDismissRequest = { restarting = false }, containerColor = NB.surface2,
@@ -477,6 +537,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
                 if (!b.isEpub) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
                 if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
+                MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería…" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel…") { editPages = true }
                 MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
