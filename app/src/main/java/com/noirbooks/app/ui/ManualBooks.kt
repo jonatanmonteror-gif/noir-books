@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -349,7 +350,11 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
         containerColor = NB.surface2,
         title = {
             Column {
-                Text(if (r.onlyProgress) "Actualizar progreso" else "Apuntar lectura", fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+                Text(when {
+                    r.onlyProgress -> "Actualizar progreso"
+                    r.start > 0 && r.end > 0 && r.end - r.start < 24 * 3600_000L && r.end >= System.currentTimeMillis() - 60_000L -> "¿Guardar esta lectura?"
+                    else -> "Apuntar lectura"
+                }, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
                 Text(b.title, fontSize = 14.sp, color = NB.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         },
@@ -465,11 +470,8 @@ fun TimerBar() {
             Text(b.title, color = NB.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(clock, color = NB.text, fontSize = 18.sp, fontWeight = FontWeight.Medium, fontFamily = Inter)
-        Spacer(Modifier.width(10.dp))
-        Box(
-            Modifier.clip(RoundedCornerShape(50)).background(NB.text).clickable { AppState.stopTimer() }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-        ) { Text("Terminar", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+        Spacer(Modifier.width(12.dp))
+        PlayPauseButton(b.id, size = 34)
         IconButton(onClick = { confirmDiscard = true }) { Icon(Icons.Filled.Close, "Descartar", tint = NB.text3) }
     }
     if (confirmDiscard) {
@@ -567,4 +569,49 @@ fun BookPickerDialog(onPick: (Book) -> Unit, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
     )
+}
+
+// ---------------------------------------------------------------------------------------------
+// Play / pausa para contar el tiempo cuando lees fuera de la app
+// ---------------------------------------------------------------------------------------------
+
+/** Tiempo transcurrido desde [start], actualizado cada segundo. */
+@Composable
+fun TimerText(start: Long, prefix: String = "", color: Color = NB.text, size: Int = 12) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(start) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+    val s = ((now - start) / 1000).coerceAtLeast(0)
+    val clock = if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
+    Text(prefix + clock, color = color, fontSize = size.sp, fontFamily = Inter, fontWeight = FontWeight.Medium)
+}
+
+/**
+ * Botón redondo: play empieza a contar el tiempo de lectura de ese libro; pausa lo para y pide confirmar
+ * la lectura (hora de inicio y fin ya puestas, solo falta hasta dónde has llegado).
+ */
+@Composable
+fun PlayPauseButton(bookId: String, size: Int = 36) {
+    val running = AppState.timer.value?.first == bookId
+    Box(
+        Modifier.size(size.dp).clip(androidx.compose.foundation.shape.CircleShape)
+            .background(if (running) NB.text else Color.Transparent)
+            .border(1.dp, if (running) NB.text else NB.text3, androidx.compose.foundation.shape.CircleShape)
+            .clickable {
+                if (running) AppState.stopTimer()
+                else {
+                    if (AppState.timer.value != null) AppState.stopTimer()
+                    AppState.startTimer(bookId)
+                    AppState.toast("Contando tu tiempo de lectura. Pulsa pausa al terminar.")
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (running) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                repeat(2) { Box(Modifier.width(3.dp).height((size * 0.36f).dp).clip(RoundedCornerShape(1.dp)).background(Color.Black)) }
+            }
+        } else {
+            Icon(Icons.Filled.PlayArrow, "Empezar a contar el tiempo de lectura", tint = NB.text, modifier = Modifier.size((size * 0.55f).dp))
+        }
+    }
 }

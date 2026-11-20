@@ -263,20 +263,19 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             ThinProgress(b.progress, Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
-            if (b.isEpub) {
+            val running = AppState.timer.value?.takeIf { it.first == b.id }
+            if (running != null) {
+                TimerText(running.second, prefix = "Leyendo · ")
+            } else if (b.isEpub) {
                 Text("${percentLabel(b.progress)} · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("Seguir leyendo", true, onOpen)
-                    Chip("Apuntar lectura", false) { AppState.logSession.value = LogRequest(b.id) }
-                }
             } else {
                 Text("${b.format.label} · ${b.progressLabel()}", color = NB.text3, fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (AppState.timer.value?.first != b.id) Chip("Empiezo a leer", true) { AppState.startTimer(b.id) }
-                    Chip("Apuntar lectura", false) { AppState.logSession.value = LogRequest(b.id) }
-                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (b.isEpub) Chip("Seguir leyendo", true, onOpen)
+                else Chip("Apuntar lectura", true) { AppState.logSession.value = LogRequest(b.id) }
+                PlayPauseButton(b.id)
             }
         }
     }
