@@ -94,7 +94,7 @@ fun LibraryScreen() {
 
     fun open(b: Book) = AppState.openBook(b)
 
-    val current = books.filter { it.status == BookStatus.Reading }.maxByOrNull { it.lastOpened }
+    val reading = books.filter { it.status == BookStatus.Reading }.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }
     val q = fold(query.trim())
     val shown = books
         .filter { q.isEmpty() || fold(it.title).contains(q) || fold(it.author).contains(q) }
@@ -167,9 +167,20 @@ fun LibraryScreen() {
             verticalArrangement = Arrangement.spacedBy(if (columns >= 4) 14.dp else 18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (current != null && q.isEmpty()) {
+            if (reading.isNotEmpty() && q.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "continue") {
-                    ContinueCard(current, cpm, onOpen = { open(current) })
+                    if (reading.size == 1) ContinueCard(reading[0], cpm, onOpen = { open(reading[0]) })
+                    else {
+                        // Varios libros a la vez: carrusel; la siguiente tarjeta asoma por la derecha.
+                        val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
+                        androidx.compose.foundation.pager.HorizontalPager(
+                            state = pager,
+                            contentPadding = PaddingValues(end = 26.dp),
+                            pageSpacing = 10.dp,
+                            key = { reading[it].id },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { i -> ContinueCard(reading[i], cpm, onOpen = { open(reading[i]) }) }
+                    }
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }, key = "header") {

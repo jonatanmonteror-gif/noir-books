@@ -234,7 +234,8 @@ fun CalendarScreen() {
     val monthPages = monthDays.values.sumOf { l -> l.sumOf { it.pages } }
     val monthBooks = monthDays.values.flatten().map { it.bookId }.distinct()
     val finishedThisMonth = books.filter { b ->
-        b.readings.any { r -> r.end > 0 && Calendar.getInstance().apply { timeInMillis = r.end }.let { it.get(Calendar.YEAR) == year && it.get(Calendar.MONTH) == month } }
+        !b.inTrash && b.status == BookStatus.Read &&
+            b.readings.lastOrNull { it.end > 0 }?.let { r -> Calendar.getInstance().apply { timeInMillis = r.end }.let { it.get(Calendar.YEAR) == year && it.get(Calendar.MONTH) == month } } == true
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -537,8 +538,10 @@ fun StatsScreen() {
     val seconds = yearReads.sumOf { it.seconds }
     val pages = yearReads.sumOf { it.pages }
     val daysRead = yearReads.map { it.date }.distinct().size
+    // Solo cuentan los libros marcados como leídos, una vez cada uno (en el año en que lo terminaste).
     val finished = books.filter { b ->
-        !b.inTrash && b.readings.any { r -> r.end > 0 && Calendar.getInstance().apply { timeInMillis = r.end }.get(Calendar.YEAR) == year }
+        !b.inTrash && b.status == BookStatus.Read &&
+            b.readings.lastOrNull { it.end > 0 }?.let { r -> Calendar.getInstance().apply { timeInMillis = r.end }.get(Calendar.YEAR) == year } == true
     }
     val abandoned = books.count { !it.inTrash && it.status == BookStatus.Abandoned }
     val byMonth = (0 until 12).map { m -> yearReads.filter { it.date.substring(5, 7).toInt() == m + 1 }.sumOf { it.seconds } }

@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.17", "20 nov 2026", listOf(
+            "Si lees varios libros a la vez, «Seguir leyendo» es un carrusel: desliza y la siguiente tarjeta asoma por la derecha",
+            "La meta anual solo cuenta los libros marcados como leídos, una vez cada uno",
+        )),
         Entry("1.0.16", "20 nov 2026", listOf(
             "Lo que lees en la app solo cuenta en el calendario y las estadísticas si al salir eliges «Guardar lectura»",
             "«No guardar» deja el libro donde estaba y no suma tiempo: para cuando solo estás mirando",
