@@ -283,6 +283,9 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     }
     // "Volver a donde estabas": visible unos segundos tras un salto.
     var showBack by remember { mutableStateOf(false) }
+    // Aviso breve al activar o quitar el modo concentración (1,5 s).
+    var focusMsg by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(focusMsg) { if (focusMsg != null) { delay(1500); focusMsg = null } }
     LaunchedEffect(c.history.size) {
         if (c.history.isNotEmpty()) { showBack = true; delay(12_000); showBack = false } else showBack = false
     }
@@ -352,6 +355,13 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             )
         }
 
+        AnimatedVisibility(focusMsg != null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
+            Text(
+                focusMsg.orEmpty(), color = fg, fontSize = 13.sp, fontFamily = Inter,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(muted.copy(alpha = 0.22f)).padding(horizontal = 16.dp, vertical = 9.dp),
+            )
+        }
+
         // Volver a donde estabas (discreto)
         AnimatedVisibility(showBack && !bars && c.selection == null && !settings.focus, enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 12.dp, bottom = 30.dp)) {
@@ -382,6 +392,17 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                         Text(chTitle, color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+                IconButton(onClick = {
+                    val f = !settings.focus
+                    Prefs.setReader(settings.copy(focus = f))
+                    bars = false
+                    focusMsg = if (f) "Modo concentración" else "Modo concentración desactivado"
+                }) {
+                    Box(
+                        Modifier.size(18.dp).clip(CircleShape).background(if (settings.focus) fg else Color.Transparent)
+                            .border(1.5.dp, fg, CircleShape),
+                    )
+                }
                 IconButton(onClick = { sheet = Sheet.Search; bars = false }) { Icon(Icons.Filled.Search, "Buscar en el libro", tint = fg) }
                 val marked = c.currentBookmark() != null
                 IconButton(onClick = { c.toggleBookmark() }) {
@@ -397,13 +418,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         AnimatedVisibility(bars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             BottomBar(c, fg, muted, bg,
                 onToc = { sheet = Sheet.Toc; bars = false },
-                onStyle = { sheet = Sheet.Style; bars = false },
-                onFocus = {
-                    val f = !settings.focus
-                    Prefs.setReader(settings.copy(focus = f))
-                    bars = false
-                    AppState.toast(if (f) "Modo concentración: solo el texto. Toca el centro para salir." else "Modo concentración desactivado")
-                })
+                onStyle = { sheet = Sheet.Style; bars = false })
         }
 
         // Barra de selección propia (subrayar, nota, copiar, compartir, diccionario)
@@ -470,8 +485,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 }
 
 @Composable
-private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit, onFocus: () -> Unit) {
-    val focus = Prefs.reader.value.focus
+private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val book = c.book
     Column(
@@ -519,7 +533,7 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                 Icon(Icons.Filled.KeyboardArrowLeft, "Capítulo anterior", tint = if (c.chapter > 0) fg else muted.copy(alpha = 0.4f))
             }
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(
                     Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onToc).padding(horizontal = 12.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -533,19 +547,6 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                 ) {
                     Text("Aa", color = fg, fontSize = 18.sp, fontFamily = Playfair, modifier = Modifier.height(22.dp))
                     Text("Lectura", color = fg, fontSize = 11.sp, fontFamily = Inter)
-                }
-                Column(
-                    Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onFocus).padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(Modifier.height(22.dp), contentAlignment = Alignment.Center) {
-                        Box(
-                            Modifier.size(17.dp).clip(CircleShape)
-                                .background(if (focus) fg else Color.Transparent)
-                                .border(1.5.dp, fg, CircleShape),
-                        )
-                    }
-                    Text(if (focus) "Concentración" else "Concentrar", color = fg, fontSize = 11.sp, fontFamily = Inter)
                 }
             }
             Spacer(Modifier.weight(1f))
