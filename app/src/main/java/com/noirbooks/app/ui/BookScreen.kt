@@ -2,6 +2,7 @@ package com.noirbooks.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -189,7 +190,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     Text(b.review, color = NB.text, fontSize = 15.sp, fontFamily = Playfair, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth())
                 }
                 Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Chip("Estanterías", false) { shelvesOpen = true }
                     Chip("Historial", false) { history = true }
                     Chip("Más opciones", false) { menu = true }
