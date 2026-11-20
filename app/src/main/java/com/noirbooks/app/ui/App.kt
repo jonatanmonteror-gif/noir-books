@@ -39,6 +39,8 @@ sealed class Screen {
 sealed class UpdateState {
     data object Idle : UpdateState()
     data object Checking : UpdateState()
+    /** Hay versión nueva; se descarga cuando el usuario lo pide. */
+    data class Available(val rel: Updater.Release) : UpdateState()
     data class Downloading(val name: String, val progress: Float) : UpdateState()
     data class Ready(val rel: Updater.Release, val file: File) : UpdateState()
     data class UpToDate(val at: Long) : UpdateState()
@@ -157,7 +159,7 @@ object AppState {
         // La versión de Google Play se actualiza solo desde Play.
         if (!com.noirbooks.app.BuildConfig.SELF_UPDATE) return
         val st = update.value
-        if (st is UpdateState.Checking || st is UpdateState.Downloading || st is UpdateState.Ready) return
+        if (st is UpdateState.Checking || st is UpdateState.Downloading || st is UpdateState.Ready || st is UpdateState.Available) return
         if (!manual && System.currentTimeMillis() - Prefs.lastUpdateCheck < 10 * 60_000L) return
         update.value = UpdateState.Checking
         Prefs.lastUpdateCheck = System.currentTimeMillis()
@@ -170,8 +172,24 @@ object AppState {
             update.value = UpdateState.UpToDate(System.currentTimeMillis())
             return
         }
-        // La descarga la hace el navegador (sin permiso de instalar apps en Noir Books)
-        update.value = UpdateState.Ready(rel, File(""))
+        update.value = UpdateState.Available(rel)
+    }
+
+    /** Descarga la versión nueva dentro de la app, comprueba su huella y abre el instalador. */
+    fun downloadUpdate(ctx: Context) {
+        val rel = (update.value as? UpdateState.Available)?.rel ?: return
+        val app = ctx.applicationContext
+        background.launch {
+            try {
+                update.value = UpdateState.Downloading(rel.name, 0f)
+                val file = Updater.download(app, rel) { p -> update.value = UpdateState.Downloading(rel.name, p) }
+                update.value = UpdateState.Ready(rel, file)
+                if (!Updater.install(app, file)) toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
+            } catch (e: Exception) {
+                ErrorLog.note("Descargar actualización", e)
+                update.value = UpdateState.Failed(e.message ?: "Error al descargar")
+            }
+        }
     }
 }
 

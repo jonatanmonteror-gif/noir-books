@@ -3,6 +3,9 @@ package com.noirbooks.app.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import com.noirbooks.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,11 +87,20 @@ object Updater {
     }
 
     /**
-     * Abre la descarga del APK en el navegador (y al terminar se toca el archivo para instalar).
-     * Así la app no necesita el permiso de instalar apps, que hace saltar a Play Protect.
+     * Abre el instalador de Android con el APK ya descargado y verificado.
+     * Si falta el permiso de "instalar apps desconocidas", abre esa pantalla y devuelve false.
      */
-    fun openDownload(ctx: Context, rel: Release): Boolean = runCatching {
-        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rel.apkUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        true
-    }.getOrDefault(false)
+    fun install(ctx: Context, file: File): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ctx.packageManager.canRequestPackageInstalls()) {
+            val i = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runCatching { ctx.startActivity(i) }
+            return false
+        }
+        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", file)
+        val i = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { ctx.startActivity(i); true }.getOrDefault(false)
+    }
 }

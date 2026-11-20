@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.31", "20 nov 2026", listOf(
+            "Las actualizaciones se descargan e instalan desde la propia app, sin pasar por el navegador",
+            "Se comprueba la huella del archivo antes de instalarlo",
+        )),
         Entry("1.0.29", "20 nov 2026", listOf(
             "Estanterías propias: créalas en la biblioteca (+ Nueva estantería), filtra tocándolas y mantenlas pulsadas para renombrar o borrar",
             "Seleccionar varios libros para ponerlos en una estantería o cambiarles el estado de una vez",

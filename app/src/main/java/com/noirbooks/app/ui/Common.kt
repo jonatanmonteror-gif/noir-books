@@ -167,26 +167,46 @@ fun UpdatePrompt() {
     val ctx = LocalContext.current
     val st by AppState.update
     val dismissed by AppState.updateDismissed
-    val ready = st as? UpdateState.Ready ?: return
-    if (dismissed == ready.rel.versionCode) return
+    val rel = when (st) {
+        is UpdateState.Available -> (st as UpdateState.Available).rel
+        is UpdateState.Ready -> (st as UpdateState.Ready).rel
+        else -> null
+    }
+    val downloading = st as? UpdateState.Downloading
+    if (rel == null && downloading == null) return
+    if (rel != null && dismissed == rel.versionCode) return
+    if (downloading != null && dismissed == -1) return
     AlertDialog(
-        onDismissRequest = { AppState.updateDismissed.intValue = ready.rel.versionCode },
+        onDismissRequest = { AppState.updateDismissed.intValue = rel?.versionCode ?: -1 },
         containerColor = NB.surface2,
         title = { Text("Nueva versión", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
         text = {
-            Text(
-                "Hay una versión nueva: ${ready.rel.name}. Pulsa Descargar: se abrirá el navegador y, al terminar, toca el archivo para instalarla. Tus libros y tu progreso se mantienen.",
-                fontFamily = Inter, color = NB.text2,
-            )
+            Column {
+                Text(
+                    when {
+                        downloading != null -> "Descargando ${downloading.name}…"
+                        st is UpdateState.Ready -> "${rel?.name} descargada y verificada. Pulsa Instalar; tus libros y tu progreso se mantienen."
+                        else -> "Hay una versión nueva: ${rel?.name}. Se descarga aquí mismo, se comprueba que es la auténtica y se instala. Tus libros y tu progreso se mantienen."
+                    },
+                    fontFamily = Inter, color = NB.text2,
+                )
+                if (downloading != null) {
+                    Spacer(Modifier.height(12.dp))
+                    DownloadBar(downloading.progress)
+                }
+            }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
-                AppState.updateDismissed.intValue = ready.rel.versionCode
-            }) { Text("Descargar", fontWeight = FontWeight.SemiBold, color = NB.text) }
+            when {
+                downloading != null -> TextButton(onClick = { AppState.updateDismissed.intValue = -1 }) { Text("Ocultar", color = NB.text2) }
+                st is UpdateState.Ready -> TextButton(onClick = {
+                    if (!Updater.install(ctx, (st as UpdateState.Ready).file)) AppState.toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
+                }) { Text("Instalar", fontWeight = FontWeight.SemiBold, color = NB.text) }
+                else -> TextButton(onClick = { AppState.downloadUpdate(ctx) }) { Text("Descargar e instalar", fontWeight = FontWeight.SemiBold, color = NB.text) }
+            }
         },
         dismissButton = {
-            TextButton(onClick = { AppState.updateDismissed.intValue = ready.rel.versionCode }) {
+            if (downloading == null) TextButton(onClick = { AppState.updateDismissed.intValue = rel?.versionCode ?: -1 }) {
                 Text("Más tarde", color = NB.text2)
             }
         },

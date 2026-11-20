@@ -84,6 +84,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         val status = when (val u = update) {
                             UpdateState.Idle -> "Se comprueba sola al abrir la app."
                             UpdateState.Checking -> "Buscando…"
+                            is UpdateState.Available -> "Hay una versión nueva: ${u.rel.name}."
                             is UpdateState.Downloading -> "Descargando ${u.name}… ${(u.progress * 100).toInt()} %"
                             is UpdateState.Ready -> "${u.rel.name} descargada y verificada (SHA-256)."
                             is UpdateState.UpToDate -> "Tienes la última versión."
@@ -96,11 +97,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(12.dp))
                         val ready = update as? UpdateState.Ready
+                        val avail = update as? UpdateState.Available
                         if (ready != null) {
-                            PillButton("Descargar ${ready.rel.name}", primary = true) {
-                                if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
+                            PillButton("Instalar ${ready.rel.name}", primary = true) {
+                                if (!Updater.install(ctx, ready.file)) AppState.toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
                             }
-                        } else {
+                        } else if (avail != null) {
+                            PillButton("Descargar e instalar ${avail.rel.name}", primary = true) { AppState.downloadUpdate(ctx) }
+                        } else if (update !is UpdateState.Downloading) {
                             PillButton("Buscar actualizaciones", primary = true) { scope.launch { AppState.checkUpdate(ctx, manual = true) } }
                         }
                     }

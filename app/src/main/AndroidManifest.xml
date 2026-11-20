@@ -7,7 +7,7 @@
     <!-- Lectura en voz alta con la pantalla apagada -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <!-- Sin permiso para instalar apps: la actualización se descarga con el navegador (Play Protect desconfía de ese permiso) -->
+    <!-- El permiso de instalar actualizaciones solo lo lleva el APK de GitHub (src/github/AndroidManifest.xml), no el de Play -->
 
     <application
         android:allowBackup="true"
