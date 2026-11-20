@@ -194,7 +194,8 @@ object Prefs {
 
     /** Claves que son de este aparato y no viajan en las copias. */
     private val LOCAL_ONLY = setOf("timer_book", "timer_start", "reader_pending_reading", "updates_last_check",
-        "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at")
+        "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at",
+        "drive_linked", "drive_last_backup", "data_changed_at")
 
     fun setAppearance(v: String) {
         appearanceState.value = v
@@ -250,6 +251,21 @@ object Prefs {
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }
+
+    // Google Drive (propio de este aparato)
+    var driveLinked: Boolean
+        get() = sp.getBoolean("drive_linked", false)
+        set(v) { sp.edit().putBoolean("drive_linked", v).apply() }
+    var driveWithBooks: Boolean
+        get() = sp.getBoolean("drive_with_books", false)
+        set(v) { sp.edit().putBoolean("drive_with_books", v).apply() }
+    var driveLastBackup: Long
+        get() = sp.getLong("drive_last_backup", 0L)
+        set(v) { sp.edit().putLong("drive_last_backup", v).apply() }
+    /** Último cambio en los datos (para saber si hace falta otra copia). */
+    var dataChangedAt: Long
+        get() = if (::sp.isInitialized) sp.getLong("data_changed_at", 0L) else 0L
+        set(v) { if (::sp.isInitialized) sp.edit().putLong("data_changed_at", v).apply() }
 
     /** Última copia de seguridad hecha en este aparato. */
     var lastBackupAt: Long

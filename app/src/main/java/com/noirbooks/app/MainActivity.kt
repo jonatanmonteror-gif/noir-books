@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         com.noirbooks.app.data.Stats.flush()
+        com.noirbooks.app.data.DriveBackup.autoBackup(this)
     }
 
     override fun onStart() {

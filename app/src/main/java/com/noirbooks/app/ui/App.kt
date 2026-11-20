@@ -132,6 +132,8 @@ object AppState {
 
     /** Busca una versión nueva y la descarga en segundo plano; deja el aviso listo para instalar. */
     suspend fun checkUpdate(ctx: Context, manual: Boolean) {
+        // La versión de Google Play se actualiza solo desde Play.
+        if (!com.noirbooks.app.BuildConfig.SELF_UPDATE) return
         val st = update.value
         if (st is UpdateState.Checking || st is UpdateState.Downloading || st is UpdateState.Ready) return
         if (!manual && System.currentTimeMillis() - Prefs.lastUpdateCheck < 10 * 60_000L) return

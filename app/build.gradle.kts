@@ -28,6 +28,21 @@ android {
         }
     }
 
+    // Dos versiones del mismo código:
+    //  - github: el APK de siempre, con su propio actualizador.
+    //  - play: para Google Play (Play no permite que la app se actualice por otra vía).
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
+        }
+    }
+
     buildTypes {
         release {
             // Sin R8: prioridad a la estabilidad sobre el tamaño.
@@ -72,4 +87,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jsoup:jsoup:1.18.1")
+    // Inicio de sesión con Google solo para la carpeta privada de la app en Drive (copias de seguridad).
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 }

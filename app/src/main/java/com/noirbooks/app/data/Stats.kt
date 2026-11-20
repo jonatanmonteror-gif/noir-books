@@ -199,6 +199,7 @@ object Stats {
     @Synchronized
     fun flush() {
         if (!dirty || !::file.isInitialized || Backup.restoring) return
+        Prefs.dataChangedAt = System.currentTimeMillis()
         runCatching {
             val o = JSONObject()
             data.values.forEach { d ->
@@ -214,6 +215,7 @@ object Stats {
 
     private fun saveSessions() {
         if (!::sessionsFile.isInitialized || Backup.restoring) return
+        Prefs.dataChangedAt = System.currentTimeMillis()
         runCatching {
             val arr = org.json.JSONArray()
             sessions.forEach { x ->

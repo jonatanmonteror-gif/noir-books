@@ -31,13 +31,14 @@ jobs:
           gradle-version: '8.9'
 
       - name: Compilar
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: gradle assembleGithubRelease bundlePlayRelease --no-daemon --stacktrace
         env:
           VERSION_CODE: ${{ github.run_number }}
 
       - name: Preparar APK y huella SHA-256
         run: |
-          cp app/build/outputs/apk/release/app-release.apk NoirBooks.apk
+          cp app/build/outputs/apk/github/release/app-github-release.apk NoirBooks.apk
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab NoirBooks-play.aab
           sha256sum NoirBooks.apk | cut -d' ' -f1 > NoirBooks.apk.sha256
           echo "SHA-256: $(cat NoirBooks.apk.sha256)"
 
@@ -51,4 +52,5 @@ jobs:
           files: |
             NoirBooks.apk
             NoirBooks.apk.sha256
+            NoirBooks-play.aab
           make_latest: true

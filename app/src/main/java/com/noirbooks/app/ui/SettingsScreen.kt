@@ -79,28 +79,30 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ReadingControls(showPreview = true)
                 }
 
+                if (BuildConfig.SELF_UPDATE) {
                 FoldSection("Actualizaciones", "Versión ${BuildConfig.VERSION_NAME}") {
-                    val status = when (val u = update) {
-                        UpdateState.Idle -> "Se comprueba sola al abrir la app."
-                        UpdateState.Checking -> "Buscando…"
-                        is UpdateState.Downloading -> "Descargando ${u.name}… ${(u.progress * 100).toInt()} %"
-                        is UpdateState.Ready -> "${u.rel.name} descargada y verificada (SHA-256)."
-                        is UpdateState.UpToDate -> "Tienes la última versión."
-                        is UpdateState.Failed -> u.reason
-                    }
-                    Text(status, color = NB.text2, fontSize = 14.sp)
-                    (update as? UpdateState.Downloading)?.let {
-                        Spacer(Modifier.height(10.dp))
-                        DownloadBar(it.progress)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    val ready = update as? UpdateState.Ready
-                    if (ready != null) {
-                        PillButton("Descargar ${ready.rel.name}", primary = true) {
-                            if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
+                        val status = when (val u = update) {
+                            UpdateState.Idle -> "Se comprueba sola al abrir la app."
+                            UpdateState.Checking -> "Buscando…"
+                            is UpdateState.Downloading -> "Descargando ${u.name}… ${(u.progress * 100).toInt()} %"
+                            is UpdateState.Ready -> "${u.rel.name} descargada y verificada (SHA-256)."
+                            is UpdateState.UpToDate -> "Tienes la última versión."
+                            is UpdateState.Failed -> u.reason
                         }
-                    } else {
-                        PillButton("Buscar actualizaciones", primary = true) { scope.launch { AppState.checkUpdate(ctx, manual = true) } }
+                        Text(status, color = NB.text2, fontSize = 14.sp)
+                        (update as? UpdateState.Downloading)?.let {
+                            Spacer(Modifier.height(10.dp))
+                            DownloadBar(it.progress)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        val ready = update as? UpdateState.Ready
+                        if (ready != null) {
+                            PillButton("Descargar ${ready.rel.name}", primary = true) {
+                                if (!Updater.openDownload(ctx, ready.rel)) AppState.toast("No se pudo abrir el navegador")
+                            }
+                        } else {
+                            PillButton("Buscar actualizaciones", primary = true) { scope.launch { AppState.checkUpdate(ctx, manual = true) } }
+                        }
                     }
                 }
 

@@ -534,6 +534,7 @@ object Library {
 
     private fun save() {
         if (Backup.restoring) return
+        Prefs.dataChangedAt = System.currentTimeMillis()
         val arr = JSONArray()
         books.value.forEach { b ->
             arr.put(JSONObject().apply {

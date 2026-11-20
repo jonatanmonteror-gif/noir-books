@@ -113,7 +113,9 @@ fun BackupSection() {
     Spacer(Modifier.height(8.dp))
     PillButton("Exportar datos") { if (busy == null) exportLauncher.launch(Backup.suggestedName("NoirBooks-datos")) }
     Spacer(Modifier.height(12.dp))
-    Text("Copia automática en Google Drive: en la próxima versión.", color = NB.text3, fontSize = 12.sp)
+
+    Spacer(Modifier.height(8.dp))
+    DriveBlock(onRestoreFile = { file, info -> pending = android.net.Uri.fromFile(file) to info })
 
     pending?.let { (uri, info) ->
         AlertDialog(
@@ -141,5 +143,117 @@ fun BackupSection() {
             },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancelar", color = NB.text2) } },
         )
+    }
+}
+
+/** Copia automática en Google Drive (carpeta privada de la app). */
+@Composable
+private fun DriveBlock(onRestoreFile: (java.io.File, Backup.Info) -> Unit) {
+    val ctx = LocalContext.current
+    val activity = ctx as? android.app.Activity
+    val scope = rememberCoroutineScope()
+    var linked by remember { mutableStateOf(Prefs.driveLinked) }
+    var last by remember { mutableStateOf(Prefs.driveLastBackup) }
+    var withBooks by remember { mutableStateOf(Prefs.driveWithBooks) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var after by remember { mutableStateOf<(suspend (String) -> Unit)?>(null) }
+    val fmt = remember { SimpleDateFormat("d MMM yyyy, HH:mm", Locale("es", "ES")) }
+
+    suspend fun doBackup(token: String) {
+        busy = "Subiendo la copia a Google Drive…"
+        runCatching { DriveBackup.backupNow(ctx, token) }
+            .onSuccess { last = it; AppState.toast("Copia guardada en Google Drive") }
+            .onFailure { ErrorLog.note("Copia en Google Drive", it); AppState.toast(it.message ?: "No se pudo subir la copia") }
+        busy = null
+    }
+    suspend fun doRestore(token: String) {
+        busy = "Buscando tu copia en Google Drive…"
+        runCatching {
+            val remote = DriveBackup.find(token) ?: error("No hay ninguna copia de Noir Books en esta cuenta de Google")
+            busy = "Descargando la copia…"
+            val f = java.io.File(ctx.cacheDir, "drive-restore.zip")
+            DriveBackup.download(token, remote.id, f)
+            val info = f.inputStream().use { Backup.info(it) } ?: error("La copia de Drive no se puede leer")
+            f to info
+        }.onSuccess { (f, info) -> onRestoreFile(f, info) }
+            .onFailure { ErrorLog.note("Restaurar desde Google Drive", it); AppState.toast(it.message ?: "No se pudo restaurar") }
+        busy = null
+    }
+
+    val consent = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { r ->
+        val token = activity?.let { DriveBackup.tokenFromIntent(it, r.data) }
+        val next = after
+        after = null
+        if (token == null) { AppState.toast("No se ha vinculado Google Drive"); return@rememberLauncherForActivityResult }
+        Prefs.driveLinked = true; linked = true
+        if (next != null) scope.launch { next(token) }
+    }
+
+    /** Consigue el permiso (con la pantalla de Google si hace falta) y sigue con [next]. */
+    fun withToken(next: suspend (String) -> Unit) {
+        val act = activity ?: return
+        scope.launch {
+            runCatching { DriveBackup.authorize(act) }
+                .onSuccess { a ->
+                    when (a) {
+                        is DriveBackup.Auth.Token -> { Prefs.driveLinked = true; linked = true; next(a.token) }
+                        is DriveBackup.Auth.NeedsUser -> {
+                            after = next
+                            consent.launch(androidx.activity.result.IntentSenderRequest.Builder(a.intentSender).build())
+                        }
+                    }
+                }
+                .onFailure {
+                    ErrorLog.note("Vincular Google Drive", it)
+                    AppState.toast("Google Drive todavía no está disponible en esta versión de la app")
+                }
+        }
+    }
+
+    Text("Google Drive", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    Text(
+        "Copia automática en la carpeta privada de Noir Books dentro de tu Drive. La app no puede ver el resto de tus archivos " +
+            "y la copia no pasa por ningún servidor nuestro.",
+        color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp,
+    )
+    Spacer(Modifier.height(8.dp))
+    busy?.let {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+            CircularProgressIndicator(Modifier.height(16.dp), color = NB.text, strokeWidth = 2.dp)
+            Text("  $it", color = NB.text2, fontSize = 14.sp)
+        }
+    }
+    if (!linked) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillButton("Vincular Google Drive", primary = true) { if (busy == null) withToken { doBackup(it) } }
+            PillButton("Restaurar de Drive") { if (busy == null) withToken { doRestore(it) } }
+        }
+    } else {
+        Text(if (last > 0) "Última copia en Drive: ${fmt.format(Date(last))}" else "Vinculado. Aún no hay copia en Drive",
+            color = NB.text2, fontSize = 13.sp)
+        Text("Se copia sola al salir de la app si ha habido cambios (como mucho cada 15 minutos).", color = NB.text3, fontSize = 12.sp)
+        Row(
+            Modifier.fillMaxWidth().clickable { withBooks = !withBooks; Prefs.driveWithBooks = withBooks }.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Incluir los EPUB en Drive", color = NB.text, fontSize = 15.sp)
+                Text("Ocupan espacio de tu Drive; sin ellos, cada libro se recupera al volver a importarlo.",
+                    color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp)
+            }
+            Switch(withBooks, { withBooks = it; Prefs.driveWithBooks = it }, colors = SwitchDefaults.colors(
+                checkedThumbColor = NB.onText, checkedTrackColor = NB.text,
+                uncheckedThumbColor = NB.text3, uncheckedTrackColor = NB.surface2, uncheckedBorderColor = NB.line,
+            ))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillButton("Copiar ahora", primary = true) { if (busy == null) withToken { doBackup(it) } }
+            PillButton("Restaurar de Drive") { if (busy == null) withToken { doRestore(it) } }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("Desvincular", color = NB.text3, fontSize = 13.sp,
+            modifier = Modifier.clickable { Prefs.driveLinked = false; linked = false
+                AppState.toast("Desvinculado. Puedes quitar el permiso en tu cuenta de Google → Seguridad → Apps") }
+                .padding(vertical = 6.dp))
     }
 }

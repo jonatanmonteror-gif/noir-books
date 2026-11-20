@@ -333,7 +333,12 @@ private fun EmptyLibrary(onAdd: () -> Unit) {
         ) {
             Text("Añadir un libro", color = NB.onText, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
         }
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "¿Vienes de otro móvil? Restaura tu copia", color = NB.text2, fontSize = 14.sp,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { AppState.screen.value = Screen.Settings }.padding(8.dp),
+        )
+        Spacer(Modifier.height(20.dp))
         Text(
             "Los libros con protección DRM (la mayoría de Kindle y algunos de Kobo) no se pueden abrir.",
             color = NB.text3, fontSize = 12.sp, textAlign = TextAlign.Center,

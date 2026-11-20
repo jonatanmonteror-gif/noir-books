@@ -5,7 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
-        Entry("1.0.21", "20 nov 2026", listOf(
+        Entry("1.0.23", "20 nov 2026", listOf(
+            "Copia automática en Google Drive (carpeta privada de la app) y restaurar desde Drive en otro móvil. Se activará cuando esté configurada la cuenta de Google del proyecto",
+            "En una biblioteca vacía, acceso directo a restaurar tu copia",
+        )),
+        Entry("1.0.22", "20 nov 2026", listOf(
             "Copia de seguridad en un archivo (con o sin los EPUB) y restaurarla en este u otro móvil: Ajustes → Copia de seguridad",
             "Exportar tus datos en tablas CSV: libros, lecturas, lectura por día, citas y palabras",
             "Editar una lectura del registro (día, horas y páginas) manteniéndola pulsada",
