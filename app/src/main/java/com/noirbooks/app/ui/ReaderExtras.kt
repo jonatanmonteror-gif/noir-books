@@ -7,6 +7,8 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -232,13 +234,16 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
                 tabs.forEachIndexed { i, t -> Chip(t, tab == i) { tab = i } }
             }
             Spacer(Modifier.height(10.dp))
-            when (tabs[tab.coerceIn(0, tabs.lastIndex)]) {
-                "RAE" -> WebPane("https://dle.rae.es/" + Uri.encode(word.lowercase()), Modifier.weight(1f))
-                "Wikipedia" -> WebPane(
-                    "https://$lang.m.wikipedia.org/w/index.php?search=" + Uri.encode(word.trim()) + "&go=Go",
-                    Modifier.weight(1f),
+            // Las páginas se quedan cargadas al cambiar de pestaña: sin recargar ni pantallazo negro
+            val current = tabs[tab.coerceIn(0, tabs.lastIndex)]
+            var opened by remember { mutableStateOf(setOf(current)) }
+            LaunchedEffect(current) { opened = opened + current }
+            Box(Modifier.weight(1f).fillMaxWidth().background(if (current == "Traducir") NB.surface else Color.White)) {
+                if ("RAE" in opened) WebPane("https://dle.rae.es/" + Uri.encode(word.lowercase()), current == "RAE")
+                if ("Wikipedia" in opened) WebPane(
+                    "https://$lang.m.wikipedia.org/w/index.php?search=" + Uri.encode(word.trim()) + "&go=Go", current == "Wikipedia",
                 )
-                else -> TranslatePane(word, lang, Modifier.weight(1f))
+                if (current == "Traducir") TranslatePane(word, lang, Modifier.fillMaxSize().background(NB.surface).zIndex(2f))
             }
         }
     }
@@ -246,29 +251,30 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun WebPane(url: String, modifier: Modifier) {
+private fun WebPane(url: String, visible: Boolean) {
     var loading by remember(url) { mutableStateOf(true) }
-    Box(modifier.fillMaxWidth().background(Color.White)) {
-        key(url) {
-            AndroidView(
-                factory = { c ->
-                    WebView(c).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        // Que la página se pueda desplazar dentro de la hoja (sin que la hoja se lleve el gesto)
-                        isNestedScrollingEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageFinished(view: WebView?, url: String?) { loading = false }
-                        }
-                        loadUrl(url)
+    Box(
+        Modifier.fillMaxSize().zIndex(if (visible) 1f else 0f)
+            .graphicsLayer { alpha = if (visible) 1f else 0f }.background(Color.White),
+    ) {
+        AndroidView(
+            factory = { c ->
+                WebView(c).apply {
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    isNestedScrollingEnabled = true
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) { loading = false }
                     }
-                },
-                onRelease = { it.destroy() },
-                modifier = Modifier.fillMaxWidth().fillMaxHeight()
-                    .nestedScroll(androidx.compose.ui.platform.rememberNestedScrollInteropConnection()),
-            )
-        }
-        if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), color = Color.Black, strokeWidth = 2.dp)
+                    loadUrl(url)
+                }
+            },
+            update = { it.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE },
+            onRelease = { it.destroy() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (loading && visible) CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), color = Color.Black, strokeWidth = 2.dp)
     }
 }
 

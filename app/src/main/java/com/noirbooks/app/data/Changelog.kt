@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.60", "21 nov 2026", listOf(
+            "Diccionario: cambiar entre RAE, Wikipedia y Traducir ya no hace un pantallazo negro ni recarga la página",
+        )),
         Entry("1.0.59", "21 nov 2026", listOf(
             "Compartir cita: el botón Compartir ya no queda debajo de los botones del móvil",
             "Subrayado: menos interlineado",
