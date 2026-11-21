@@ -351,8 +351,60 @@
     return whole.substring(a + 1, b).replace(/\s+/g, ' ').trim().substring(0, 400);
   }
 
+  // ---- La selección no puede salirse de la página que ves ----
+  // Al arrastrar el tirador hacia el borde, el navegador intentaba desplazar el texto (y la página «se iba»)
+  // o cogía de golpe texto de la página siguiente. Se recorta a lo visible y se anula cualquier desplazamiento.
+  function caretAt(x, y) {
+    if (document.caretRangeFromPoint) {
+      var cr = document.caretRangeFromPoint(x, y);
+      if (cr) return { node: cr.startContainer, offset: cr.startOffset };
+    }
+    return null;
+  }
+  function edgeRect(node, off) {
+    var r = document.createRange();
+    try { r.setStart(node, off); r.collapse(true); } catch (e) { return null; }
+    return r.getClientRects()[0] || r.getBoundingClientRect();
+  }
+  function clampSelection(sel) {
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !S) return false;
+    var W = vw(), H = vh();
+    var m = S.margin || 20, mt = S.mtop || 22, mb = S.mbottom || 14;
+    var r = sel.getRangeAt(0);
+    var sNode = r.startContainer, sOff = r.startOffset, eNode = r.endContainer, eOff = r.endOffset;
+    var er = edgeRect(eNode, eOff), sr = edgeRect(sNode, sOff);
+    var changed = false;
+    if (er && (er.left >= W - 1 || er.top >= H - mb + 2)) {
+      var c = caretAt(W - m - 2, H - mb - 10);
+      if (c) { eNode = c.node; eOff = c.offset; changed = true; }
+    }
+    if (sr && (sr.right <= 1 || sr.bottom <= mt - 2)) {
+      var c2 = caretAt(m + 2, mt + 10);
+      if (c2) { sNode = c2.node; sOff = c2.offset; changed = true; }
+    }
+    if (changed) {
+      // Respeta hacia dónde se estaba arrastrando
+      var backwards = sel.anchorNode === r.endContainer && sel.anchorOffset === r.endOffset;
+      try {
+        if (backwards) sel.setBaseAndExtent(eNode, eOff, sNode, sOff);
+        else sel.setBaseAndExtent(sNode, sOff, eNode, eOff);
+      } catch (e) {}
+    }
+    return changed;
+  }
+  function lockScroll() {
+    if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+    var de = document.documentElement, b = document.body;
+    if (de && (de.scrollLeft || de.scrollTop)) { de.scrollLeft = 0; de.scrollTop = 0; }
+    if (b && (b.scrollLeft || b.scrollTop)) { b.scrollLeft = 0; b.scrollTop = 0; }
+  }
+  window.addEventListener('scroll', lockScroll, true);
+  document.addEventListener('scroll', lockScroll, true);
+
   var selTimer = null, lastSel = '';
   document.addEventListener('selectionchange', function () {
+    lockScroll();
+    if (clampSelection(window.getSelection())) return; // vuelve a llegar otro selectionchange ya recortado
     clearTimeout(selTimer);
     selTimer = setTimeout(function () {
       var sel = window.getSelection();

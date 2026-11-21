@@ -226,7 +226,11 @@ class ReaderController(
     fun createWebView(ctx: Context): WebView = object : WebView(ctx) {
         override fun startActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? =
             super.startActionMode(QuietSelection(callback), type)
+        // La página se mueve con CSS; la vista nunca debe desplazarse (al seleccionar cerca del borde se iba)
+        override fun scrollTo(x: Int, y: Int) { super.scrollTo(0, 0) }
     }.apply {
+        // Sin «selección inteligente»: Android ampliaba la selección por su cuenta (direcciones, nombres…)
+        if (android.os.Build.VERSION.SDK_INT >= 27) setTextClassifier(android.view.textclassifier.TextClassifier.NO_OP)
         settings.javaScriptEnabled = true
         settings.allowFileAccess = false
         settings.allowContentAccess = false

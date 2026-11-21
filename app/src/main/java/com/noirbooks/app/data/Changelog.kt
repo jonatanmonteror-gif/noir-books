@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.56", "21 nov 2026", listOf(
+            "Subrayar más fino: la selección ya no mueve la página ni se escapa a la página siguiente",
+            "Android ya no amplía la selección por su cuenta («selección inteligente»)",
+        )),
         Entry("1.0.55", "21 nov 2026", listOf(
             "Compartir cita rediseñado: vista previa grande, miniaturas de cada diseño, formato arriba y un solo botón Compartir",
             "Diseño Papel más compacto (menos interlineado y separaciones); se quita el diseño Portada",
