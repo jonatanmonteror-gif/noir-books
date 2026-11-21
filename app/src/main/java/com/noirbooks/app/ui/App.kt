@@ -89,6 +89,24 @@ object AppState {
         }
     }
 
+    fun importBookmory(ctx: Context, uri: Uri) {
+        background.launch {
+            importing.intValue = 1
+            runCatching {
+                com.noirbooks.app.data.BookmoryImport.import(ctx.applicationContext, uri) { done, total ->
+                    importing.intValue = (total - done).coerceAtLeast(if (done < total) 1 else 0)
+                }
+            }.onSuccess { r ->
+                toast(if (r.added == 0) "No había libros nuevos que importar" else
+                    "Importados ${r.added} libros de Bookmory" + if (r.skipped > 0) " (${r.skipped} ya estaban o sin título)" else "")
+            }.onFailure {
+                com.noirbooks.app.data.ErrorLog.note("Importar de Bookmory", it)
+                toast(it.message ?: "No se pudo importar")
+            }
+            importing.intValue = 0
+        }
+    }
+
     /** La lectura sin guardar de una sesión anterior solo se pregunta una vez al arrancar la app. */
     var pendingChecked = false
 

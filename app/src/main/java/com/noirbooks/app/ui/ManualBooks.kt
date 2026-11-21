@@ -126,6 +126,9 @@ fun AddBookScreen(onClose: () -> Unit) {
     val goodreadsPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { AppState.importGoodreads(ctx, uri); AppState.toast("Importando de Goodreads…"); onClose() }
     }
+    val bookmoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { AppState.importBookmory(ctx, uri); AppState.toast("Importando de Bookmory…"); onClose() }
+    }
     val clipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             runCatching { Clippings.import(ctx, uri) }.onSuccess { r ->
@@ -192,10 +195,17 @@ fun AddBookScreen(onClose: () -> Unit) {
                     MenuRow("Importar tu biblioteca de Goodreads (CSV)") {
                         goodreadsPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
                     }
+                    MenuRow("Importar tu biblioteca de Bookmory (Excel o CSV)") {
+                        bookmoryPicker.launch(arrayOf(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "text/csv", "text/comma-separated-values", "*/*"))
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text("Kindle: conéctalo por cable; el archivo está en la carpeta documents.", color = NB.text3, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text("Goodreads: en la web, Mis libros → Importar y exportar → Exportar biblioteca.", color = NB.text3, fontSize = 12.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Bookmory: Ajustes → Copia de seguridad → Exportar en Excel. Sirve el .xlsx tal cual.", color = NB.text3, fontSize = 12.sp)
                 }
                 return@Column
             }

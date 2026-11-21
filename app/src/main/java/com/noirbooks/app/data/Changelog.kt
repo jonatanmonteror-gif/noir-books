@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.67", "21 nov 2026", listOf(
+            "Importar tu biblioteca de Bookmory: el Excel (.xlsx) que exporta la app, o ese Excel guardado como CSV. Trae título, autor, ISBN, páginas, estado, valoración, fechas y reseña",
+        )),
         Entry("1.0.66", "21 nov 2026", listOf(
             "Seguir leyendo: la portada se ajusta al alto de la tarjeta",
             "Ajustes › Apariencia: tres tamaños para las portadas de Recientes (pequeñas, medianas, grandes)",
