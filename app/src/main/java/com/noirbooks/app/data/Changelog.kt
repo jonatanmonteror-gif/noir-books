@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.55", "21 nov 2026", listOf(
+            "Compartir cita rediseñado: vista previa grande, miniaturas de cada diseño, formato arriba y un solo botón Compartir",
+            "Diseño Papel más compacto (menos interlineado y separaciones); se quita el diseño Portada",
+        )),
         Entry("1.0.53", "21 nov 2026", listOf(
             "Estanterías: pestañas más pequeñas (Mis estanterías, Por género, Todas) y el «+» suelto a la derecha, en una sola fila",
         )),

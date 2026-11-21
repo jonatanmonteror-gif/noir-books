@@ -49,6 +49,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -72,11 +76,10 @@ data class QuoteShare(val text: String, val title: String, val author: String, v
 
 /** Diseños de la tarjeta de cita. */
 enum class QuoteDesign(val key: String, val label: String) {
-    Cover("cover", "Portada"),
     Paper("paper", "Papel"),
     Marker("marker", "Subrayado"),
     Noir("noir", "Noir");
-    companion object { fun of(k: String) = entries.firstOrNull { it.key == k } ?: Cover }
+    companion object { fun of(k: String) = entries.firstOrNull { it.key == k } ?: Paper }
 }
 
 /** Formatos: historia de Instagram (9:16) o publicación (4:5). */
@@ -101,39 +104,74 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
             runCatching { renderQuoteCard(ctx, q, design, format) }.onFailure { ErrorLog.note("Tarjeta de cita", it) }.getOrNull()
         }
     }
+    // Miniaturas de cada diseño (se dibujan una vez por formato)
+    val thumbs by produceState<Map<QuoteDesign, Bitmap>>(emptyMap(), format) {
+        value = withContext(Dispatchers.Default) {
+            QuoteDesign.entries.associateWith { d ->
+                val full = renderQuoteCard(ctx, q, d, format)
+                Bitmap.createScaledBitmap(full, 216, (216f * full.height / full.width).toInt(), true).also { if (it != full) full.recycle() }
+            }
+        }
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding().navigationBarsPadding()) {
+            // Cabecera: cerrar · formato (Historia | Publicación) · guardar
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, "Cerrar", tint = NB.text) }
-                Text("Compartir cita", fontFamily = Playfair, fontSize = 22.sp, color = NB.text)
+                Spacer(Modifier.weight(1f))
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(NB.surface2).padding(3.dp),
+                ) {
+                    QuoteFormat.entries.forEach { f ->
+                        val on = f == format
+                        Text(
+                            f.label, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            color = if (on) NB.onText else NB.text2,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) NB.text else androidx.compose.ui.graphics.Color.Transparent)
+                                .clickable { format = f; Prefs.quoteFormat = f.key }.padding(horizontal = 14.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) IconButton(onClick = {
+                    preview?.let { AppState.toast(if (saveToGallery(ctx, it)) "Guardada en Imágenes › Noir Books" else "No se pudo guardar") }
+                }) { Icon(painterResource(R.drawable.ic_download), "Guardar en la galería", tint = NB.text) }
+                else Spacer(Modifier.size(48.dp))
             }
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+            // Vista previa grande, con sombra suave
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
                 val b = preview
                 if (b == null) CircularProgressIndicator(Modifier.size(26.dp), color = NB.text, strokeWidth = 2.dp)
                 else Image(b.asImageBitmap(), "Vista previa", contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)))
+                    modifier = Modifier.fillMaxSize().shadow(18.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)))
             }
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuoteDesign.entries.forEach { d -> Chip(d.label, d == design) { design = d; Prefs.quoteDesign = d.key } }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuoteFormat.entries.forEach { f -> Chip(f.label, f == format) { format = f; Prefs.quoteFormat = f.key } }
-                }
-                Spacer(Modifier.height(12.dp))
-                ButtonRow {
-                    PillButton("Compartir", primary = true) {
-                        preview?.let { shareBitmap(ctx, it.copy(Bitmap.Config.ARGB_8888, false), "cita", "“${q.text}” — ${q.title}") }
+            // Diseños como miniaturas
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center) {
+                QuoteDesign.entries.forEach { d ->
+                    val on = d == design
+                    Column(
+                        Modifier.padding(horizontal = 10.dp).clip(RoundedCornerShape(10.dp)).clickable { design = d; Prefs.quoteDesign = d.key },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            Modifier.size(width = 58.dp, height = if (format == QuoteFormat.Story) 103.dp else 72.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(if (on) 2.dp else 1.dp, if (on) NB.text else NB.line, RoundedCornerShape(8.dp)),
+                        ) {
+                            thumbs[d]?.let { Image(it.asImageBitmap(), d.label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(d.label, fontSize = 12.sp, color = if (on) NB.text else NB.text3, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) PillButton("Guardar en la galería") {
-                        preview?.let { AppState.toast(if (saveToGallery(ctx, it)) "Guardada en Imágenes › Noir Books" else "No se pudo guardar") }
-                    }
                 }
-                Spacer(Modifier.height(6.dp))
-                Text(if (format == QuoteFormat.Story) "Historia: 1080 × 1920, deja libres los bordes donde Instagram pone sus botones."
-                    else "Publicación: 1080 × 1350, el formato vertical del feed.", color = NB.text3, fontSize = 12.sp)
             }
+            // Una sola acción principal
+            Box(
+                Modifier.padding(horizontal = 20.dp, vertical = 16.dp).fillMaxWidth().height(52.dp)
+                    .clip(RoundedCornerShape(50)).background(NB.text)
+                    .clickable { preview?.let { shareBitmap(ctx, it.copy(Bitmap.Config.ARGB_8888, false), "cita", "“${q.text}” — ${q.title}") } },
+                contentAlignment = Alignment.Center,
+            ) { Text("Compartir", color = NB.onText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -242,45 +280,11 @@ fun renderQuoteCard(ctx: Context, q: QuoteShare, design: QuoteDesign, format: Qu
     val m = 96
     val text = cleanQuote(q.text)
     when (design) {
-        QuoteDesign.Cover -> drawCoverCard(c, f, q, text, w, h, m, top, bottom)
         QuoteDesign.Paper -> drawPaperCard(c, f, q, text, w, h, m, top, bottom)
         QuoteDesign.Marker -> drawMarkerCard(c, f, q, text, w, h, m, top, bottom)
         QuoteDesign.Noir -> drawNoirCard(c, f, q, text, w, h, m, top, bottom)
     }
     return bmp
-}
-
-/** Portada: fondo con el color del libro (como las tarjetas de letras de Spotify), la portada y la cita en blanco. */
-private fun drawCoverCard(c: Canvas, f: CardFonts, q: QuoteShare, text: String, w: Int, h: Int, m: Int, top: Float, bottom: Float) {
-    val cov = cover(q)
-    val base = cov?.let { avgColor(it) } ?: 0xFF3A3F4B.toInt()
-    // Color más vivo y oscuro para que el blanco se lea siempre
-    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(base, it) }
-    hsv[1] = (hsv[1] * 1.25f).coerceIn(0.18f, 0.75f); hsv[2] = hsv[2].coerceIn(0.32f, 0.52f)
-    val main = android.graphics.Color.HSVToColor(hsv)
-    val bg = Paint().apply { shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), main, shade(main, 0.45f), Shader.TileMode.CLAMP) }
-    c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bg)
-    grain(c, w, h, dark = true)
-
-    var y = top
-    val coverW = 190f; val coverH = 285f
-    if (cov != null) {
-        drawCoverAt(c, cov, RectF(m.toFloat(), y, m + coverW, y + coverH), 14f)
-        cov.recycle()
-    }
-    val infoX = if (cov != null) m + coverW + 40f else m.toFloat()
-    val infoW = w - m - infoX
-    val tP = tp(f.sansBold, 40f, 0xFFFFFFFF.toInt())
-    val aP = tp(f.sans, 32f, 0xCCFFFFFF.toInt())
-    val infoY = if (cov != null) y + coverH / 2f else y + 40f
-    c.drawText(ellip(q.title, tP, infoW), infoX, infoY, tP)
-    if (q.author.isNotBlank()) c.drawText(ellip(q.author, aP, infoW), infoX, infoY + 48f, aP)
-    y += (if (cov != null) coverH else 80f) + 80f
-
-    val layout = fit(text, f.sansBold, 0xFFFFFFFF.toInt(), w - 2 * m, (bottom - y - 120).toInt(), 72f, 34f, 1.22f)
-    c.save(); c.translate(m.toFloat(), y); layout.draw(c); c.restore()
-    val brand = tp(f.serif, 32f, 0x99FFFFFF.toInt())
-    c.drawText("Noir Books", m.toFloat(), bottom, brand)
 }
 
 /** Papel: editorial, fondo de papel con grano, comilla grande y la cita en serifa. */
@@ -289,14 +293,14 @@ private fun drawPaperCard(c: Canvas, f: CardFonts, q: QuoteShare, text: String, 
     grain(c, w, h, dark = false)
     val accent = 0xFFB4532A.toInt()
     val ink = 0xFF1F1B16.toInt()
-    val qm = tp(f.serif, 260f, accent)
-    c.drawText("“", m - 12f, top + 190f, qm)
-    val y = top + 250f
-    val layout = fit(text, f.serif, ink, w - 2 * m, (bottom - y - 230).toInt(), 70f, 34f, 1.28f)
+    val qm = tp(f.serif, 200f, accent)
+    c.drawText("“", m - 10f, top + 150f, qm)
+    val y = top + 185f
+    val layout = fit(text, f.serif, ink, w - 2 * m, (bottom - y - 190).toInt(), 68f, 32f, 1.1f)
     c.save(); c.translate(m.toFloat(), y); layout.draw(c); c.restore()
-    var yy = y + layout.height + 80f
+    var yy = y + layout.height + 48f
     c.drawRect(m.toFloat(), yy, m + 80f, yy + 4f, Paint().apply { color = accent })
-    yy += 70f
+    yy += 58f
     val tP = tp(f.sansBold, 30f, ink, 0.12f)
     c.drawText(ellip(q.title.uppercase(), tP, (w - 2 * m).toFloat()), m.toFloat(), yy, tP)
     if (q.author.isNotBlank()) c.drawText(ellip(q.author, tp(f.serifItalic, 36f, 0xFF5C554B.toInt()), (w - 2 * m).toFloat()), m.toFloat(), yy + 54f, tp(f.serifItalic, 36f, 0xFF5C554B.toInt()))
