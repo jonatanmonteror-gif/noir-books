@@ -69,7 +69,7 @@ La app no está dirigida a menores de 14 años y no recoge datos de nadie.
 
 ## Tus derechos
 
-Como no recogemos datos en ningún servidor, no tenemos datos tuyos que consultar, corregir o borrar: los controlas tú desde el móvil y desde tu Drive. Si tienes alguna duda, puedes escribirnos. También tienes derecho a reclamar ante la Agencia Española de Protección de Datos ([aepd.es](https://www.aepd.es)).
+Como no recogemos datos en ningún servidor, no tenemos datos tuyos que consultar, corregir o borrar: los controlas tú desde el móvil y desde tu Drive. Si tienes alguna duda, escríbenos a noirbooks@gmail.com. También tienes derecho a reclamar ante la Agencia Española de Protección de Datos ([aepd.es](https://www.aepd.es)).
 
 ## Cambios
 
@@ -77,4 +77,7 @@ Si esta política cambia, actualizaremos la fecha de arriba y lo indicaremos en 
 
 ## Contacto
 
-Jonatan (Noir Books): https://github.com/jonatanmonteror-gif/noir-books/issues
+Jonatan (Noir Books)
+
+- Correo: [noirbooks@gmail.com](mailto:noirbooks@gmail.com)
+- También: https://github.com/jonatanmonteror-gif/noir-books/issues

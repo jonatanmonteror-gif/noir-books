@@ -44,4 +44,5 @@ Estas condiciones se rigen por la ley española. Si eres consumidor, puedes acud
 
 ## 9. Contacto
 
-https://github.com/jonatanmonteror-gif/noir-books/issues
+- Correo: [noirbooks@gmail.com](mailto:noirbooks@gmail.com). También para avisos sobre derechos de autor.
+- También: https://github.com/jonatanmonteror-gif/noir-books/issues

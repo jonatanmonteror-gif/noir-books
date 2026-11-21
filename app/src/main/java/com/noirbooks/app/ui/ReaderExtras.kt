@@ -9,6 +9,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.key
+import com.noirbooks.app.data.Prefs
+import com.noirbooks.app.data.Translate
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -192,38 +198,104 @@ fun HighlightSheet(
     }
 }
 
-/** Diccionario: la palabra en el Diccionario de la lengua española (RAE). La palabra queda en "Mis palabras". */
+/**
+ * Diccionario: la palabra en la RAE, en Wikipedia, o traducida en el propio móvil.
+ * Con una frase (varias palabras) solo salen Wikipedia y Traducir.
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DictionarySheet(word: String, onDismiss: () -> Unit) {
+fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es", startTab: Int = 0) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var loading by remember { mutableStateOf(true) }
+    val single = !word.trim().contains(' ')
+    val lang = java.util.Locale.forLanguageTag(language.ifBlank { "es" }).language.ifBlank { "es" }
+    val tabs = buildList {
+        if (single && lang == "es") add("RAE")
+        add("Wikipedia")
+        add("Traducir")
+    }
+    // startTab < 0 = la última pestaña (Traducir)
+    var tab by remember { mutableStateOf(if (startTab < 0) tabs.lastIndex else startTab.coerceIn(0, tabs.lastIndex)) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(word, fontFamily = Playfair, fontSize = 24.sp, color = NB.text, modifier = Modifier.weight(1f))
-                Text("Guardada en Mis palabras", fontFamily = Inter, fontSize = 12.sp, color = NB.text3)
+                Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
+                    maxLines = 3, overflow = TextOverflow.Ellipsis)
+                if (single) Text("Guardada en Mis palabras", fontFamily = Inter, fontSize = 12.sp, color = NB.text3)
             }
             Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().weight(1f).background(Color.White)) {
-                AndroidView(
-                    factory = { c ->
-                        WebView(c).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageFinished(view: WebView?, url: String?) { loading = false }
-                            }
-                            loadUrl("https://dle.rae.es/" + Uri.encode(word.lowercase()))
-                        }
-                    },
-                    onRelease = { it.destroy() },
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                tabs.forEachIndexed { i, t -> Chip(t, tab == i) { tab = i } }
+            }
+            Spacer(Modifier.height(10.dp))
+            when (tabs[tab.coerceIn(0, tabs.lastIndex)]) {
+                "RAE" -> WebPane("https://dle.rae.es/" + Uri.encode(word.lowercase()), Modifier.weight(1f))
+                "Wikipedia" -> WebPane(
+                    "https://$lang.m.wikipedia.org/w/index.php?search=" + Uri.encode(word.trim()) + "&go=Go",
+                    Modifier.weight(1f),
                 )
-                if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), color = Color.Black, strokeWidth = 2.dp)
+                else -> TranslatePane(word, lang, Modifier.weight(1f))
             }
         }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun WebPane(url: String, modifier: Modifier) {
+    var loading by remember(url) { mutableStateOf(true) }
+    Box(modifier.fillMaxWidth().background(Color.White)) {
+        key(url) {
+            AndroidView(
+                factory = { c ->
+                    WebView(c).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) { loading = false }
+                        }
+                        loadUrl(url)
+                    }
+                },
+                onRelease = { it.destroy() },
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            )
+        }
+        if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), color = Color.Black, strokeWidth = 2.dp)
+    }
+}
+
+/** Idiomas a los que se puede traducir (los más útiles primero). */
+private val TARGETS = listOf("es" to "Español", "en" to "Inglés", "ca" to "Catalán", "fr" to "Francés", "it" to "Italiano", "de" to "Alemán", "pt" to "Portugués")
+
+/** Traducción con Google ML Kit en el propio móvil: el idioma se descarga una vez y el texto no sale del móvil. */
+@Composable
+private fun TranslatePane(text: String, source: String, modifier: Modifier) {
+    var target by remember { mutableStateOf(Prefs.translateTarget.takeIf { it != source } ?: if (source == "es") "en" else "es") }
+    var result by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf("") }
+    LaunchedEffect(target) {
+        result = null
+        status = "Traduciendo…"
+        val r = runCatching { Translate.translate(text, source, target) { status = it } }
+        r.onSuccess { result = it; status = "" }
+        r.onFailure { status = it.message ?: "No se pudo traducir" }
+    }
+    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Text("TRADUCIR AL", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text3, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TARGETS.filter { it.first != source }.forEach { (k, label) ->
+                Chip(label, target == k) { target = k; Prefs.translateTarget = k }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        result?.let {
+            Text(it, fontFamily = Playfair, fontSize = 20.sp, lineHeight = 28.sp, color = NB.text)
+            Spacer(Modifier.height(12.dp))
+            Text("Traducido en tu móvil con Google ML Kit", color = NB.text3, fontSize = 12.sp)
+        }
+        if (status.isNotBlank()) Text(status, color = NB.text2, fontSize = 14.sp)
     }
 }
 

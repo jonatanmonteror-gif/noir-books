@@ -428,6 +428,11 @@ object Prefs {
         e.apply()
     }
 
+    /** Idioma al que se traduce por defecto. */
+    var translateTarget: String
+        get() = sp.getString("translate_target", "en") ?: "en"
+        set(v) { sp.edit().putString("translate_target", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

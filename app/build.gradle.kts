@@ -113,4 +113,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     // Reconocer el texto de una foto en el propio móvil (vía Google Play services)
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // Traducir en el propio móvil (el idioma se descarga una vez; el texto no sale del móvil)
+    implementation("com.google.mlkit:translate:17.0.3")
 }

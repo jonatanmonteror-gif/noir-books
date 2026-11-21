@@ -178,6 +178,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     var summary by remember { mutableStateOf(false) }
     var noteFor by remember { mutableStateOf<Int?>(null) } // color del subrayado nuevo con nota
     var dictionaryWord by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var translateText by remember { mutableStateOf<String?>(null) }
     val cpm = remember { Stats.charsPerMinute() }
 
     var askSave by remember { mutableStateOf(false) }
@@ -522,6 +523,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     }
                     c.clearSelection()
                 },
+                onTranslate = { translateText = sel.text.trim(); c.clearSelection() },
                 modifier = Modifier.align(if (sel.top > 0.5f) Alignment.TopCenter else Alignment.BottomCenter),
             )
         }
@@ -554,7 +556,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             onDismiss = { c.tappedHighlight = null },
         )
     }
-    dictionaryWord?.let { (w, _) -> DictionarySheet(w, onDismiss = { dictionaryWord = null }) }
+    dictionaryWord?.let { (w, _) -> DictionarySheet(w, onDismiss = { dictionaryWord = null }, language = c.epub.language) }
+    translateText?.let { t -> DictionarySheet(t, onDismiss = { translateText = null }, language = c.epub.language, startTab = -1) }
     if (askSave && book != null) {
         val nowP = book.progressAt(c.chapter, c.fraction)
         val openP = c.openProgress
@@ -685,6 +688,7 @@ private fun chapterAt(c: ReaderController, f: Float): String {
 private fun SelectionBar(
     sel: TextSelection, fg: Color, bg: Color,
     onColor: (Int) -> Unit, onNote: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, onDefine: () -> Unit,
+    onTranslate: () -> Unit,
     modifier: Modifier,
 ) {
     val single = !sel.text.trim().contains(' ')
@@ -707,6 +711,7 @@ private fun SelectionBar(
             BarAction("Copiar", onCopy)
             BarAction("Compartir", onShare)
             if (single) BarAction("Definir", onDefine)
+            BarAction("Traducir", onTranslate)
         }
     }
 }
