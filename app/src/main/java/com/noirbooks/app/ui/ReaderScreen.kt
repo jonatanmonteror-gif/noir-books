@@ -518,7 +518,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Selecciona dónde termina la cita", color = Color.White, fontSize = 13.sp, fontFamily = Inter)
-                TextButton(onClick = { c.cancelContinue() }) { Text("Cancelar", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
+                androidx.compose.material3.TextButton(onClick = { c.cancelContinue() }) { Text("Cancelar", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
             }
         }
 
