@@ -34,6 +34,7 @@ enum class BookStatus(val key: String, val label: String) {
 /** Dónde se lee el libro. Solo los EPUB se abren en la app; el resto se apunta a mano. */
 enum class BookFormat(val key: String, val label: String) {
     Epub("epub", "EPUB en la app"),
+    Pdf("pdf", "PDF en la app"),
     Kindle("kindle", "Kindle"),
     Paper("paper", "Papel"),
     Audio("audio", "Audiolibro"),
@@ -131,6 +132,9 @@ data class Book(
     val shelves: List<String> = emptyList(),
 ) {
     val isEpub: Boolean get() = format == BookFormat.Epub
+    val isPdf: Boolean get() = format == BookFormat.Pdf
+    /** Se lee dentro de la app (EPUB o PDF). */
+    val inApp: Boolean get() = isEpub || isPdf
     val totalChars: Int get() = chapterLengths.sum().coerceAtLeast(1)
     val finished: Boolean get() = status == BookStatus.Read
     val inTrash: Boolean get() = deletedAt > 0L
@@ -229,10 +233,11 @@ object Library {
     fun dirOf(id: String) = File(root, id)
     fun epubOf(id: String) = File(dirOf(id), "book.epub")
     fun coverOf(id: String) = File(dirOf(id), "cover.jpg")
+    fun pdfOf(id: String) = File(dirOf(id), "book.pdf")
     fun get(id: String): Book? = books.value.firstOrNull { it.id == id }
 
     /** ¿Falta el archivo EPUB? (copia restaurada sin los libros). */
-    fun fileMissing(b: Book): Boolean = b.isEpub && !epubOf(b.id).exists()
+    fun fileMissing(b: Book): Boolean = (b.isEpub && !epubOf(b.id).exists()) || (b.isPdf && !pdfOf(b.id).exists())
 
     /** Carpeta raíz de la biblioteca (para las copias de seguridad). */
     val rootDir: File get() = root
@@ -252,6 +257,7 @@ object Library {
                 input ?: throw IOException("No se pudo abrir el archivo.")
                 tmp.outputStream().use { input.copyTo(it, 64 * 1024) }
             }
+            if (isPdf(tmp)) return@withContext importPdf(tmp, name)
             val id = sha1(tmp).take(16)
             get(id)?.let { existing ->
                 if (existing.isEpub && !epubOf(id).exists()) {
@@ -307,6 +313,70 @@ object Library {
         }
     }
 
+    private fun isPdf(f: File): Boolean = runCatching {
+        f.inputStream().use { val h = ByteArray(5); it.read(h) == 5 && String(h, Charsets.US_ASCII) == "%PDF-" }
+    }.getOrDefault(false)
+
+    /** Importa un PDF: cuenta sus páginas y hace la portada con la primera. */
+    private suspend fun importPdf(tmp: File, name: String?): ImportResult {
+        val id = sha1(tmp).take(16)
+        get(id)?.let { existing ->
+            if (!pdfOf(id).exists()) {
+                dirOf(id).mkdirs()
+                if (!tmp.renameTo(pdfOf(id))) { tmp.copyTo(pdfOf(id), overwrite = true); tmp.delete() }
+                update(id) { it.copy(deletedAt = 0L) }
+                return ImportResult.Added(existing)
+            }
+            tmp.delete()
+            if (existing.inTrash) {
+                update(id) { it.copy(deletedAt = 0L) }
+                return ImportResult.Added(existing.copy(deletedAt = 0L))
+            }
+            return ImportResult.Existing(existing)
+        }
+        var count = 0
+        val dir = dirOf(id).apply { mkdirs() }
+        try {
+            android.os.ParcelFileDescriptor.open(tmp, android.os.ParcelFileDescriptor.MODE_READ_ONLY).use { pfd ->
+                android.graphics.pdf.PdfRenderer(pfd).use { r ->
+                    count = r.pageCount
+                    if (count == 0) throw IOException("El PDF no tiene páginas.")
+                    r.openPage(0).use { p ->
+                        val w = 600
+                        val h = (w.toLong() * p.height / p.width.coerceAtLeast(1)).toInt().coerceIn(200, 1600)
+                        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+                        bmp.eraseColor(android.graphics.Color.WHITE)
+                        p.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        coverOf(id).outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, it) }
+                        bmp.recycle()
+                    }
+                }
+            }
+        } catch (e: SecurityException) {
+            tmp.delete(); dir.deleteRecursively()
+            return ImportResult.Failed(name ?: "PDF", "Tiene contraseña: no se puede abrir.")
+        } catch (e: Exception) {
+            tmp.delete(); dir.deleteRecursively()
+            return ImportResult.Failed(name ?: "PDF", "No se pudo leer el PDF.")
+        }
+        if (!tmp.renameTo(pdfOf(id))) { tmp.copyTo(pdfOf(id), overwrite = true); tmp.delete() }
+        val book = Book(
+            id = id,
+            title = (name?.substringBeforeLast('.') ?: "Documento PDF").replace('_', ' ').trim(),
+            author = "",
+            addedAt = System.currentTimeMillis(),
+            hasCover = true,
+            format = BookFormat.Pdf,
+            pages = count,
+            unit = ProgressUnit.Page,
+        )
+        lock.withLock {
+            books.value = books.value + book
+            save()
+        }
+        return ImportResult.Added(book)
+    }
+
     suspend fun update(id: String, transform: (Book) -> Book) = withContext(Dispatchers.IO) {
         lock.withLock {
             books.value = books.value.map { if (it.id == id) transform(it) else it }
@@ -331,6 +401,7 @@ object Library {
             chapter = if (restart) 0 else b.chapter,
             fraction = if (restart) 0f else b.fraction,
             anchor = if (restart) "" else b.anchor,
+            manualProgress = if (restart && b.isPdf) 0f else b.manualProgress,
             abandonReason = if (b.status == BookStatus.Abandoned) "" else b.abandonReason,
         )
     }

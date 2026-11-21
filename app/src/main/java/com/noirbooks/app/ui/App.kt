@@ -92,9 +92,9 @@ object AppState {
 
     fun openBook(b: com.noirbooks.app.data.Book, from: Screen? = null) {
         when {
-            !b.isEpub -> bookMenu.value = b.id
+            !b.inApp -> bookMenu.value = b.id
             com.noirbooks.app.data.Library.fileMissing(b) ->
-                toast("Falta el archivo de este libro. Impórtalo otra vez (el mismo EPUB) y recuperas todo")
+                toast("Falta el archivo de este libro. Impórtalo otra vez (el mismo archivo) y recuperas todo")
             else -> screen.value = Screen.Reader(b.id, from)
         }
     }
@@ -228,7 +228,9 @@ fun App() {
                     BookScreen(s.bookId, onBack = { AppState.screen.value = Screen.Library })
                 }
                 is Screen.Reader -> {
-                    ReaderScreen(s.bookId, onClose = { AppState.screen.value = s.from ?: Screen.Library })
+                    if (com.noirbooks.app.data.Library.get(s.bookId)?.isPdf == true)
+                        PdfReaderScreen(s.bookId, onClose = { AppState.screen.value = s.from ?: Screen.Library })
+                    else ReaderScreen(s.bookId, onClose = { AppState.screen.value = s.from ?: Screen.Library })
                 }
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())

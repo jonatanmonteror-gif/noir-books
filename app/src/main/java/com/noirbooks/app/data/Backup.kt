@@ -64,6 +64,7 @@ object Backup {
             books.forEach { b ->
                 put("books/${b.id}/cover.jpg", Library.coverOf(b.id))
                 if (withBooks && b.isEpub) put("books/${b.id}/book.epub", Library.epubOf(b.id))
+                if (withBooks && b.isPdf) put("books/${b.id}/book.pdf", Library.pdfOf(b.id))
             }
             put("stats.json", File(files, "stats.json"))
             put("sessions.json", File(files, "sessions.json"))
@@ -122,11 +123,13 @@ object Backup {
             val newBooks = File(staging, "books")
             root.listFiles()?.forEach { old ->
                 if (old.isDirectory) {
-                    val epub = File(old, "book.epub")
                     val incoming = File(newBooks, old.name)
-                    if (epub.isFile && !File(incoming, "book.epub").exists()) {
-                        incoming.mkdirs()
-                        epub.copyTo(File(incoming, "book.epub"), overwrite = true)
+                    for (fileName in listOf("book.epub", "book.pdf")) {
+                        val f = File(old, fileName)
+                        if (f.isFile && !File(incoming, fileName).exists()) {
+                            incoming.mkdirs()
+                            f.copyTo(File(incoming, fileName), overwrite = true)
+                        }
                     }
                 }
             }

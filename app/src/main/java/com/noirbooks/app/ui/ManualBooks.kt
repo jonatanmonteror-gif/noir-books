@@ -187,7 +187,7 @@ fun AddBookScreen(onClose: () -> Unit) {
                     Spacer(Modifier.height(18.dp))
                     MenuRow("Escanear el código de barras (ISBN)") { startScan() }
                     MenuRow("Escribirlo a mano") { picked = FoundBook("", "", null, 0, "", "", "", "", "") }
-                    MenuRow("Importar EPUB desde el móvil") { epubPicker.launch(arrayOf("application/epub+zip", "application/octet-stream", "application/zip")) }
+                    MenuRow("Importar EPUB o PDF desde el móvil") { epubPicker.launch(arrayOf("application/epub+zip", "application/pdf", "application/octet-stream", "application/zip")) }
                     MenuRow("Importar subrayados del Kindle (My Clippings.txt)") { clipPicker.launch(arrayOf("text/plain", "*/*")) }
                     MenuRow("Importar tu biblioteca de Goodreads (CSV)") {
                         goodreadsPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))

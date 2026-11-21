@@ -77,7 +77,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val EPUB_TYPES = arrayOf("application/epub+zip", "application/octet-stream", "application/zip")
+private val EPUB_TYPES = arrayOf("application/epub+zip", "application/pdf", "application/octet-stream", "application/zip")
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -350,7 +350,7 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boo
         BookCover(b, Modifier.width(92.dp), titleSize = 11)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(if (b.isEpub) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
+            Text(if (b.inApp) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
             // En el carrusel todas las tarjetas miden lo mismo (título en una línea y autor siempre),
             // para que la pantalla no salte al deslizar.
@@ -365,12 +365,14 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boo
                 TimerText(running.second, prefix = "Leyendo · ")
             } else if (b.isEpub) {
                 Text("${percentLabel(b.progress)} · quedan ${minutesLabel(left, cpm)}", color = NB.text3, fontSize = 12.sp)
+            } else if (b.isPdf) {
+                Text("PDF · ${b.progressLabel()}", color = NB.text3, fontSize = 12.sp)
             } else {
                 Text("${b.format.label} · ${b.progressLabel()}", color = NB.text3, fontSize = 12.sp)
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (b.isEpub) Chip("Seguir leyendo", true, onOpen)
+                if (b.inApp) Chip("Seguir leyendo", true, onOpen)
                 else Chip("Apuntar lectura", true) { AppState.logSession.value = LogRequest(b.id) }
                 PlayPauseButton(b.id)
             }
@@ -553,12 +555,12 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                     Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair)
                 }
                 Spacer(Modifier.height(10.dp))
-                if (!b.isEpub && b.status != BookStatus.Read) {
+                if (!b.inApp && b.status != BookStatus.Read) {
                     if (AppState.timer.value?.first == b.id) MenuRow("Terminar cronómetro") { onDismiss(); AppState.stopTimer() }
                     else MenuRow("Empiezo a leer (cronómetro)") { onDismiss(); AppState.startTimer(b.id) }
                 }
                 MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
-                if (!b.isEpub) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
+                if (!b.inApp) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
                 if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
                 MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería…" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }

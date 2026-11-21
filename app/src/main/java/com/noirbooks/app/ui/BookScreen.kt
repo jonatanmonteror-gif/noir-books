@@ -131,7 +131,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (b.isEpub) {
+                        if (b.inApp) {
                             val label = when (b.status) {
                                 BookStatus.Reading -> "Seguir leyendo"
                                 BookStatus.Read -> "Volver a leer"

@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.42", "21 nov 2026", listOf(
+            "Diccionario con pestañas: RAE, Wikipedia y Traducir",
+            "Traducir una palabra o frase en el propio móvil (Google ML Kit): selecciona el texto y pulsa Traducir",
+            "Lector de PDF: importa PDF como los EPUB; páginas a pantalla completa, ampliar con los dedos y guardar la lectura",
+        )),
         Entry("1.0.40", "21 nov 2026", listOf(
             "Las estanterías muestran siempre las portadas de los libros (sin lomos)",
         )),
