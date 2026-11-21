@@ -385,6 +385,8 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
         }
 
         // Lectura en voz alta: controles discretos abajo
+        var voiceDialog by remember { mutableStateOf(false) }
+        if (voiceDialog) VoiceDialog(c) { voiceDialog = false }
         AnimatedVisibility(c.ttsActive && !bars && c.selection == null, enter = fadeIn(), exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 34.dp)) {
             Row(
@@ -411,6 +413,10 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                 )
                 Text("+", color = if (tenths < 15) fg else muted.copy(alpha = 0.4f), fontSize = 18.sp, fontFamily = Inter,
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { step(1) }.padding(horizontal = 10.dp, vertical = 4.dp))
+                Text(
+                    "Voz", color = fg, fontSize = 13.sp, fontFamily = Inter,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { voiceDialog = true }.padding(horizontal = 8.dp, vertical = 8.dp),
+                )
                 var sleepIdx by remember { mutableStateOf(0) }
                 val sleepOpts = listOf(0L, 15L, 30L, 60L)
                 if (c.ttsSleepAt == 0L && sleepIdx != 0) sleepIdx = 0

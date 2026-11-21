@@ -79,7 +79,7 @@ private fun stableHash(s: String) = s.fold(7) { h, c -> h * 31 + c.code } and 0x
 /** Lomo de un libro, de pie: color de su portada, título en vertical. Ancho según el número de páginas. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BookSpine(b: Book, maxHeight: Dp, onClick: () -> Unit, onLongClick: () -> Unit) {
+fun BookSpine(b: Book, maxHeight: Dp, onClick: () -> Unit, onLongClick: () -> Unit, widthScale: Float = 1f) {
     LaunchedEffect(b.id, b.hasCover) {
         if (b.id in spineColors) return@LaunchedEffect
         val c = withContext(Dispatchers.IO) { if (b.hasCover) averageColor(Library.coverOf(b.id)) else null }
@@ -87,7 +87,7 @@ fun BookSpine(b: Book, maxHeight: Dp, onClick: () -> Unit, onLongClick: () -> Un
     }
     val color = spineColors[b.id] ?: FALLBACK[stableHash(b.id) % FALLBACK.size]
     val pages = if (b.pages > 0) b.pages else b.totalChars / CHARS_PER_PRINTED_PAGE
-    val width = (16 + pages / 22).coerceIn(22, 44).dp
+    val width = (16 + pages / 22).coerceIn(22, 44).dp * widthScale.coerceIn(0.8f, 1.25f)
     val h = maxHeight * (0.84f + (stableHash(b.title) % 16) / 100f)
     val ink = if (color.luminance() > 0.45f) Color(0xFF1A1A1A) else Color(0xFFF3EEE6)
     Box(
@@ -159,7 +159,10 @@ fun ShelfCompartment(style: ShelfStyle, height: Dp, content: @Composable () -> U
 
 /** Elegir el diseño de las estanterías y si se ven lomos o portadas. */
 @Composable
-fun ShelfDesignDialog(style: String, view: String, onStyle: (String) -> Unit, onView: (String) -> Unit, onDismiss: () -> Unit) {
+fun ShelfDesignDialog(
+    style: String, view: String, size: String,
+    onStyle: (String) -> Unit, onView: (String) -> Unit, onSize: (String) -> Unit, onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = NB.surface2,
         title = { Text("Diseño de las estanterías", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
@@ -196,6 +199,14 @@ fun ShelfDesignDialog(style: String, view: String, onStyle: (String) -> Unit, on
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Chip("Lomos", view == "spines") { onView("spines") }
                     Chip("Portadas", view == "covers") { onView("covers") }
+                }
+                Spacer(Modifier.height(18.dp))
+                Text("Tamaño", color = NB.text2, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip("Pequeña", size == "s") { onSize("s") }
+                    Chip("Mediana", size == "m") { onSize("m") }
+                    Chip("Grande", size == "l") { onSize("l") }
                 }
             }
         },

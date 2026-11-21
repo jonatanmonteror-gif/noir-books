@@ -290,11 +290,7 @@ class ReaderController(
             main.post {
                 if (status == TextToSpeech.SUCCESS) {
                     ttsReady = true
-                    // "es" a secas → español de España (si no, el móvil puede elegir una voz latinoamericana)
-                    val tag = epub.language.trim().ifBlank { "es-ES" }.let { if (it.equals("es", true) || it.equals("spa", true)) "es-ES" else it }
-                    val loc = java.util.Locale.forLanguageTag(tag)
-                    val ok = tts?.setLanguage(loc) ?: TextToSpeech.LANG_NOT_SUPPORTED
-                    if (ok < 0) tts?.setLanguage(java.util.Locale("es", "ES"))
+                    ttsRestore()
                     tts?.setOnUtteranceProgressListener(ttsListener)
                     then()
                 } else {
@@ -379,6 +375,87 @@ class ReaderController(
         com.noirbooks.app.data.ReadAloudService.Control.toggle = null
         com.noirbooks.app.data.ReadAloudService.Control.stop = null
         com.noirbooks.app.data.ReadAloudService.stop(app)
+    }
+
+    // ---- Elegir la voz ----
+
+    /** Idioma y voz que se están usando ahora. */
+    var ttsLangTag by mutableStateOf("")
+        private set
+    var ttsVoiceName by mutableStateOf("")
+        private set
+
+    /** El idioma del libro; "es" a secas = español de España. */
+    private fun bookLangTag(): String = epub.language.trim().let {
+        if (it.isBlank() || it.equals("es", true) || it.equals("spa", true)) "es-ES" else it
+    }
+
+    /** La voz que toca: la propia del libro, si no la general (si el libro es de ese idioma), si no la del idioma del libro. */
+    private fun resolveVoice(): Pair<String, String> {
+        Prefs.ttsLangFor(bookId)?.let { return it to Prefs.ttsVoiceFor(bookId) }
+        val g = Prefs.ttsLang
+        val b = bookLangTag()
+        return if (java.util.Locale.forLanguageTag(b).language == java.util.Locale.forLanguageTag(g).language) g to Prefs.ttsVoice
+        else b to ""
+    }
+
+    private fun ttsApply(tag: String, voice: String) {
+        val t = tts ?: return
+        val ok = t.setLanguage(java.util.Locale.forLanguageTag(tag))
+        if (ok < 0) t.setLanguage(java.util.Locale("es", "ES"))
+        if (voice.isNotBlank()) runCatching { t.voices?.firstOrNull { it.name == voice }?.let { t.voice = it } }
+    }
+
+    /** Vuelve a poner la voz elegida (tras escuchar una de prueba). */
+    fun ttsRestore() {
+        val (tag, voice) = resolveVoice()
+        ttsApply(tag, voice)
+        ttsLangTag = tag
+        ttsVoiceName = voice
+    }
+
+    /** Prepara el motor de voz sin empezar a leer (para la ventana de elegir voz). */
+    fun ttsPrepare(then: () -> Unit) = ttsEnsure(then)
+
+    private fun installed(v: android.speech.tts.Voice) =
+        TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in (v.features ?: emptySet<String>())
+
+    /** Idiomas con alguna voz instalada en el móvil. */
+    fun ttsLanguages(): List<String> = runCatching {
+        tts?.voices.orEmpty().filter { installed(it) }.map { it.locale.toLanguageTag() }.distinct()
+    }.getOrDefault(emptyList())
+
+    /** Voces instaladas de un idioma (primero las que no necesitan conexión). */
+    fun ttsVoicesFor(tag: String): List<android.speech.tts.Voice> = runCatching {
+        tts?.voices.orEmpty().filter { installed(it) && it.locale.toLanguageTag().equals(tag, true) }
+            .sortedWith(compareBy({ it.isNetworkConnectionRequired }, { it.name }))
+    }.getOrDefault(emptyList())
+
+    fun ttsHasBookVoice() = Prefs.ttsLangFor(bookId) != null
+
+    /** Escuchar una voz antes de elegirla (pausa la lectura si estaba sonando). */
+    fun ttsPreview(tag: String, voice: String) {
+        if (ttsPlaying) ttsPause()
+        ttsEnsure {
+            ttsApply(tag, voice)
+            tts?.setSpeechRate(ttsRate)
+            val sample = when (java.util.Locale.forLanguageTag(tag).language) {
+                "en" -> "Hello. This is how this book will sound."
+                "ca" -> "Hola. Així sonarà la lectura d'aquest llibre."
+                "fr" -> "Bonjour. Voici comment ce livre sera lu."
+                else -> "Hola. Así sonará la lectura de este libro."
+            }
+            tts?.speak(sample, TextToSpeech.QUEUE_FLUSH, null, "preview")
+        }
+    }
+
+    /** Guarda la voz elegida, para este libro o para todos. */
+    fun ttsChoose(tag: String, voice: String, onlyThisBook: Boolean) {
+        if (onlyThisBook) Prefs.setTtsFor(bookId, tag, voice)
+        else { Prefs.ttsLang = tag; Prefs.ttsVoice = voice; Prefs.setTtsFor(bookId, null, null) }
+        tts?.stop()
+        ttsRestore()
+        if (ttsPlaying) ttsSpeak()
     }
 
     fun ttsSetRate(r: Float) {

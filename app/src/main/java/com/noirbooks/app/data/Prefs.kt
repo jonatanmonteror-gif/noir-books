@@ -405,6 +405,29 @@ object Prefs {
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
 
+    /** Tamaño de las estanterías: s (pequeña), m (mediana), l (grande). */
+    var shelfSize: String
+        get() = sp.getString("shelf_size", "m") ?: "m"
+        set(v) { sp.edit().putString("shelf_size", v).apply() }
+
+    // ---- Voz de la lectura en voz alta ----
+    /** Idioma y voz para todos los libros (la voz vacía = la que elija el móvil para ese idioma). */
+    var ttsLang: String
+        get() = sp.getString("tts_lang", "es-ES") ?: "es-ES"
+        set(v) { sp.edit().putString("tts_lang", v).apply() }
+    var ttsVoice: String
+        get() = sp.getString("tts_voice", "") ?: ""
+        set(v) { sp.edit().putString("tts_voice", v).apply() }
+    /** Voz propia de un libro (null = la general). */
+    fun ttsLangFor(id: String): String? = sp.getString("tts_lang_$id", null)
+    fun ttsVoiceFor(id: String): String = sp.getString("tts_voice_$id", "") ?: ""
+    fun setTtsFor(id: String, lang: String?, voice: String?) {
+        val e = sp.edit()
+        if (lang == null) e.remove("tts_lang_$id").remove("tts_voice_$id")
+        else e.putString("tts_lang_$id", lang).putString("tts_voice_$id", voice.orEmpty())
+        e.apply()
+    }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

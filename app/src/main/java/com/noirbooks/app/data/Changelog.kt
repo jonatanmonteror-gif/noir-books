@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.39", "21 nov 2026", listOf(
+            "Elegir la voz de la lectura en voz alta: idioma (Español de España, de México…), voz y botón para escucharla antes",
+            "La voz se guarda para todos los libros o solo para el que estás leyendo",
+            "Estanterías en tres tamaños: Pequeña, Mediana y Grande (Estanterías → Diseño)",
+        )),
         Entry("1.0.38", "21 nov 2026", listOf(
             "Velocidad de la lectura en voz alta de 0,8 a 1,5, de 0,1 en 0,1, con los botones − y +",
         )),

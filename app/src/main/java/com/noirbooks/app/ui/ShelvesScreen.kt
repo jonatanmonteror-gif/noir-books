@@ -76,6 +76,8 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
     var design by remember { mutableStateOf(false) }
     var styleKey by remember { mutableStateOf(Prefs.shelfStyle) }
     var view by remember { mutableStateOf(Prefs.shelfView) }
+    var size by remember { mutableStateOf(Prefs.shelfSize) }
+    val scale = when (size) { "s" -> 0.72f; "l" -> 1.32f; else -> 1f }
     val style = shelfStyle(styleKey)
 
     LazyColumn(
@@ -114,16 +116,17 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
         }
         items(shelves, key = { it }) { s ->
             val inside = books.filter { s in it.shelves }.sortedBy { fold(it.author.ifBlank { "~" }) + fold(it.title) }
-            ShelfRow(s, inside, current == s, style, view, onOpen = { onPick(s) }, onAdd = { addTo = s }, onEdit = { editShelf = s }, onBook = onBook)
+            ShelfRow(s, inside, current == s, style, view, scale, onOpen = { onPick(s) }, onAdd = { addTo = s }, onEdit = { editShelf = s }, onBook = onBook)
         }
     }
 
     if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) addTo = n }
     editShelf?.let { s -> EditShelfDialog(s) { editShelf = null } }
     addTo?.let { s -> AddToShelfDialog(s, books) { addTo = null } }
-    if (design) ShelfDesignDialog(styleKey, view,
+    if (design) ShelfDesignDialog(styleKey, view, size,
         onStyle = { styleKey = it; Prefs.shelfStyle = it },
         onView = { view = it; Prefs.shelfView = it },
+        onSize = { size = it; Prefs.shelfSize = it },
         onDismiss = { design = false })
 }
 
@@ -143,7 +146,7 @@ private fun QuickTile(label: String, n: Int, selected: Boolean, modifier: Modifi
 /** Un hueco de la librería: nombre arriba y los libros apoyados en la balda. */
 @Composable
 private fun ShelfRow(
-    name: String, books: List<Book>, selected: Boolean, style: ShelfStyle, view: String,
+    name: String, books: List<Book>, selected: Boolean, style: ShelfStyle, view: String, scale: Float,
     onOpen: () -> Unit, onAdd: () -> Unit, onEdit: () -> Unit, onBook: (Book) -> Unit,
 ) {
     Column {
@@ -159,7 +162,7 @@ private fun ShelfRow(
             IconButton(onClick = onEdit) { Icon(Icons.Filled.MoreVert, "Renombrar o borrar", tint = NB.text2) }
         }
         Spacer(Modifier.height(8.dp))
-        val h = if (view == "covers") 128.dp else 150.dp
+        val h = (if (view == "covers") 128.dp else 150.dp) * scale
         ShelfCompartment(style, h) {
             if (books.isEmpty()) {
                 Text("Vacía. Pulsa Añadir para poner libros.", color = style.onBack?.copy(alpha = 0.7f) ?: NB.text3, fontSize = 14.sp,
@@ -172,9 +175,9 @@ private fun ShelfRow(
                 ) {
                     books.forEach { b ->
                         if (view == "covers") {
-                            Box(Modifier.width(74.dp).clickable { onBook(b) }) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 10) }
+                            Box(Modifier.width(74.dp * scale).clickable { onBook(b) }) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 10) }
                         } else {
-                            BookSpine(b, h - 14.dp, onClick = { onBook(b) }, onLongClick = { AppState.bookMenu.value = b.id })
+                            BookSpine(b, h - 14.dp, onClick = { onBook(b) }, onLongClick = { AppState.bookMenu.value = b.id }, widthScale = scale)
                         }
                     }
                 }
