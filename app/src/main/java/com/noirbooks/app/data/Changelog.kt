@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.53", "21 nov 2026", listOf(
+            "Estanterías: Mías, Por género, Todas y el botón «+» en una sola fila",
+        )),
         Entry("1.0.52", "21 nov 2026", listOf(
             "Actualizaciones más fiables: se descargan con el gestor de descargas de Android y ya no se cortan si cambia la red o sales de la app",
             "Escáner de ISBN: si Google aún lo está preparando, avisa y se puede volver a probar; zoom automático",
