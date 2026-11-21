@@ -6,7 +6,7 @@ object Changelog {
 
     val entries = listOf(
         Entry("1.0.53", "21 nov 2026", listOf(
-            "Estanterías: Mías, Por género, Todas y el botón «+» en una sola fila",
+            "Estanterías: pestañas más pequeñas (Mis estanterías, Por género, Todas) y el «+» suelto a la derecha, en una sola fila",
         )),
         Entry("1.0.52", "21 nov 2026", listOf(
             "Actualizaciones más fiables: se descargan con el gestor de descargas de Android y ya no se cortan si cambia la red o sales de la app",

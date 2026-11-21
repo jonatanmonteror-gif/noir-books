@@ -104,15 +104,16 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
                     QuickTile("Sin estantería", books.count { it.shelves.isEmpty() }, false, Modifier.weight(1f)) { onPick(NO_SHELF) }
                 }
                 Spacer(Modifier.height(12.dp))
-                // Una sola fila: qué estanterías ver y, al lado, «+» para crear una
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ModeChip("Mías", mode == "custom", Modifier.weight(1f)) { mode = "custom"; Prefs.shelfMode = "custom" }
-                    ModeChip("Por género", mode == "genre", Modifier.weight(1.3f)) { mode = "genre"; Prefs.shelfMode = "genre" }
-                    ModeChip("Todas", mode == "all", Modifier.weight(1f)) { mode = "all"; Prefs.shelfMode = "all" }
-                    Box(
-                        Modifier.size(38.dp).clip(RoundedCornerShape(50)).background(NB.text).clickable { newShelf = true },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Filled.Add, "Nueva estantería", tint = NB.onText, modifier = Modifier.size(20.dp)) }
+                // Una sola fila: las pestañas pequeñas a la izquierda y el «+» suelto, siempre a la derecha
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ModeChip("Mis estanterías", mode == "custom") { mode = "custom"; Prefs.shelfMode = "custom" }
+                        ModeChip("Por género", mode == "genre") { mode = "genre"; Prefs.shelfMode = "genre" }
+                        ModeChip("Todas", mode == "all") { mode = "all"; Prefs.shelfMode = "all" }
+                    }
+                    IconButton(onClick = { newShelf = true }) {
+                        Icon(Icons.Filled.Add, "Nueva estantería", tint = NB.text, modifier = Modifier.size(28.dp))
+                    }
                 }
             }
         }
@@ -156,16 +157,16 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
 }
 
 @Composable
-private fun ModeChip(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun ModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
-        modifier.height(38.dp).clip(RoundedCornerShape(50))
+        Modifier.clip(RoundedCornerShape(50))
             .background(if (selected) NB.text else androidx.compose.ui.graphics.Color.Transparent)
             .border(1.dp, if (selected) NB.text else NB.line, RoundedCornerShape(50))
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, fontSize = 13.sp, color = if (selected) NB.onText else NB.text2, fontWeight = FontWeight.Medium,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp))
+        Text(label, fontSize = 12.sp, color = if (selected) NB.onText else NB.text2, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
