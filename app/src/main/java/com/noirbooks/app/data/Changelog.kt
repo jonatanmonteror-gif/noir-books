@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.62", "21 nov 2026", listOf(
+            "Hora y batería más arriba, en el borde superior de la pantalla; la batería ya no se elige en el pie",
+            "Tamaño de la app intermedio (Medio = 96 %)",
+            "Compartir cita, diccionario y lectura rápida: ya no se cortan por abajo",
+        )),
         Entry("1.0.61", "21 nov 2026", listOf(
             "Hora y batería fijas arriba del todo en el lector, con margen por las esquinas del móvil",
             "Elige si se ven también en modo concentración (Lectura → Pie de página → Arriba)",

@@ -114,8 +114,10 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
         }
     }
     val navH = activityNavBarHeight()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding().padding(bottom = navH)) {
+    val statusH = activityStatusBarHeight()
+    // Ventana a pantalla completa y márgenes medidos en la ventana principal: así nada queda bajo las barras del móvil
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH, bottom = navH + 8.dp)) {
             // Cabecera: cerrar · formato (Historia | Publicación) · guardar
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, "Cerrar", tint = NB.text) }

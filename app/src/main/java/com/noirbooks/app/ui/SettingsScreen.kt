@@ -78,7 +78,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Text("Tamaño de la app", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(0.85f to "Pequeño", 0.92f to "Medio", 1f to "Normal").forEach { (v, l) ->
+                        listOf(0.9f to "Pequeño", 0.96f to "Medio", 1f to "Normal").forEach { (v, l) ->
                             Chip(l, kotlin.math.abs(uiScale - v) < 0.01f) { com.noirbooks.app.data.Prefs.setUiScale(v) }
                         }
                     }

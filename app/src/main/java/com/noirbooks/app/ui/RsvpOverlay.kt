@@ -105,13 +105,14 @@ fun RsvpOverlay(c: ReaderController, onClose: () -> Unit) {
     }
 
     val navH = activityNavBarHeight()
+    val statusH = activityStatusBarHeight()
     androidx.compose.ui.window.Dialog(onDismissRequest = { close() },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
     Box(
-        Modifier.fillMaxSize().background(bg).padding(bottom = navH)
+        Modifier.fillMaxSize().background(bg).padding(top = statusH, bottom = navH)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (words.isNotEmpty()) playing = !playing },
     ) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { close() }) { Icon(Icons.Filled.Close, "Cerrar", tint = fg) }
             Text("Lectura rápida", color = fg.copy(alpha = 0.7f), fontSize = 14.sp, fontFamily = Inter, modifier = Modifier.weight(1f))
         }

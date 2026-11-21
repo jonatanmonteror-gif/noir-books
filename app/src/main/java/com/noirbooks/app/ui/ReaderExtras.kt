@@ -218,9 +218,10 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
     var tab by remember { mutableStateOf(if (startTab < 0) tabs.lastIndex else startTab.coerceIn(0, tabs.lastIndex)) }
     // Pantalla completa (no hoja deslizable): así la página de la RAE o de Wikipedia se desplaza sin pelearse con la hoja
     val navH = activityNavBarHeight()
+    val statusH = activityStatusBarHeight()
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(NB.surface).statusBarsPadding().padding(top = 8.dp, bottom = navH)) {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(NB.surface).padding(top = statusH + 8.dp, bottom = navH)) {
             Row(Modifier.padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
                     maxLines = 3, overflow = TextOverflow.Ellipsis)

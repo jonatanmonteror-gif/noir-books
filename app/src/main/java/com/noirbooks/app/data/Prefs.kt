@@ -66,7 +66,7 @@ enum class FooterInfo(val key: String, val label: String) {
     companion object {
         /** Cada lado tiene sus propias opciones, para que no se repita lo mismo a los dos lados. */
         val LEFT = listOf(ChapterTime, BookTime, ChapterPages, None)
-        val RIGHT = listOf(BookPercent, BookPage, Clock, Battery, None)
+        val RIGHT = listOf(BookPercent, BookPage, Clock, None)
         fun of(k: String?, d: FooterInfo, allowed: List<FooterInfo>) =
             entries.firstOrNull { it.key == k }?.takeIf { it in allowed } ?: d
         fun next(f: FooterInfo, list: List<FooterInfo>) = list[(list.indexOf(f) + 1).mod(list.size)]
@@ -174,7 +174,7 @@ object Prefs {
     /** Apariencia de la app: "system", "dark" o "light". */
     val appearanceState = mutableStateOf("dark")
     /** Tamaño de la interfaz de la app (no del texto de los libros): 0,85 pequeño, 0,92 medio, 1 normal. */
-    val uiScale = mutableStateOf(0.92f)
+    val uiScale = mutableStateOf(0.96f)
     fun setUiScale(v: Float) { uiScale.value = v; sp.edit().putFloat("ui_scale", v).apply() }
     /** Valoraciones: "basic" (estrellas) o "aspects" (trama, personajes y prosa). */
     val ratingMode = mutableStateOf("basic")
@@ -205,7 +205,7 @@ object Prefs {
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
         appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
-        uiScale.value = sp.getFloat("ui_scale", 0.92f)
+        uiScale.value = sp.getFloat("ui_scale", 0.96f).let { if (it == 0.92f) 0.96f else it }
         ratingMode.value = sp.getString("rating_mode", "basic") ?: "basic"
         praise.value = sp.getBoolean("praise", true)
         loadProfiles()
