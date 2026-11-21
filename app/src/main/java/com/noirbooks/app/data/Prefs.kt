@@ -428,6 +428,11 @@ object Prefs {
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
 
+    /** Tamaño de las portadas de «Recientes» en Inicio: s, m, l. */
+    var recentSize: String
+        get() = sp.getString("recent_size", "m") ?: "m"
+        set(v) { sp.edit().putString("recent_size", v).apply() }
+
     /** Tamaño de las estanterías: s (pequeña), m (mediana), l (grande). */
     var shelfSize: String
         get() = sp.getString("shelf_size", "m") ?: "m"

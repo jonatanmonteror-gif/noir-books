@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -328,6 +329,10 @@ fun LibraryScreen() {
 @Composable
 private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boolean = false) {
     val left = (b.totalChars * (1f - b.progress)).toInt()
+    // La portada se ajusta al alto del texto de al lado: ni se queda pequeña ni sobresale
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var textH by remember { mutableStateOf(0) }
+    val coverH = with(density) { textH.toDp() }.coerceIn(120.dp, 200.dp)
     Row(
         Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
@@ -337,12 +342,12 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boo
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // La portada abre la ficha (como en toda la app); «Seguir leyendo» abre el libro
-        BookCover(b, Modifier.width(92.dp).combinedClickable(
+        BookCover(b, Modifier.height(coverH).width(coverH * 2f / 3f).combinedClickable(
             onClick = { AppState.screen.value = Screen.Book(b.id) },
             onLongClick = { AppState.bookMenu.value = b.id },
         ), titleSize = 11)
         Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).onSizeChanged { textH = it.height }) {
             Text(if (b.inApp) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
             // En el carrusel todas las tarjetas miden lo mismo (título en una línea y autor siempre),
@@ -638,6 +643,7 @@ private fun HomePane(
     val shelves by Library.shelves
     val recent = remember(books) { books.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }.take(8) }
     val style = shelfStyle(Prefs.shelfStyle)
+    val recentW = when (Prefs.recentSize) { "s" -> 84.dp; "l" -> 132.dp; else -> 108.dp }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 28.dp)) {
         if (reading.isNotEmpty()) {
             Box(Modifier.padding(horizontal = 16.dp)) {
@@ -658,7 +664,7 @@ private fun HomePane(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             recent.forEach { b ->
-                Column(Modifier.width(108.dp).combinedClickable(
+                Column(Modifier.width(recentW).combinedClickable(
                     onClick = { onDetails(b) },
                     onLongClick = { AppState.bookMenu.value = b.id })) {
                     BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
@@ -674,7 +680,7 @@ private fun HomePane(
             }
             // Atajo a todos los libros al final del carrusel
             Box(
-                Modifier.width(108.dp).aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp))
+                Modifier.width(recentW).aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp))
                     .border(1.dp, NB.line, RoundedCornerShape(6.dp)).clickable(onClick = onSeeAll),
                 contentAlignment = Alignment.Center,
             ) { Text("Ver los\n${books.size} libros", color = NB.text2, fontSize = 14.sp, textAlign = TextAlign.Center) }

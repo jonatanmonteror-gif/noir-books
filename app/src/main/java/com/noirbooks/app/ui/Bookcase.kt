@@ -167,7 +167,16 @@ fun LibraryLookSettings() {
     var columns by remember { mutableStateOf(com.noirbooks.app.data.Prefs.libraryColumns.coerceIn(2, 4)) }
     var style by remember { mutableStateOf(com.noirbooks.app.data.Prefs.shelfStyle) }
     var size by remember { mutableStateOf(com.noirbooks.app.data.Prefs.shelfSize) }
+    var recent by remember { mutableStateOf(com.noirbooks.app.data.Prefs.recentSize) }
     Column {
+        Text("Inicio: portadas de Recientes", color = NB.text2, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("s" to "Pequeñas", "m" to "Medianas", "l" to "Grandes").forEach { (k, l) ->
+                Chip(l, recent == k) { recent = k; com.noirbooks.app.data.Prefs.recentSize = k }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         Text("Biblioteca: libros por fila", color = NB.text2, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

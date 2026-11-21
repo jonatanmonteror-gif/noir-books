@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.66", "21 nov 2026", listOf(
+            "Seguir leyendo: la portada se ajusta al alto de la tarjeta",
+            "Ajustes › Apariencia: tres tamaños para las portadas de Recientes (pequeñas, medianas, grandes)",
+        )),
         Entry("1.0.65", "21 nov 2026", listOf(
             "Compartir cita: la barra Historia / Publicación baja un poco y la vista previa es más pequeña para que todo quepa con aire",
         )),
