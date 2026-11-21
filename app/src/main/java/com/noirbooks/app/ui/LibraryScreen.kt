@@ -687,9 +687,11 @@ private fun HomePane(
                     val inside = books.filter { s in it.shelves }
                     Column(Modifier.width(150.dp).clip(RoundedCornerShape(8.dp)).clickable { onShelf(s) }) {
                         ShelfCompartment(style, 86.dp) {
-                            Row(Modifier.padding(start = 8.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(1.dp),
+                            Row(Modifier.padding(start = 8.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalAlignment = Alignment.Bottom) {
-                                inside.take(7).forEach { b -> BookSpine(b, 74.dp, onClick = { onShelf(s) }, onLongClick = { onShelf(s) }) }
+                                inside.take(3).forEach { b ->
+                                    Box(Modifier.width(44.dp)) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 7) }
+                                }
                             }
                         }
                         Spacer(Modifier.height(6.dp))

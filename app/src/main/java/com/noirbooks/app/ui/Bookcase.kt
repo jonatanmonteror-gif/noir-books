@@ -161,7 +161,7 @@ fun ShelfCompartment(style: ShelfStyle, height: Dp, content: @Composable () -> U
 @Composable
 fun ShelfDesignDialog(
     style: String, view: String, size: String,
-    onStyle: (String) -> Unit, onView: (String) -> Unit, onSize: (String) -> Unit, onDismiss: () -> Unit,
+    onStyle: (String) -> Unit, onSize: (String) -> Unit, onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss, containerColor = NB.surface2,
@@ -192,13 +192,6 @@ fun ShelfDesignDialog(
                             Text(st.label, fontSize = 12.sp, color = NB.text, maxLines = 1)
                         }
                     }
-                }
-                Spacer(Modifier.height(18.dp))
-                Text("Libros", color = NB.text2, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("Lomos", view == "spines") { onView("spines") }
-                    Chip("Portadas", view == "covers") { onView("covers") }
                 }
                 Spacer(Modifier.height(18.dp))
                 Text("Tamaño", color = NB.text2, fontSize = 13.sp)

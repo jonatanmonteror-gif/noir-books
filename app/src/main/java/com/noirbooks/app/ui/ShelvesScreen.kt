@@ -75,7 +75,8 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
     var addTo by remember { mutableStateOf<String?>(null) }
     var design by remember { mutableStateOf(false) }
     var styleKey by remember { mutableStateOf(Prefs.shelfStyle) }
-    var view by remember { mutableStateOf(Prefs.shelfView) }
+    // Las estanterías siempre muestran las portadas
+    val view = "covers"
     var size by remember { mutableStateOf(Prefs.shelfSize) }
     val scale = when (size) { "s" -> 0.72f; "l" -> 1.32f; else -> 1f }
     val style = shelfStyle(styleKey)
@@ -125,7 +126,6 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
     addTo?.let { s -> AddToShelfDialog(s, books) { addTo = null } }
     if (design) ShelfDesignDialog(styleKey, view, size,
         onStyle = { styleKey = it; Prefs.shelfStyle = it },
-        onView = { view = it; Prefs.shelfView = it },
         onSize = { size = it; Prefs.shelfSize = it },
         onDismiss = { design = false })
 }
