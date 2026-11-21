@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.key
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.noirbooks.app.data.Prefs
 import com.noirbooks.app.data.Translate
 import androidx.compose.foundation.layout.Box
@@ -211,12 +212,15 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
     }
     // startTab < 0 = la última pestaña (Traducir)
     var tab by remember { mutableStateOf(if (startTab < 0) tabs.lastIndex else startTab.coerceIn(0, tabs.lastIndex)) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text, sheetGesturesEnabled = false) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
                     maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (single) Text("Guardada en Mis palabras", fontFamily = Inter, fontSize = 12.sp, color = NB.text3)
+                androidx.compose.material3.IconButton(onClick = onDismiss) {
+                    androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Close, "Cerrar", tint = NB.text2)
+                }
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -246,6 +250,8 @@ private fun WebPane(url: String, modifier: Modifier) {
                     WebView(c).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
+                        // Que la página se pueda desplazar dentro de la hoja (sin que la hoja se lleve el gesto)
+                        isNestedScrollingEnabled = true
                         webViewClient = object : WebViewClient() {
                             override fun onPageFinished(view: WebView?, url: String?) { loading = false }
                         }
@@ -253,7 +259,8 @@ private fun WebPane(url: String, modifier: Modifier) {
                     }
                 },
                 onRelease = { it.destroy() },
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                    .nestedScroll(androidx.compose.ui.platform.rememberNestedScrollInteropConnection()),
             )
         }
         if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center).size(26.dp), color = Color.Black, strokeWidth = 2.dp)

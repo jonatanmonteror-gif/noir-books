@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.49", "21 nov 2026", listOf(
+            "RAE y Wikipedia: ya se puede bajar por la página dentro del diccionario (botón ✕ para cerrar)",
+            "Estadísticas: arreglado el texto de «Hoy» y las cifras del informe; «Compartir» solo sale si hay lecturas",
+        )),
         Entry("1.0.48", "21 nov 2026", listOf(
             "Tocar un libro de «Seguir leyendo» lo abre para seguir leyendo; mantener pulsado, su menú",
             "Estanterías por género que se forman solas, además de las tuyas: elige Mis estanterías, Por género o Todas",

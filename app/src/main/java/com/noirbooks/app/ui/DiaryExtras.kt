@@ -79,9 +79,10 @@ fun DailyGoalCard(all: List<DayRead>) {
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text("$mins", fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 34.sp, color = NB.text)
-            Text(if (goal > 0) " de $goal min" else " min leídos · toca para ponerte una meta diaria",
-                fontFamily = Inter, fontSize = 14.sp, color = NB.text2, modifier = Modifier.padding(bottom = 6.dp))
+            Text(if (goal > 0) " de $goal min" else " min leídos", maxLines = 1,
+                fontFamily = Inter, fontSize = 15.sp, color = NB.text2, modifier = Modifier.padding(bottom = 6.dp))
         }
+        if (goal <= 0) Text("Toca para ponerte una meta diaria", fontSize = 13.sp, color = NB.text3)
         if (goal > 0) {
             Spacer(Modifier.height(8.dp))
             ThinProgress((mins.toFloat() / goal).coerceAtMost(1f), Modifier.fillMaxWidth())
@@ -220,7 +221,7 @@ fun ReportCard(all: List<DayRead>, books: List<Book>) {
     val r = remember(all, books, weekly) { buildReport(weekly, all, books) }
     Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("INFORME", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text("INFORME", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1)
             Chip("Semana", weekly) { weekly = true }
             Spacer(Modifier.width(6.dp))
             Chip("Mes", !weekly) { weekly = false }
@@ -229,11 +230,11 @@ fun ReportCard(all: List<DayRead>, books: List<Book>) {
         Text(r.title, fontFamily = Playfair, fontSize = 22.sp, color = NB.text)
         Text(r.range, color = NB.text3, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            ReportNumber(if (r.seconds > 0) durationLabel(r.seconds) else "0 min", "leyendo")
-            ReportNumber("${r.pages}", "páginas")
-            ReportNumber("${r.days}", if (r.days == 1) "día" else "días")
-            ReportNumber("${r.finished.size}", if (r.finished.size == 1) "terminado" else "terminados")
+        Row(Modifier.fillMaxWidth()) {
+            ReportNumber(if (r.seconds > 0) durationLabel(r.seconds) else "0 min", "leyendo", Modifier.weight(1.2f))
+            ReportNumber("${r.pages}", "páginas", Modifier.weight(1f))
+            ReportNumber("${r.days}", if (r.days == 1) "día" else "días", Modifier.weight(0.8f))
+            ReportNumber("${r.finished.size}", if (r.finished.size == 1) "terminado" else "terminados", Modifier.weight(1.2f))
         }
         Spacer(Modifier.height(8.dp))
         Text(compareLine(r), color = NB.text2, fontSize = 13.sp)
@@ -243,18 +244,20 @@ fun ReportCard(all: List<DayRead>, books: List<Book>) {
                 r.books.take(5).forEach { b -> BookCover(b, Modifier.width(44.dp), titleSize = 7) }
             }
         }
-        Spacer(Modifier.height(14.dp))
-        PillButton("Compartir como imagen") {
-            shareBitmap(ctx, renderReport(ctx, r), "informe", "${r.title} en Noir Books")
+        if (r.seconds > 0 || r.finished.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            PillButton("Compartir como imagen") {
+                shareBitmap(ctx, renderReport(ctx, r), "informe", "${r.title} en Noir Books")
+            }
         }
     }
 }
 
 @Composable
-private fun ReportNumber(value: String, label: String) {
-    Column {
-        Text(value, fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = NB.text)
-        Text(label, color = NB.text3, fontSize = 12.sp)
+private fun ReportNumber(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(value, fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = NB.text, maxLines = 1)
+        Text(label, color = NB.text3, fontSize = 12.sp, maxLines = 1)
     }
 }
 
