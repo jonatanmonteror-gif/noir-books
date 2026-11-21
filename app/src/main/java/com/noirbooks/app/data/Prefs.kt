@@ -433,6 +433,11 @@ object Prefs {
         get() = sp.getString("translate_target", "en") ?: "en"
         set(v) { sp.edit().putString("translate_target", v).apply() }
 
+    /** Meta diaria en minutos (0 = sin meta). */
+    var dailyGoalMin: Int
+        get() = sp.getInt("daily_goal_min", 0)
+        set(v) { sp.edit().putInt("daily_goal_min", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

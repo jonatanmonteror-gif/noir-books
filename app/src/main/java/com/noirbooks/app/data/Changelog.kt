@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.43", "21 nov 2026", listOf(
+            "Meta diaria en Estadísticas: «Hoy: 18 de 30 min»",
+            "Calendario del año entero: un cuadrito por día, más oscuro cuanto más leíste",
+            "Compartir el mes del calendario como imagen, con las portadas",
+            "Informe de la semana y del mes, comparado con el anterior y para compartir como imagen",
+        )),
         Entry("1.0.42", "21 nov 2026", listOf(
             "Diccionario con pestañas: RAE, Wikipedia y Traducir",
             "Traducir una palabra o frase en el propio móvil (Google ML Kit): selecciona el texto y pulsa Traducir",

@@ -209,6 +209,8 @@ fun CalendarScreen() {
     var year by rememberSaveable { mutableIntStateOf(now.get(Calendar.YEAR)) }
     var month by rememberSaveable { mutableIntStateOf(now.get(Calendar.MONTH)) }
     var dayOpen by remember { mutableStateOf<String?>(null) }
+    var yearView by rememberSaveable { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     /** Eligiendo libro para apuntar una lectura: "" = hoy, o la fecha del día abierto. */
     var picking by remember { mutableStateOf<String?>(null) }
     picking?.let { d ->
@@ -247,6 +249,27 @@ fun CalendarScreen() {
                     .clickable { picking = "" }.padding(horizontal = 14.dp, vertical = 8.dp),
             ) { Text("+ Apuntar lectura", color = NB.onText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
         }
+        // Mes o año entero, y compartir el mes como imagen
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("Mes", !yearView) { yearView = false }
+            Chip("Año", yearView) { yearView = true }
+            Spacer(Modifier.weight(1f))
+            if (!yearView) Text(
+                "Compartir mes", color = NB.text2, fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(50)).clickable {
+                    shareBitmap(ctx, renderMonth(ctx, year, month, days, books), "mes", "Mi ${MONTHS[month].lowercase()} de lectura en Noir Books")
+                }.padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+        if (yearView) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { year-- }) { Icon(Icons.Filled.KeyboardArrowLeft, "Año anterior", tint = NB.text) }
+                Text("$year", fontFamily = Playfair, fontSize = 22.sp, color = NB.text, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                IconButton(onClick = { year++ }) { Icon(Icons.Filled.KeyboardArrowRight, "Año siguiente", tint = NB.text) }
+            }
+            YearCalendar(year, days) { m -> month = m; yearView = false }
+        } else {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (month == 0) { month = 11; year-- } else month-- }) {
                 Icon(Icons.Filled.KeyboardArrowLeft, "Mes anterior", tint = NB.text)
@@ -299,6 +322,7 @@ fun CalendarScreen() {
                 "Los días que leas en Noir Books aparecerán aquí con la portada del libro, sin apuntar nada.",
                 color = NB.text3, fontSize = 13.sp, fontFamily = Inter, modifier = Modifier.padding(20.dp),
             )
+        }
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -611,6 +635,12 @@ fun StatsScreen() {
                     )
                 }
             }
+        }
+        if (year == now.get(Calendar.YEAR)) {
+            Spacer(Modifier.height(12.dp))
+            DailyGoalCard(all)
+            Spacer(Modifier.height(12.dp))
+            ReportCard(all, books.filter { !it.inTrash })
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
