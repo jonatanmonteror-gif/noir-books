@@ -79,7 +79,13 @@ object Stats {
         sessions.filter { bookId == null || it.bookId == bookId }.sortedByDescending { it.start }
 
     /** Un trozo de lectura en la app: página dejada a tal hora, con sus segundos. */
-    data class Chunk(val at: Long, val seconds: Long, val page: Boolean)
+    /**
+     * Un trozo de lectura: el tiempo de una pantalla. [paper] son las páginas del libro en papel que equivale esa
+     * pantalla (-1 si no se sabe: entonces cuenta como una página si se pasó).
+     */
+    data class Chunk(val at: Long, val seconds: Long, val page: Boolean, val paper: Float = -1f) {
+        val pagesWorth: Float get() = if (paper >= 0f) paper else if (page) 1f else 0f
+    }
 
     /**
      * Guarda una lectura hecha en la app (solo cuando el usuario confirma "Guardar lectura"):
@@ -89,6 +95,8 @@ object Stats {
     fun commitAppReading(bookId: String, chunks: List<Chunk>, note: String = "") {
         if (chunks.isEmpty()) return
         val cal = Calendar.getInstance()
+        // Las páginas se suman por día en páginas del libro en papel (si se conocen) y se redondean al final.
+        val pagesByKey = HashMap<String, Float>()
         chunks.forEach { c ->
             val day = dayOf(c.at)
             val key = "$day|$bookId"
@@ -97,13 +105,16 @@ object Stats {
             cal.timeInMillis = c.at
             val h = cal.get(Calendar.HOUR_OF_DAY)
             hours[h] = hours[h] + c.seconds
-            data[key] = old.copy(seconds = old.seconds + c.seconds, pages = old.pages + if (c.page) 1 else 0, hourSeconds = hours)
+            data[key] = old.copy(seconds = old.seconds + c.seconds, hourSeconds = hours)
+            pagesByKey[key] = (pagesByKey[key] ?: 0f) + c.pagesWorth
         }
+        pagesByKey.forEach { (k, p) -> data[k]?.let { d -> data[k] = d.copy(pages = d.pages + kotlin.math.round(p).toInt()) } }
         dirty = true
         version.intValue++
         val total = chunks.sumOf { it.seconds }
         val start = chunks.first().let { it.at - it.seconds * 1000 }
-        sessions.add(Session(System.currentTimeMillis(), bookId, start, total, chunks.count { it.page }, manual = false, note = note.trim()))
+        val pages = kotlin.math.round(chunks.sumOf { it.pagesWorth.toDouble() }).toInt()
+        sessions.add(Session(System.currentTimeMillis(), bookId, start, total, pages, manual = false, note = note.trim()))
         saveSessions()
         flush()
     }

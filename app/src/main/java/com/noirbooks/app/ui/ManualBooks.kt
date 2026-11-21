@@ -762,7 +762,7 @@ fun PendingReadingPrompt() {
     if (o == null || b == null) { com.noirbooks.app.data.Prefs.pendingReading = ""; data = null; return }
     val arr = o.optJSONArray("chunks") ?: org.json.JSONArray()
     val chunks = (0 until arr.length()).mapNotNull { i ->
-        arr.optJSONArray(i)?.let { Stats.Chunk(it.optLong(0), it.optLong(1), it.optInt(2) == 1) }
+        arr.optJSONArray(i)?.let { Stats.Chunk(it.optLong(0), it.optLong(1), it.optInt(2) == 1, it.optDouble(3, -1.0).toFloat()) }
     }
     val secs = chunks.sumOf { it.seconds }
     fun done() { com.noirbooks.app.data.Prefs.pendingReading = ""; data = null }

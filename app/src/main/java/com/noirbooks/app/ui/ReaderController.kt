@@ -136,6 +136,20 @@ class ReaderController(
     private val pending = ArrayList<Stats.Chunk>()
     val pendingSeconds: Long get() = pending.sumOf { it.seconds }
 
+    /** Páginas del libro en papel: las de la edición que trae el EPUB o las buscadas en el catálogo (0 = no se saben). */
+    private fun paperTotal(): Int = printedTotal.toIntOrNull()?.takeIf { it > 0 } ?: (book?.pages ?: 0)
+
+    /** Cuántas páginas en papel equivale una pantalla del capítulo actual (-1 si no se sabe). */
+    private fun paperPerScreen(): Float {
+        val total = paperTotal()
+        val b = book ?: return -1f
+        if (total <= 0) return -1f
+        val ch = b.chapterLengths.getOrNull(chapter) ?: return -1f
+        return ch.toFloat() / b.totalChars / count.coerceAtLeast(1) * total
+    }
+
+    private var paperAcc = 0f
+
     /** Cuenta el tiempo de la página que se deja: menos de 5 s no cuenta, más de 120 s se recorta. */
     private fun closePage(turned: Boolean) {
         val now = System.currentTimeMillis()
@@ -143,9 +157,12 @@ class ReaderController(
             val s = (now - pageSince) / 1000
             if (s >= Stats.MIN_PAGE_SECONDS) {
                 val counted = s.coerceAtMost(Stats.MAX_PAGE_SECONDS)
-                pending += Stats.Chunk(now, counted, turned)
+                val pps = if (turned) paperPerScreen() else 0f
+                pending += Stats.Chunk(now, counted, turned, if (pps >= 0f) pps else -1f)
                 sessionSeconds += counted.toInt()
-                if (turned) sessionPages++
+                if (turned) {
+                    if (pps >= 0f) { paperAcc += pps; sessionPages = kotlin.math.round(paperAcc).toInt() } else sessionPages++
+                }
             }
         }
         pageSince = now
@@ -162,7 +179,7 @@ class ReaderController(
     private fun persistPending() {
         if (pending.isEmpty() && !movedSinceOpen()) { Prefs.pendingReading = ""; return }
         val arr = JSONArray()
-        pending.forEach { arr.put(JSONArray().put(it.at).put(it.seconds).put(if (it.page) 1 else 0)) }
+        pending.forEach { arr.put(JSONArray().put(it.at).put(it.seconds).put(if (it.page) 1 else 0).put(it.paper.toDouble())) }
         Prefs.pendingReading = JSONObject().put("book", bookId).put("chunks", arr)
             .put("ch", openChapter).put("f", openFraction.toDouble()).put("a", openAnchor).toString()
     }

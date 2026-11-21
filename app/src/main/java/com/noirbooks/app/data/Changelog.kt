@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.45", "21 nov 2026", listOf(
+            "Las páginas leídas cuentan como páginas del libro en papel cuando se conocen (no como pantallas del móvil)",
+            "Así cuadran las estadísticas, la meta por páginas y el registro con tu edición en papel",
+        )),
         Entry("1.0.44", "21 nov 2026", listOf(
             "Gráficos del tiempo de lectura por semana, mes y año (Estadísticas)",
             "Género de cada libro: se busca solo y se puede cambiar desde el menú del libro; estadísticas por género",
