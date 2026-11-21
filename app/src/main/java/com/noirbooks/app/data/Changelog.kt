@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.47", "21 nov 2026", listOf(
+            "Valorar ya no mueve nada: sin botón «Quitar» junto a las estrellas; la nota media (por aspectos) siempre visible",
+            "Para quitar una nota: menú del libro → Más opciones → Reiniciar valoración",
+            "Menú del libro más ordenado: acciones principales arriba, estado con un toque y el resto en «Más opciones»",
+        )),
         Entry("1.0.46", "21 nov 2026", listOf(
             "Compartir una cita como imagen para Instagram: cuatro diseños (Portada, Papel, Subrayado y Noir)",
             "Formato historia (9:16) o publicación (4:5), con vista previa antes de compartir",

@@ -538,59 +538,84 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 BookRating(b.id, size = 30)
                 Spacer(Modifier.height(10.dp))
+                // Resumen corto: estado y progreso, tiempo y citas
                 val secs = Stats.secondsForBook(b.id)
-                val info = buildString {
-                    append(b.status.label)
-                    if (b.status == BookStatus.Reading) append(" · ${b.progressLabel()}")
-                    if (b.status == BookStatus.Abandoned && b.abandonReason.isNotBlank()) append(" · ${b.abandonReason}")
-                    if (b.isEpub) append("\n${b.chapterLengths.size} capítulos · unas ${minutesLabel(b.totalChars)} de lectura")
-                    if (b.isEpub && b.status == BookStatus.Reading) append("\nVas por la ${b.printedPageLabel(b.progress).replace("p. ", "página ")}")
-                    else append("\n${b.format.label}" + if (b.pages > 0) " · ${b.pages} ${if (b.unit == com.noirbooks.app.data.ProgressUnit.Location) "posiciones" else "páginas"}" else "")
-                    if (!b.isEpub && (b.publisher.isNotBlank() || b.year.isNotBlank())) append("\n" + listOf(b.publisher, b.year).filter { it.isNotBlank() }.joinToString(", "))
-                    if (secs > 0) append("\nLlevas ${durationLabel(secs)} leyendo este libro")
-                    if (b.timesRead > 1) append("\nLeído ${b.timesRead} veces")
-                    b.readings.lastOrNull { it.end > 0 }?.let { append("\nTerminado el ${date.format(Date(it.end))}") }
-                    if (b.highlights.isNotEmpty()) append("\n${b.highlights.size} citas")
-                }
-                Text(info, color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+                val line1 = buildList {
+                    add(b.status.label)
+                    if (b.status == BookStatus.Reading) add(if (b.isEpub) b.printedPageLabel(b.progress) else b.progressLabel())
+                    if (b.status == BookStatus.Abandoned && b.abandonReason.isNotBlank()) add(b.abandonReason)
+                    b.readings.lastOrNull { it.end > 0 }?.let { if (b.status == BookStatus.Read) add("terminado el ${date.format(Date(it.end))}") }
+                }.joinToString(" · ")
+                val line2 = buildList {
+                    if (secs > 0) add("${durationLabel(secs)} leyendo")
+                    if (b.highlights.isNotEmpty()) add("${b.highlights.size} citas")
+                    if (b.timesRead > 1) add("leído ${b.timesRead} veces")
+                }.joinToString(" · ")
+                Text(line1, color = NB.text2, fontSize = 14.sp)
+                if (line2.isNotBlank()) Text(line2, color = NB.text3, fontSize = 13.sp)
                 if (b.review.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair)
+                    Text(b.review, color = NB.text, fontSize = 14.sp, fontFamily = Playfair, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
-                Spacer(Modifier.height(10.dp))
-                if (!b.inApp && b.status != BookStatus.Read) {
-                    if (AppState.timer.value?.first == b.id) MenuRow("Terminar cronómetro") { onDismiss(); AppState.stopTimer() }
-                    else MenuRow("Empiezo a leer (cronómetro)") { onDismiss(); AppState.startTimer(b.id) }
+
+                // Lo principal
+                Spacer(Modifier.height(14.dp))
+                ButtonRow {
+                    if (b.inApp) PillButton(if (b.status == BookStatus.Reading) "Seguir leyendo" else "Leer", primary = true) {
+                        onDismiss(); AppState.openBook(b)
+                    }
+                    if (!b.inApp && b.status != BookStatus.Read) {
+                        if (AppState.timer.value?.first == b.id) PillButton("Terminar cronómetro", primary = true) { onDismiss(); AppState.stopTimer() }
+                        else PillButton("Cronómetro", primary = true) { onDismiss(); AppState.startTimer(b.id) }
+                    }
+                    PillButton("Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
+                    if (!b.inApp) PillButton("Progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
                 }
-                MenuRow(if (b.isEpub) "Apuntar lectura hecha fuera de la app" else "Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
-                if (!b.inApp) MenuRow("Actualizar progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
-                if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
-                MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería…" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
+
+                // Estado con un toque
+                MenuGroup("Estado")
+                ButtonRow {
+                    Chip("Próximo", b.status == BookStatus.Next) { scope.launch { Library.setStatus(b.id, BookStatus.Next) } }
+                    Chip("Pendiente", b.status == BookStatus.ToRead) { scope.launch { Library.setStatus(b.id, BookStatus.ToRead) } }
+                    Chip("Leído", b.status == BookStatus.Read) { if (b.status != BookStatus.Read) scope.launch { Library.setStatus(b.id, BookStatus.Read) } }
+                    if (b.status == BookStatus.Reading || b.status == BookStatus.Abandoned)
+                        Chip("Abandonado", b.status == BookStatus.Abandoned) { if (b.status != BookStatus.Abandoned) abandoning = true }
+                }
+
+                // Organizar y datos del libro
+                MenuGroup("Libro")
+                MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
-                if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel…") { editPages = true }
-                MenuRow(if (b.genre.isNotBlank()) "Género: ${b.genre}" else "Género…") { editGenre = true }
-                MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
-                if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
-                    scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()
-                }
-                if (b.status == BookStatus.ToRead || b.status == BookStatus.Abandoned) MenuRow("Será mi próximo libro") {
-                    scope.launch { Library.setStatus(b.id, BookStatus.Next) }; onDismiss()
-                }
-                if (b.status != BookStatus.ToRead) MenuRow("Pasar a pendientes") {
-                    scope.launch { Library.setStatus(b.id, BookStatus.ToRead) }; onDismiss()
-                }
-                if (b.status == BookStatus.Reading) MenuRow("Abandonar…") { abandoning = true }
                 MenuRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
-                if (Stats.secondsForBook(b.id) > 0 || Stats.sessions(b.id).isNotEmpty()) MenuRow("Borrar lecturas…", color = Color(0xFFFF6B6B)) { deleteAll = true }
-                MenuRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
-                    scope.launch { Library.moveToTrash(b.id) }
-                    AppState.toast("Movido a la papelera (Ajustes → Papelera)")
-                    onDismiss()
+                var more by remember { mutableStateOf(false) }
+                MenuRow(if (more) "Menos opciones ▴" else "Más opciones ▾", color = NB.text2) { more = !more }
+                if (more) {
+                    MenuRow(if (b.genre.isNotBlank()) "Género: ${b.genre}" else "Género") { editGenre = true }
+                    if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel") { editPages = true }
+                    MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
+                    if (b.rating > 0f || b.ratingPlot > 0f || b.ratingChars > 0f || b.ratingProse > 0f) MenuRow("Reiniciar valoración") {
+                        scope.launch { Library.update(b.id) { it.copy(rating = 0f, ratingPlot = 0f, ratingChars = 0f, ratingProse = 0f) } }
+                        AppState.toast("Valoración quitada")
+                    }
+                    if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
+                    if (Stats.secondsForBook(b.id) > 0 || Stats.sessions(b.id).isNotEmpty()) MenuRow("Borrar lecturas…", color = Color(0xFFFF6B6B)) { deleteAll = true }
+                    MenuRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
+                        scope.launch { Library.moveToTrash(b.id) }
+                        AppState.toast("Movido a la papelera (Ajustes → Papelera)")
+                        onDismiss()
+                    }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
     )
+}
+
+@Composable
+private fun MenuGroup(title: String) {
+    Spacer(Modifier.height(16.dp))
+    Text(title.uppercase(), fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text3, fontWeight = FontWeight.Medium)
+    Spacer(Modifier.height(4.dp))
 }
 
 @Composable

@@ -76,7 +76,8 @@ fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: (
                 detectTapGestures { o ->
                     val raw = (o.x / this.size.width.coerceAtLeast(1)) * 5f
                     val q = (kotlin.math.ceil(raw * 2f) / 2f).coerceIn(0.5f, 5f)
-                    change?.invoke(if (q == current) 0f else q)
+                    // Para quitar la nota: menú del libro → Reiniciar valoración (así no se borra sin querer)
+                    if (q != current) change?.invoke(q)
                 }
             } else Modifier),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -95,14 +96,6 @@ fun StarRating(value: Float, color: Color = NB.text, size: Int = 28, onChange: (
                 }
             }
         }
-    }
-    // Quitar la valoración (por si se toca sin querer)
-    if (onChange != null && value > 0f) {
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "Quitar", color = color.copy(alpha = 0.6f), fontSize = 13.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChange(0f) }.padding(horizontal = 8.dp, vertical = 6.dp),
-        )
     }
     }
 }
@@ -382,8 +375,9 @@ fun BookRating(bookId: String, size: Int = 28, color: Color = NB.text, centered:
                 StarRating(value, color = color, size = (size * 0.75f).toInt()) { v -> set(v) }
             }
         }
-        if (b.rating > 0f) Text(
-            "Nota media: " + String.format(java.util.Locale("es", "ES"), "%.1f", b.rating) + " ★",
+        // Siempre visible (con guion si aún no hay nota), para que nada se mueva al valorar
+        Text(
+            "Nota media: " + (if (b.rating > 0f) String.format(java.util.Locale("es", "ES"), "%.1f", b.rating) + " ★" else "—"),
             color = color.copy(alpha = 0.7f), fontSize = 13.sp, fontFamily = Inter, modifier = Modifier.padding(top = 4.dp),
         )
     }
