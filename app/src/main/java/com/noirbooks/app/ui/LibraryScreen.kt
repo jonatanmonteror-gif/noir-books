@@ -331,16 +331,16 @@ private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boo
     Row(
         Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
-            // Tocar la tarjeta o la portada sigue leyendo; mantener pulsado abre el menú del libro
-            .combinedClickable(
-                onClick = { if (b.inApp) onOpen() else AppState.screen.value = Screen.Book(b.id) },
-                onLongClick = { AppState.bookMenu.value = b.id },
-            )
+
             .background(Brush.horizontalGradient(listOf(NB.surface2, NB.surface)))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BookCover(b, Modifier.width(92.dp), titleSize = 11)
+        // La portada abre la ficha (como en toda la app); «Seguir leyendo» abre el libro
+        BookCover(b, Modifier.width(92.dp).combinedClickable(
+            onClick = { AppState.screen.value = Screen.Book(b.id) },
+            onLongClick = { AppState.bookMenu.value = b.id },
+        ), titleSize = 11)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(if (b.inApp) "SEGUIR LEYENDO" else "LEYENDO EN ${b.format.label.uppercase()}", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
@@ -659,7 +659,7 @@ private fun HomePane(
         ) {
             recent.forEach { b ->
                 Column(Modifier.width(108.dp).combinedClickable(
-                    onClick = { if (b.status == BookStatus.Reading && b.inApp) onOpen(b) else onDetails(b) },
+                    onClick = { onDetails(b) },
                     onLongClick = { AppState.bookMenu.value = b.id })) {
                     BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
                     if (b.status == BookStatus.Reading) {
