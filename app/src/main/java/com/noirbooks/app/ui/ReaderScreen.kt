@@ -697,7 +697,7 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                     Text("Aa", color = fg, fontSize = 18.sp, fontFamily = Playfair, modifier = Modifier.height(22.dp))
                     Text("Lectura", color = fg, fontSize = 11.sp, fontFamily = Inter)
                 }
-                Column(
+                if (Prefs.rsvpEnabled) Column(
                     Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onRapid).padding(horizontal = 12.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {

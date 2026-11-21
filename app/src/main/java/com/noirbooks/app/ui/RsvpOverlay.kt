@@ -104,10 +104,11 @@ fun RsvpOverlay(c: ReaderController, onClose: () -> Unit) {
         }
     }
 
+    val navH = activityNavBarHeight()
     androidx.compose.ui.window.Dialog(onDismissRequest = { close() },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
     Box(
-        Modifier.fillMaxSize().background(bg)
+        Modifier.fillMaxSize().background(bg).padding(bottom = navH)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (words.isNotEmpty()) playing = !playing },
     ) {
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -148,7 +149,7 @@ fun RsvpOverlay(c: ReaderController, onClose: () -> Unit) {
         }
 
         // Velocidad y play/pausa
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(bottom = 24.dp),
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
             if (words.isNotEmpty()) {
                 val pct = ((index + 1) * 100 / words.size.coerceAtLeast(1))

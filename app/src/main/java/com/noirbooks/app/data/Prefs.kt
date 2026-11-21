@@ -479,6 +479,11 @@ object Prefs {
         sp.edit().putStringSet("scroll_books", set).apply()
     }
 
+    /** Botón de lectura rápida en el lector (desactivado de serie). */
+    var rsvpEnabled: Boolean
+        get() = sp.getBoolean("rsvp_enabled", false)
+        set(v) { sp.edit().putBoolean("rsvp_enabled", v).apply() }
+
     /** Palabras por minuto de la lectura rápida. */
     var rsvpWpm: Int
         get() = sp.getInt("rsvp_wpm", 300)

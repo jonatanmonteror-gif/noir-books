@@ -317,6 +317,8 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         Toggle("Modo concentración (solo el texto)", s.focus) { set(s.copy(focus = it)) }
         var edge by remember { mutableStateOf(Prefs.edgeFontSize) }
         Toggle("Cambiar el tamaño de letra deslizando por el borde derecho", edge) { edge = it; Prefs.edgeFontSize = it; set(s.copy()) }
+        var rapid by remember { mutableStateOf(Prefs.rsvpEnabled) }
+        Toggle("Lectura rápida palabra a palabra (botón «Rápida» en el lector)", rapid) { rapid = it; Prefs.rsvpEnabled = it }
         if (scroll != null && onScroll != null) {
             var sc by remember { mutableStateOf(scroll) }
             Toggle("Desplazamiento continuo en este libro (sin páginas)", sc) { sc = it; onScroll(it) }

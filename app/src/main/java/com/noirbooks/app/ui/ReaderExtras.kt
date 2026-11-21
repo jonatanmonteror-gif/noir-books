@@ -5,6 +5,8 @@ import android.net.Uri
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -203,7 +205,6 @@ fun HighlightSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es", startTab: Int = 0) {
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val single = !word.trim().contains(' ')
     val lang = java.util.Locale.forLanguageTag(language.ifBlank { "es" }).language.ifBlank { "es" }
     val tabs = buildList {
@@ -213,9 +214,12 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
     }
     // startTab < 0 = la última pestaña (Traducir)
     var tab by remember { mutableStateOf(if (startTab < 0) tabs.lastIndex else startTab.coerceIn(0, tabs.lastIndex)) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
-            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Pantalla completa (no hoja deslizable): así la página de la RAE o de Wikipedia se desplaza sin pelearse con la hoja
+    val navH = activityNavBarHeight()
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(NB.surface).statusBarsPadding().padding(top = 8.dp, bottom = navH)) {
+            Row(Modifier.padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
                     maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (single) Text("Guardada en Mis palabras", fontFamily = Inter, fontSize = 12.sp, color = NB.text3)

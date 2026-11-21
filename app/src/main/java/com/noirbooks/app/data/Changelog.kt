@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.59", "21 nov 2026", listOf(
+            "Compartir cita: el botón Compartir ya no queda debajo de los botones del móvil",
+            "Subrayado: menos interlineado",
+            "Diccionario a pantalla completa: ya se puede bajar por la página de la RAE y de Wikipedia",
+            "Lectura rápida: desactivada de serie; se activa en Ajustes → Lectura → Avanzado. Controles bien colocados",
+        )),
         Entry("1.0.58", "21 nov 2026", listOf(
             "Tamaño de letra deslizando arriba o abajo por el borde derecho (se ve el número en grande); se puede desactivar en Lectura → Avanzado",
             "Desplazamiento continuo por libro, sin páginas (Lectura → Avanzado); al final, «Siguiente capítulo»",

@@ -113,8 +113,9 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
             }
         }
     }
+    val navH = activityNavBarHeight()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().background(NB.bg).statusBarsPadding().padding(bottom = navH)) {
             // Cabecera: cerrar · formato (Historia | Publicación) · guardar
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, "Cerrar", tint = NB.text) }
@@ -315,7 +316,7 @@ private fun drawMarkerCard(c: Canvas, f: CardFonts, q: QuoteShare, text: String,
     val ink = 0xFF181818.toInt()
     val marker = (HighlightColor.of(q.color).argb and 0x00FFFFFF or 0x8C000000).toInt()
     val y0 = top + 60f
-    val layout = fit(text, f.serif, ink, w - 2 * m, (bottom - y0 - 220).toInt(), 66f, 32f, 1.42f)
+    val layout = fit(text, f.serif, ink, w - 2 * m, (bottom - y0 - 220).toInt(), 66f, 32f, 1.2f)
     // Una banda de rotulador detrás de cada línea, un poco irregular
     val mp = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = marker }
     val rnd = Random(text.length)
@@ -325,7 +326,7 @@ private fun drawMarkerCard(c: Canvas, f: CardFonts, q: QuoteShare, text: String,
         val l = layout.getLineLeft(i); val r = layout.getLineRight(i)
         val base = layout.getLineBaseline(i).toFloat()
         val size = layout.paint.textSize
-        val rect = RectF(m + l - 10f, y + base - size * 0.42f, m + r + 10f + rnd.nextInt(14), y + base + size * 0.14f)
+        val rect = RectF(m + l - 8f, y + base - size * 0.36f, m + r + 8f + rnd.nextInt(12), y + base + size * 0.12f)
         c.save(); c.rotate(rnd.nextFloat() * 0.8f - 0.4f, rect.centerX(), rect.centerY())
         c.drawRoundRect(rect, 8f, 8f, mp); c.restore()
     }

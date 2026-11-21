@@ -264,3 +264,23 @@ fun DownloadBar(progress: Float) {
         trackColor = NB.line,
     )
 }
+
+/** Alto de la barra de navegación del móvil, leído de la ventana principal (en los diálogos a veces llega a 0). */
+@Composable
+fun activityNavBarHeight(): androidx.compose.ui.unit.Dp {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val px = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+    return with(density) { px.toDp() }
+}
+
+/** Alto de la barra de estado, leído de la ventana principal. */
+@Composable
+fun activityStatusBarHeight(): androidx.compose.ui.unit.Dp {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val px = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+        ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
+    return with(density) { px.toDp() }
+}
