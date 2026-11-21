@@ -453,6 +453,14 @@ object Prefs {
         get() = sp.getInt("daily_goal_min", 0)
         set(v) { sp.edit().putInt("daily_goal_min", v).apply() }
 
+    /** Último diseño y formato usados al compartir una cita. */
+    var quoteDesign: String
+        get() = sp.getString("quote_design", "cover") ?: "cover"
+        set(v) { sp.edit().putString("quote_design", v).apply() }
+    var quoteFormat: String
+        get() = sp.getString("quote_format", "story") ?: "story"
+        set(v) { sp.edit().putString("quote_format", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

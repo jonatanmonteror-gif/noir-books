@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.46", "21 nov 2026", listOf(
+            "Compartir una cita como imagen para Instagram: cuatro diseños (Portada, Papel, Subrayado y Noir)",
+            "Formato historia (9:16) o publicación (4:5), con vista previa antes de compartir",
+            "Guardar la imagen en la galería (Imágenes › Noir Books)",
+        )),
         Entry("1.0.45", "21 nov 2026", listOf(
             "Las páginas leídas cuentan como páginas del libro en papel cuando se conocen (no como pantallas del móvil)",
             "Así cuadran las estadísticas, la meta por páginas y el registro con tu edición en papel",

@@ -185,7 +185,7 @@ fun HighlightSheet(
             Spacer(Modifier.height(14.dp))
             ButtonRow {
                 PillButton(if (h.note.isBlank()) "Añadir nota" else "Editar nota") { editing = true }
-                PillButton("Compartir") { shareQuoteImage(ctx, h.text, bookTitle, author) }
+                PillButton("Compartir") { AppState.shareQuote.value = QuoteShare(h.text, bookTitle, author, color = h.color) }
                 if (onOpen != null) PillButton("Ir al libro", primary = true) { onOpen() }
             }
             Spacer(Modifier.height(10.dp))

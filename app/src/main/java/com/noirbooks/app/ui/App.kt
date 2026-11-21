@@ -65,6 +65,8 @@ object AppState {
     val timer = mutableStateOf<Pair<String, Long>?>(null)
     /** Lectura que se está apuntando: libro y, si viene del cronómetro, inicio y fin. */
     val logSession = mutableStateOf<LogRequest?>(null)
+    /** Cita que se va a compartir como imagen (abre el diseñador). */
+    val shareQuote = mutableStateOf<QuoteShare?>(null)
 
     /** Tareas largas que no deben pararse al cerrar una pantalla (importar de Goodreads…). */
     val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
@@ -246,6 +248,7 @@ fun App() {
                 AppState.askStatus.value?.let { id -> WhenToReadDialog(id, onDismiss = { AppState.askStatus.value = null }) }
             }
             AppState.logSession.value?.let { r -> LogSessionDialog(r, onDismiss = { AppState.logSession.value = null }) }
+            AppState.shareQuote.value?.let { q -> QuoteShareDialog(q, onDismiss = { AppState.shareQuote.value = null }) }
             UpdatePrompt()
             CrashReportPrompt()
             if (screen !is Screen.Reader) WhatsNewPrompt()

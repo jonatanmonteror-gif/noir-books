@@ -510,7 +510,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                 onNote = { noteFor = 0 },
                 onCopy = { copyText(ctx, "Cita", sel.text); AppState.toast("Copiado"); c.clearSelection() },
                 onShare = {
-                    shareQuoteImage(ctx, sel.text, book?.title.orEmpty(), book?.author.orEmpty())
+                    AppState.shareQuote.value = QuoteShare(sel.text, book?.title.orEmpty(), book?.author.orEmpty(), bookId = c.bookId)
                     c.clearSelection()
                 },
                 onDefine = {
