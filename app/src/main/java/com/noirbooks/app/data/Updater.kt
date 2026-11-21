@@ -39,28 +39,53 @@ object Updater {
     }
 
     /** Descarga el APK a la caché y verifica la huella. Devuelve el archivo listo para instalar. */
+    /**
+     * Descarga la versión nueva con el gestor de descargas de Android: aguanta cortes de red, cambios de wifi a datos
+     * y que la app se vaya a segundo plano (antes la descarga se cortaba con «connection abort»).
+     * Al terminar comprueba la huella SHA-256.
+     */
     suspend fun download(ctx: Context, rel: Release, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
-        val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() }
-        val file = File(dir, "NoirBooks-${rel.versionCode}.apk")
-        val req = Request.Builder().url(rel.apkUrl).header("User-Agent", Http.UA).build()
-        Http.client.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) throw IOException("Error ${r.code} al descargar")
-            val body = r.body ?: throw IOException("Descarga vacía")
-            val total = body.contentLength()
-            body.byteStream().use { input ->
-                file.outputStream().use { out ->
-                    val buf = ByteArray(64 * 1024)
-                    var done = 0L
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                        done += n
+        File(ctx.cacheDir, "updates").listFiles()?.forEach { it.delete() }
+        val ext = ctx.getExternalFilesDir(null)
+        val file = if (ext != null) {
+            val dir = File(ext, "updates").apply { mkdirs() }
+            dir.listFiles()?.forEach { it.delete() }
+            val f = File(dir, "NoirBooks-${rel.versionCode}.apk")
+            val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            val req = android.app.DownloadManager.Request(Uri.parse(rel.apkUrl))
+                .setTitle("Noir Books ${rel.name}")
+                .setDescription("Descargando la actualización")
+                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setDestinationUri(Uri.fromFile(f))
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+            val id = dm.enqueue(req)
+            var ok = false
+            try {
+                while (true) {
+                    kotlinx.coroutines.delay(400)
+                    dm.query(android.app.DownloadManager.Query().setFilterById(id)).use { c ->
+                        if (c == null || !c.moveToFirst()) throw IOException("Se canceló la descarga")
+                        val status = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
+                        val done = c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                        val total = c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                         if (total > 0) onProgress(done.toFloat() / total)
+                        when (status) {
+                            android.app.DownloadManager.STATUS_SUCCESSFUL -> { ok = true }
+                            android.app.DownloadManager.STATUS_FAILED -> {
+                                val reason = c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON))
+                                throw IOException("La descarga falló (código $reason). Revisa la conexión y vuelve a intentarlo.")
+                            }
+                        }
                     }
+                    if (ok) break
                 }
+            } finally {
+                if (!ok) runCatching { dm.remove(id) }
             }
+            f
+        } else {
+            downloadDirect(ctx, rel, onProgress)
         }
         rel.shaUrl?.let { url ->
             val expected = Http.get(url).trim().take(64).lowercase()
@@ -71,6 +96,43 @@ object Updater {
             }
         }
         file
+    }
+
+    /** Descarga directa con reintentos y continuación (si el móvil no tiene almacenamiento para el gestor de descargas). */
+    private suspend fun downloadDirect(ctx: Context, rel: Release, onProgress: (Float) -> Unit): File {
+        val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
+        val file = File(dir, "NoirBooks-${rel.versionCode}.apk")
+        var attempt = 0
+        while (true) {
+            try {
+                val have = if (file.exists()) file.length() else 0L
+                val b = Request.Builder().url(rel.apkUrl).header("User-Agent", Http.UA)
+                if (have > 0) b.header("Range", "bytes=$have-")
+                Http.client.newCall(b.build()).execute().use { r ->
+                    if (!r.isSuccessful) throw IOException("Error ${r.code} al descargar")
+                    val body = r.body ?: throw IOException("Descarga vacía")
+                    val append = r.code == 206
+                    val total = body.contentLength().let { if (it > 0 && append) it + have else it }
+                    var done = if (append) have else 0L
+                    body.byteStream().use { input ->
+                        java.io.FileOutputStream(file, append).use { out ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n)
+                                done += n
+                                if (total > 0) onProgress(done.toFloat() / total)
+                            }
+                        }
+                    }
+                }
+                return file
+            } catch (e: IOException) {
+                if (++attempt >= 5) throw IOException("Se cortó la conexión varias veces. Vuelve a intentarlo con buena cobertura.")
+                kotlinx.coroutines.delay(1500L * attempt)
+            }
+        }
     }
 
     fun sha256(f: File): String {

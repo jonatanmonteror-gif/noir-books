@@ -862,6 +862,7 @@ fun scanIsbn(ctx: android.content.Context, onIsbn: (String) -> Unit) {
             com.google.mlkit.vision.barcode.common.Barcode.FORMAT_EAN_8,
             com.google.mlkit.vision.barcode.common.Barcode.FORMAT_UPC_A,
         )
+        .enableAutoZoom()
         .build()
     com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(ctx, opts).startScan()
         .addOnSuccessListener { b ->
@@ -869,9 +870,23 @@ fun scanIsbn(ctx: android.content.Context, onIsbn: (String) -> Unit) {
             if (v.length == 10 || v.length == 13) onIsbn(v) else AppState.toast("Ese código no es un ISBN")
         }
         .addOnFailureListener { e ->
-            ErrorLog.note("Escanear ISBN", e)
-            AppState.toast("No se pudo abrir el escáner (necesita los servicios de Google Play)")
+            val code = (e as? com.google.mlkit.common.MlKitException)?.errorCode
+            if (code == com.google.mlkit.common.MlKitException.CODE_SCANNER_CANCELLED) return@addOnFailureListener
+            // La primera vez Google descarga el escáner: se pide ya y se avisa de que vuelva a probar
+            runCatching {
+                com.google.android.gms.common.moduleinstall.ModuleInstall.getClient(ctx).installModules(
+                    com.google.android.gms.common.moduleinstall.ModuleInstallRequest.newBuilder()
+                        .addApi(com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(ctx)).build()
+                )
+            }
+            if (code == com.google.mlkit.common.MlKitException.UNAVAILABLE || code == com.google.mlkit.common.MlKitException.CODE_SCANNER_UNAVAILABLE)
+                AppState.toast("Preparando el escáner de Google. Vuelve a probar en unos segundos")
+            else {
+                ErrorLog.note("Escanear ISBN", e)
+                AppState.toast("No se pudo leer el código. Prueba con más luz o acerca un poco el libro")
+            }
         }
+        .addOnCanceledListener { }
 }
 
 /** Una línea opcional al guardar una lectura («¿qué te ha parecido?»); queda en el registro. */
