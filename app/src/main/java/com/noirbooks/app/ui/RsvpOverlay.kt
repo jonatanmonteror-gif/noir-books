@@ -108,6 +108,7 @@ fun RsvpOverlay(c: ReaderController, onClose: () -> Unit) {
     val statusH = activityStatusBarHeight()
     androidx.compose.ui.window.Dialog(onDismissRequest = { close() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    FullScreenDialogWindow()
     Box(
         Modifier.fillMaxSize().background(bg).padding(top = statusH, bottom = navH)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (words.isNotEmpty()) playing = !playing },

@@ -284,3 +284,29 @@ fun activityStatusBarHeight(): androidx.compose.ui.unit.Dp {
         ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
     return with(density) { px.toDp() }
 }
+
+/**
+ * Llamar dentro del contenido de un Dialog a pantalla completa: obliga a su ventana a ocupar
+ * toda la pantalla (de arriba abajo, por detrás de las barras). Sin esto, algunos móviles
+ * (Samsung) colocan la ventana por debajo de la barra de estado y el final queda fuera de pantalla.
+ * Después, el contenido se separa de las barras con activityStatusBarHeight()/activityNavBarHeight().
+ */
+@Composable
+fun FullScreenDialogWindow() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window ?: return@SideEffect
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+        window.setGravity(android.view.Gravity.TOP or android.view.Gravity.START)
+        val a = window.attributes
+        a.x = 0; a.y = 0
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            a.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        window.attributes = a
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        @Suppress("DEPRECATION")
+        run { window.statusBarColor = android.graphics.Color.TRANSPARENT; window.navigationBarColor = android.graphics.Color.TRANSPARENT }
+    }
+}

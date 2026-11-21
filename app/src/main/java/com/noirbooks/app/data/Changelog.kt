@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.64", "21 nov 2026", listOf(
+            "El botón Compartir de las citas ya cabe entero: la pantalla ocupa todo el móvil y respeta la barra de abajo",
+            "Lo mismo en el diccionario y en la lectura rápida",
+        )),
         Entry("1.0.63", "21 nov 2026", listOf(
             "Perfiles de lectura nada más abrir los ajustes: Kindle, los tuyos y «+ Guardar». Mantén pulsado para actualizar o borrar",
             "Tamaño de letra, interlineado y márgenes van de 1 en 1 (interlineado de 0,05 en 0,05) y puedes tocar el número para escribirlo",

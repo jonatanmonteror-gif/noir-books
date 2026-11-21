@@ -221,6 +221,7 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
     val statusH = activityStatusBarHeight()
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        FullScreenDialogWindow()
         Column(Modifier.fillMaxSize().background(NB.surface).padding(top = statusH + 8.dp, bottom = navH)) {
             Row(Modifier.padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
