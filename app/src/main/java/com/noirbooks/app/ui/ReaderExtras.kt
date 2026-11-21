@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.key
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.noirbooks.app.data.Prefs
 import com.noirbooks.app.data.Translate
@@ -212,7 +213,7 @@ fun DictionarySheet(word: String, onDismiss: () -> Unit, language: String = "es"
     }
     // startTab < 0 = la última pestaña (Traducir)
     var tab by remember { mutableStateOf(if (startTab < 0) tabs.lastIndex else startTab.coerceIn(0, tabs.lastIndex)) }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text, sheetGesturesEnabled = false) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.8f)) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(word, fontFamily = Playfair, fontSize = if (single) 24.sp else 18.sp, color = NB.text, modifier = Modifier.weight(1f),
