@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -193,6 +194,10 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         Spacer(Modifier.height(16.dp))
     }
 
+    // Perfiles nada más entrar: cambiar de golpe tema, letra, interlineado, márgenes…
+    Label("Perfiles")
+    ProfilesBlock(s) { set(it) }
+
     Label("Tema")
     if (s.autoTheme != "off") {
         Text(if (s.autoTheme == "system") "Automático según el modo oscuro del móvil: ${s.dayTheme.label} / ${s.nightTheme.label}"
@@ -220,12 +225,7 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
     }
 
     Label("Tamaño de letra")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        StepButton("A−", 14) { set(s.copy(fontSize = (s.fontSize - 1).coerceAtLeast(12))) }
-        Text("${s.fontSize}", modifier = Modifier.weight(1f), color = NB.text, fontSize = 16.sp,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        StepButton("A+", 19) { set(s.copy(fontSize = (s.fontSize + 1).coerceAtMost(40))) }
-    }
+    StepControl(s.fontSize.toFloat(), 12f, 40f, 1f, 0, "Tamaño de letra", minus = "A−", plus = "A+") { set(s.copy(fontSize = it.toInt())) }
 
     Label("Brillo")
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -250,26 +250,15 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         if (s.publisher) Text("Se usa la letra, el interlineado y los párrafos del propio libro. Solo cambian el tema, el tamaño y los márgenes.",
             color = NB.text3, fontSize = 12.sp, lineHeight = 17.sp)
         Label("Tipo de letra")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ReaderFont.entries.take(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ReaderFont.entries.drop(3).forEach { f -> FontChip(f, s.font == f, Modifier.weight(1f)) { set(s.copy(font = f)) } }
-            Spacer(Modifier.weight(1f))
-        }
+        FontDropdown(s.font) { set(s.copy(font = it)) }
 
         Label("Interlineado")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1.3f to "Junto", 1.55f to "Normal", 1.8f to "Amplio", 2.1f to "Muy amplio").forEach { (v, l) ->
-                Choice(l, kotlin.math.abs(s.lineHeight - v) < 0.05f, Modifier.weight(1f)) { set(s.copy(lineHeight = v)) }
-            }
-        }
+        StepControl(s.lineHeight, 1.0f, 2.6f, 0.05f, 2, "Interlineado") { set(s.copy(lineHeight = it)) }
 
         Label("Márgenes laterales")
-        StepControl(s.marginH, 4, 72, 4) { set(s.copy(marginH = it)) }
+        StepControl(s.marginH.toFloat(), 0f, 80f, 1f, 0, "Márgenes laterales") { set(s.copy(marginH = it.toInt())) }
         Label("Márgenes arriba y abajo")
-        StepControl(s.marginV, 6, 72, 4) { set(s.copy(marginV = it)) }
+        StepControl(s.marginV.toFloat(), 0f, 80f, 1f, 0, "Márgenes arriba y abajo") { set(s.copy(marginV = it.toInt())) }
 
         Label("Espacio entre párrafos")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -289,16 +278,6 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
     }
     FoldSection("Tema propio y automático", "Tus colores, y claro de día y oscuro de noche") {
         ThemeExtras(s) { set(it) }
-    }
-    FoldSection("Perfiles", "Estilo Kindle y tus ajustes guardados: «Cama», «Tren»…") {
-        Text("Estilos listos", color = NB.text3, fontSize = 12.sp)
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Estilo Kindle", s == s.kindle(), Modifier.weight(1f)) { set(s.kindle()) }
-            Spacer(Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(10.dp))
-        ProfilesBlock(s) { set(it) }
     }
     FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
         Label("A la izquierda")
@@ -354,14 +333,88 @@ private fun Preview(s: ReaderSettings) {
 }
 
 /** Deslizador que solo aplica el cambio al soltar (cada cambio vuelve a maquetar el capítulo). */
-/** − valor + : cambia de [step] en [step] (más fácil de ajustar que un deslizador). */
+/**
+ * − valor + : cambia de [step] en [step]. Tocar el número del medio permite escribirlo.
+ * [decimals] es cuántos decimales se muestran (0 para enteros).
+ */
 @Composable
-private fun StepControl(value: Int, min: Int, max: Int, step: Int, onChange: (Int) -> Unit) {
+private fun StepControl(
+    value: Float, min: Float, max: Float, step: Float, decimals: Int, title: String,
+    minus: String = "−", plus: String = "+", onChange: (Float) -> Unit,
+) {
+    var typing by remember { mutableStateOf(false) }
+    fun fmt(v: Float) = if (decimals == 0) "${kotlin.math.round(v).toInt()}"
+        else String.format(java.util.Locale("es", "ES"), "%.${decimals}f", v)
+    fun snap(v: Float) = (kotlin.math.round(v / step) * step).coerceIn(min, max)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Choice("−", false, Modifier.width(56.dp)) { onChange((value - step).coerceAtLeast(min)) }
-        Text("$value", color = NB.text, fontSize = 16.sp, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.weight(1f))
-        Choice("+", false, Modifier.width(56.dp)) { onChange((value + step).coerceAtMost(max)) }
+        Choice(minus, false, Modifier.width(56.dp)) { onChange(snap(value - step)) }
+        Box(
+            Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).border(1.dp, NB.line, RoundedCornerShape(10.dp))
+                .clickable { typing = true }.padding(vertical = 9.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(fmt(value), color = NB.text, fontSize = 15.sp, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+        }
+        Choice(plus, false, Modifier.width(56.dp)) { onChange(snap(value + step)) }
+    }
+    if (typing) {
+        var text by remember { mutableStateOf(fmt(value)) }
+        val parsed = text.replace(',', '.').toFloatOrNull()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { typing = false }, containerColor = NB.surface2,
+            title = { Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column {
+                    androidx.compose.material3.OutlinedTextField(
+                        text, { text = it.take(6) }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = if (decimals == 0) androidx.compose.ui.text.input.KeyboardType.Number
+                            else androidx.compose.ui.text.input.KeyboardType.Decimal),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+                            focusedTextColor = NB.text, unfocusedTextColor = NB.text),
+                    )
+                    Text("Entre ${fmt(min)} y ${fmt(max)}", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(enabled = parsed != null, onClick = {
+                    parsed?.let { onChange(it.coerceIn(min, max)) }; typing = false
+                }) { Text("Aplicar", color = NB.text, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { typing = false }) { Text("Cancelar", color = NB.text2) } },
+        )
+    }
+}
+
+/** Tipo de letra en un desplegable: cada opción se ve con su propia letra. */
+@Composable
+private fun FontDropdown(value: ReaderFont, onPick: (ReaderFont) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    fun familyOf(f: ReaderFont) = when (f) {
+        ReaderFont.Inter, ReaderFont.Original -> Inter
+        ReaderFont.Atkinson -> FontFamily.SansSerif
+        else -> FontFamily.Serif
+    }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(NB.surface2).clickable { open = true }
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(value.label, color = NB.text, fontSize = 15.sp, fontFamily = familyOf(value), modifier = Modifier.weight(1f))
+            Text("▾", color = NB.text2, fontSize = 14.sp)
+        }
+        androidx.compose.material3.DropdownMenu(open, onDismissRequest = { open = false }, containerColor = NB.surface2) {
+            ReaderFont.entries.forEach { f ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(f.label + if (f == value) "  ✓" else "", color = NB.text, fontSize = 15.sp, fontFamily = familyOf(f))
+                    },
+                    onClick = { onPick(f); open = false },
+                )
+            }
+        }
     }
 }
 
@@ -395,25 +448,6 @@ private fun Label(text: String) {
     Spacer(Modifier.height(18.dp))
     Text(text.uppercase(), fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text3, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(8.dp))
-}
-
-@Composable
-private fun StepButton(label: String, size: Int, onClick: () -> Unit) {
-    Box(
-        Modifier.size(width = 72.dp, height = 44.dp).clip(RoundedCornerShape(12.dp)).background(NB.surface2).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = NB.text, fontSize = size.sp, fontFamily = Playfair) }
-}
-
-@Composable
-private fun FontChip(f: ReaderFont, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val family = when (f) {
-        ReaderFont.Inter -> Inter
-        ReaderFont.Atkinson -> FontFamily.SansSerif
-        ReaderFont.Original -> Inter
-        else -> FontFamily.Serif
-    }
-    Choice(f.label, selected, modifier, family, onClick)
 }
 
 @Composable
@@ -487,32 +521,35 @@ private fun TapZones(value: com.noirbooks.app.data.TapLayout, onPick: (com.noirb
 }
 
 /** Perfiles de lectura: aplicar con un toque, guardar los ajustes actuales, borrar manteniendo pulsado. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ProfileChip(name: String, selected: Boolean, onClick: () -> Unit, onLong: (() -> Unit)?) {
+    Box(
+        Modifier.clip(RoundedCornerShape(50)).background(if (selected) NB.text else NB.surface2)
+            .combinedClickable(onClick = onClick, onLongClick = onLong)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    ) { Text(name, color = if (selected) NB.onText else NB.text, fontSize = 13.sp, maxLines = 1) }
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ProfilesBlock(current: ReaderSettings, apply: (ReaderSettings) -> Unit) {
     val profiles by Prefs.profiles
     var naming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
-    if (profiles.isEmpty()) {
-        Text("Deja la lectura a tu gusto y guárdala con un nombre; luego cambias de una a otra con un toque.",
-            color = NB.text3, fontSize = 13.sp, lineHeight = 18.sp)
-        Spacer(Modifier.height(10.dp))
-    } else {
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            profiles.forEach { (name, s) ->
-                val sel = s == current
-                Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(if (sel) NB.text else NB.surface2)
-                        .combinedClickable(onClick = { apply(s) }, onLongClick = { deleting = name })
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                ) { Text(name, color = if (sel) NB.onText else NB.text, fontSize = 14.sp) }
-            }
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        ProfileChip("Kindle", current == current.kindle(), onClick = { apply(current.kindle()) }, onLong = null)
+        profiles.forEach { (name, ps) ->
+            ProfileChip(name, ps == current, onClick = { apply(ps) }, onLong = { deleting = name })
         }
-        Text("Mantén pulsado un perfil para borrarlo.", color = NB.text3, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-        Spacer(Modifier.height(8.dp))
+        Box(
+            Modifier.clip(RoundedCornerShape(50)).border(1.dp, NB.line, RoundedCornerShape(50)).clickable { naming = true }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+        ) { Text("+ Guardar", color = NB.text2, fontSize = 13.sp) }
     }
-    Text("+ Guardar los ajustes actuales como perfil", color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { naming = true }.padding(vertical = 8.dp))
+    Text(if (profiles.isEmpty()) "Ajusta la lectura a tu gusto y pulsa «+ Guardar» para crear un perfil (Cama, Tren…)."
+        else "Mantén pulsado un perfil para borrarlo o actualizarlo.", color = NB.text3, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
     if (naming) {
         var name by remember { mutableStateOf("") }
         androidx.compose.material3.AlertDialog(
@@ -534,9 +571,14 @@ private fun ProfilesBlock(current: ReaderSettings, apply: (ReaderSettings) -> Un
     deleting?.let { n ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { deleting = null }, containerColor = NB.surface2,
-            title = { Text("¿Borrar el perfil «$n»?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { Prefs.deleteProfile(n); deleting = null }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleting = null }) { Text("Cancelar", color = NB.text2) } },
+            title = { Text("Perfil «$n»", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+            text = { Text("Puedes guardar en él los ajustes que tienes ahora o borrarlo.", color = NB.text2) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { Prefs.saveProfile(n, current); deleting = null; AppState.toast("Perfil «$n» actualizado") }) {
+                    Text("Actualizar", color = NB.text, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { Prefs.deleteProfile(n); deleting = null }) { Text("Borrar", color = Color(0xFFFF6B6B)) } },
         )
     }
 }
