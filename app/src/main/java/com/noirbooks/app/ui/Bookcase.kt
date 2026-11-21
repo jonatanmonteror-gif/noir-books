@@ -22,6 +22,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -157,52 +161,51 @@ fun ShelfCompartment(style: ShelfStyle, height: Dp, content: @Composable () -> U
     }
 }
 
-/** Elegir el diseño de las estanterías y si se ven lomos o portadas. */
+/** Ajustes → Apariencia: libros por fila en la biblioteca, y madera y tamaño de las estanterías. */
 @Composable
-fun ShelfDesignDialog(
-    style: String, view: String, size: String,
-    onStyle: (String) -> Unit, onSize: (String) -> Unit, onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss, containerColor = NB.surface2,
-        title = { Text("Diseño de las estanterías", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column {
-                Text("Madera", color = NB.text2, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SHELF_STYLES.forEach { st ->
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                                .border(if (st.key == style) 2.dp else 1.dp, if (st.key == style) NB.text else NB.line, RoundedCornerShape(10.dp))
-                                .clickable { onStyle(st.key) }.padding(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(4.dp))
-                                .background(Brush.verticalGradient(st.back ?: listOf(NB.bg, NB.bg)))) {
-                                Row(Modifier.align(Alignment.BottomCenter).fillMaxHeight().padding(top = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
-                                    listOf(Color(0xFF6B2D2D), Color(0xFF2C3E50), Color(0xFFB59A5B)).forEachIndexed { i, c ->
-                                        Box(Modifier.width(6.dp).fillMaxHeight(if (i == 1) 1f else 0.85f).background(c))
-                                    }
-                                }
+fun LibraryLookSettings() {
+    var columns by remember { mutableStateOf(com.noirbooks.app.data.Prefs.libraryColumns.coerceIn(2, 4)) }
+    var style by remember { mutableStateOf(com.noirbooks.app.data.Prefs.shelfStyle) }
+    var size by remember { mutableStateOf(com.noirbooks.app.data.Prefs.shelfSize) }
+    Column {
+        Text("Biblioteca: libros por fila", color = NB.text2, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (2..4).forEach { n -> Chip("$n", columns == n) { columns = n; com.noirbooks.app.data.Prefs.libraryColumns = n } }
+        }
+        Spacer(Modifier.height(18.dp))
+        Text("Estanterías: madera", color = NB.text2, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SHELF_STYLES.forEach { st ->
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                        .border(if (st.key == style) 2.dp else 1.dp, if (st.key == style) NB.text else NB.line, RoundedCornerShape(10.dp))
+                        .clickable { style = st.key; com.noirbooks.app.data.Prefs.shelfStyle = st.key }.padding(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(4.dp))
+                        .background(Brush.verticalGradient(st.back ?: listOf(NB.bg, NB.bg)))) {
+                        Row(Modifier.align(Alignment.BottomCenter).fillMaxHeight().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+                            listOf(Color(0xFF6B2D2D), Color(0xFF2C3E50), Color(0xFFB59A5B)).forEachIndexed { i, c ->
+                                Box(Modifier.width(7.dp).fillMaxHeight(if (i == 1) 1f else 0.85f).background(c))
                             }
-                            Box(Modifier.fillMaxWidth().height(5.dp).background(Brush.verticalGradient(st.plank)))
-                            Spacer(Modifier.height(6.dp))
-                            Text(st.label, fontSize = 12.sp, color = NB.text, maxLines = 1)
                         }
                     }
-                }
-                Spacer(Modifier.height(18.dp))
-                Text("Tamaño", color = NB.text2, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("Pequeña", size == "s") { onSize("s") }
-                    Chip("Mediana", size == "m") { onSize("m") }
-                    Chip("Grande", size == "l") { onSize("l") }
+                    Box(Modifier.fillMaxWidth().height(5.dp).background(Brush.verticalGradient(st.plank)))
+                    Spacer(Modifier.height(6.dp))
+                    Text(st.label, fontSize = 12.sp, color = NB.text, maxLines = 1)
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Listo", color = NB.text, fontWeight = FontWeight.SemiBold) } },
-    )
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("Estanterías: tamaño", color = NB.text2, fontSize = 14.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("s" to "Pequeña", "m" to "Mediana", "l" to "Grande").forEach { (k, l) ->
+                Chip(l, size == k) { size = k; com.noirbooks.app.data.Prefs.shelfSize = k }
+            }
+        }
+    }
 }

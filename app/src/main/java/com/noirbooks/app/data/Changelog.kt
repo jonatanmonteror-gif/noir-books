@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.48", "21 nov 2026", listOf(
+            "Tocar un libro de «Seguir leyendo» lo abre para seguir leyendo; mantener pulsado, su menú",
+            "Estanterías por género que se forman solas, además de las tuyas: elige Mis estanterías, Por género o Todas",
+            "El aspecto de la biblioteca y de las estanterías (libros por fila, madera, tamaño) se cambia en Ajustes → Apariencia",
+        )),
         Entry("1.0.47", "21 nov 2026", listOf(
             "Valorar ya no mueve nada: sin botón «Quitar» junto a las estrellas; la nota media (por aspectos) siempre visible",
             "Para quitar una nota: menú del libro → Más opciones → Reiniciar valoración",

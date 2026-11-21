@@ -461,6 +461,11 @@ object Prefs {
         get() = sp.getString("quote_format", "story") ?: "story"
         set(v) { sp.edit().putString("quote_format", v).apply() }
 
+    /** Estanterías que se ven: custom (las tuyas), genre (por género) o all (todas). */
+    var shelfMode: String
+        get() = sp.getString("shelf_mode", "all") ?: "all"
+        set(v) { sp.edit().putString("shelf_mode", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

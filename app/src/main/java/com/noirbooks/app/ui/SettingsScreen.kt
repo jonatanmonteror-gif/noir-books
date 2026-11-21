@@ -65,7 +65,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         ) {
             Column(Modifier.widthIn(max = 640.dp)) {
                 val appearance by com.noirbooks.app.data.Prefs.appearanceState
-                FoldSection("Apariencia", when (appearance) { "light" -> "Clara"; "system" -> "Como el sistema"; else -> "Oscura" }) {
+                FoldSection("Apariencia", when (appearance) { "light" -> "Clara"; "system" -> "Como el sistema"; else -> "Oscura" } + " · biblioteca y estanterías") {
                     Text("Colores de la app (el libro tiene sus propios temas en Lectura).", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -73,6 +73,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                             Chip(l, appearance == k) { com.noirbooks.app.data.Prefs.setAppearance(k) }
                         }
                     }
+                    Spacer(Modifier.height(18.dp))
+                    LibraryLookSettings()
                 }
 
                 FoldSection("Lectura", "Tema, letra, márgenes y brillo para todos los libros") {

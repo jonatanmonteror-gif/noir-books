@@ -55,11 +55,21 @@ import kotlinx.coroutines.launch
 /** Filtro especial: libros que no están en ninguna estantería. */
 const val NO_SHELF = "\u0001sin"
 
-fun shelfLabel(s: String) = if (s == NO_SHELF) "Sin estantería" else s
+/** Estantería automática de un género (no se guarda: se forma sola con el género de cada libro). */
+const val GENRE_PREFIX = "\u0002g:"
+fun genreShelf(g: String) = GENRE_PREFIX + g
+fun isGenreShelf(s: String?) = s?.startsWith(GENRE_PREFIX) == true
 
-fun inShelf(b: Book, s: String?) = when (s) {
-    null -> true
-    NO_SHELF -> b.shelves.isEmpty()
+fun shelfLabel(s: String) = when {
+    s == NO_SHELF -> "Sin estantería"
+    isGenreShelf(s) -> s.removePrefix(GENRE_PREFIX)
+    else -> s
+}
+
+fun inShelf(b: Book, s: String?) = when {
+    s == null -> true
+    s == NO_SHELF -> b.shelves.isEmpty()
+    isGenreShelf(s) -> b.genre == s.removePrefix(GENRE_PREFIX)
     else -> s in b.shelves
 }
 
@@ -73,11 +83,12 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
     var newShelf by remember { mutableStateOf(false) }
     var editShelf by remember { mutableStateOf<String?>(null) }
     var addTo by remember { mutableStateOf<String?>(null) }
-    var design by remember { mutableStateOf(false) }
-    var styleKey by remember { mutableStateOf(Prefs.shelfStyle) }
+    val styleKey = Prefs.shelfStyle
+    // Qué estanterías se ven: las tuyas, las de género (automáticas) o todas
+    var mode by remember { mutableStateOf(Prefs.shelfMode) }
     // Las estanterías siempre muestran las portadas
     val view = "covers"
-    var size by remember { mutableStateOf(Prefs.shelfSize) }
+    val size = Prefs.shelfSize
     val scale = when (size) { "s" -> 0.72f; "l" -> 1.32f; else -> 1f }
     val style = shelfStyle(styleKey)
 
@@ -94,12 +105,17 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
                 }
                 Spacer(Modifier.height(12.dp))
                 ButtonRow {
+                    Chip("Mis estanterías", mode == "custom") { mode = "custom"; Prefs.shelfMode = "custom" }
+                    Chip("Por género", mode == "genre") { mode = "genre"; Prefs.shelfMode = "genre" }
+                    Chip("Todas", mode == "all") { mode = "all"; Prefs.shelfMode = "all" }
+                }
+                if (mode != "genre") {
+                    Spacer(Modifier.height(10.dp))
                     PillButton("+ Nueva estantería", primary = true) { newShelf = true }
-                    PillButton("Diseño") { design = true }
                 }
             }
         }
-        if (shelves.isEmpty()) {
+        if (shelves.isEmpty() && mode == "custom") {
             item(key = "empty") {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
@@ -115,19 +131,27 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
                 }
             }
         }
-        items(shelves, key = { it }) { s ->
+        if (mode != "genre") items(shelves, key = { it }) { s ->
             val inside = books.filter { s in it.shelves }.sortedBy { fold(it.author.ifBlank { "~" }) + fold(it.title) }
             ShelfRow(s, inside, current == s, style, view, scale, onOpen = { onPick(s) }, onAdd = { addTo = s }, onEdit = { editShelf = s }, onBook = onBook)
+        }
+        if (mode != "custom") {
+            val genres = books.filter { it.genre.isNotBlank() }.groupBy { it.genre }.entries.sortedByDescending { it.value.size }
+            if (genres.isEmpty()) item(key = "nogenre") {
+                Text("Aún no hay libros con género. Se buscan solos al abrir la app; también puedes ponerlo desde el menú de cada libro.",
+                    color = NB.text3, fontSize = 14.sp)
+            }
+            items(genres, key = { "g:" + it.key }) { (g, list) ->
+                val sorted = list.sortedBy { fold(it.author.ifBlank { "~" }) + fold(it.title) }
+                ShelfRow(g, sorted, current == genreShelf(g), style, view, scale, onOpen = { onPick(genreShelf(g)) },
+                    onAdd = null, onEdit = null, onBook = onBook)
+            }
         }
     }
 
     if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) addTo = n }
     editShelf?.let { s -> EditShelfDialog(s) { editShelf = null } }
     addTo?.let { s -> AddToShelfDialog(s, books) { addTo = null } }
-    if (design) ShelfDesignDialog(styleKey, view, size,
-        onStyle = { styleKey = it; Prefs.shelfStyle = it },
-        onSize = { size = it; Prefs.shelfSize = it },
-        onDismiss = { design = false })
 }
 
 @Composable
@@ -147,26 +171,27 @@ private fun QuickTile(label: String, n: Int, selected: Boolean, modifier: Modifi
 @Composable
 private fun ShelfRow(
     name: String, books: List<Book>, selected: Boolean, style: ShelfStyle, view: String, scale: Float,
-    onOpen: () -> Unit, onAdd: () -> Unit, onEdit: () -> Unit, onBook: (Book) -> Unit,
+    onOpen: () -> Unit, onAdd: (() -> Unit)?, onEdit: (() -> Unit)?, onBook: (Book) -> Unit,
 ) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpen)) {
                 Text(name, fontFamily = Playfair, fontSize = 21.sp, color = NB.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    (if (books.size == 1) "1 libro" else "${books.size} libros") + if (selected) " · viendo ahora" else "",
+                    (if (books.size == 1) "1 libro" else "${books.size} libros") + (if (onEdit == null) " · por género" else "") +
+                        if (selected) " · viendo ahora" else "",
                     fontSize = 13.sp, color = NB.text3,
                 )
             }
-            TextButton(onClick = onAdd) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
-            IconButton(onClick = onEdit) { Icon(Icons.Filled.MoreVert, "Renombrar o borrar", tint = NB.text2) }
+            if (onAdd != null) TextButton(onClick = onAdd) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
+            if (onEdit != null) IconButton(onClick = onEdit) { Icon(Icons.Filled.MoreVert, "Renombrar o borrar", tint = NB.text2) }
         }
         Spacer(Modifier.height(8.dp))
         val h = (if (view == "covers") 128.dp else 150.dp) * scale
         ShelfCompartment(style, h) {
             if (books.isEmpty()) {
                 Text("Vacía. Pulsa Añadir para poner libros.", color = style.onBack?.copy(alpha = 0.7f) ?: NB.text3, fontSize = 14.sp,
-                    modifier = Modifier.padding(start = 14.dp, bottom = 14.dp).clickable(onClick = onAdd))
+                    modifier = Modifier.padding(start = 14.dp, bottom = 14.dp).clickable { onAdd?.invoke() })
             } else {
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()).padding(start = 10.dp, end = 10.dp, top = 10.dp),

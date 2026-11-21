@@ -88,14 +88,15 @@ fun LibraryScreen() {
     val books = all.filter { !it.inTrash }
     val importing by AppState.importing
     var sort by remember { mutableStateOf(Prefs.sortOrder) }
-    var columns by remember { mutableStateOf(Prefs.libraryColumns.coerceIn(2, 4)) }
+    // Libros por fila: se elige en Ajustes → Apariencia
+    val columns = remember { Prefs.libraryColumns.coerceIn(2, 4) }
     var filter by rememberSaveable { mutableStateOf("all") }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val cpm = remember(all.size) { Stats.charsPerMinute() }
     val shelves by Library.shelves
     var shelf by rememberSaveable { mutableStateOf<String?>(null) }
-    if (shelf != null && shelf != NO_SHELF && shelf !in shelves) shelf = null
+    if (shelf != null && shelf != NO_SHELF && !isGenreShelf(shelf) && shelf !in shelves) shelf = null
     // Tres vistas: Inicio (lo que lees y lo reciente), Biblioteca (todos) y Estanterías
     var mode by rememberSaveable { mutableStateOf("home") }
     var addToShelf by remember { mutableStateOf<String?>(null) }
@@ -256,7 +257,7 @@ fun LibraryScreen() {
                             Spacer(Modifier.width(10.dp))
                             Text(shelfLabel(s), color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            if (s != NO_SHELF) TextButton(onClick = { addToShelf = s }) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
+                            if (s != NO_SHELF && !isGenreShelf(s)) TextButton(onClick = { addToShelf = s }) { Text("Añadir", color = NB.text2, fontSize = 14.sp) }
                             IconButton(onClick = { shelf = null }) { Icon(Icons.Filled.Close, "Quitar filtro", tint = NB.text2, modifier = Modifier.size(20.dp)) }
                         }
                     }
@@ -269,20 +270,6 @@ fun LibraryScreen() {
                                 fontWeight = if (sort == k) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (sort == k) NB.text else NB.text3,
                                 modifier = Modifier.clickable { sort = k; Prefs.sortOrder = k }.padding(vertical = 4.dp),
-                            )
-                        }
-                    }
-                    // Portadas por fila: 2, 3 o 4
-                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        (2..4).forEach { n ->
-                            Text(
-                                "$n", fontSize = 13.sp, fontFamily = Inter,
-                                fontWeight = if (columns == n) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (columns == n) NB.onText else NB.text3,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.width(26.dp).clip(RoundedCornerShape(6.dp))
-                                    .background(if (columns == n) NB.text else Color.Transparent)
-                                    .clickable { columns = n; Prefs.libraryColumns = n }.padding(vertical = 3.dp),
                             )
                         }
                     }
@@ -337,12 +324,18 @@ fun LibraryScreen() {
     addToShelf?.let { s -> AddToShelfDialog(s, books) { addToShelf = null } }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueCard(b: Book, cpm: Int, onOpen: () -> Unit, fixedHeight: Boolean = false) {
     val left = (b.totalChars * (1f - b.progress)).toInt()
     Row(
         Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
+            // Tocar la tarjeta o la portada sigue leyendo; mantener pulsado abre el menú del libro
+            .combinedClickable(
+                onClick = { if (b.inApp) onOpen() else AppState.screen.value = Screen.Book(b.id) },
+                onLongClick = { AppState.bookMenu.value = b.id },
+            )
             .background(Brush.horizontalGradient(listOf(NB.surface2, NB.surface)))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -585,6 +578,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 // Organizar y datos del libro
                 MenuGroup("Libro")
                 MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
+                MenuRow("Ver ficha del libro") { onDismiss(); AppState.screen.value = Screen.Book(b.id) }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 MenuRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
                 var more by remember { mutableStateOf(false) }
@@ -664,7 +658,9 @@ private fun HomePane(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             recent.forEach { b ->
-                Column(Modifier.width(108.dp).combinedClickable(onClick = { onDetails(b) }, onLongClick = { AppState.bookMenu.value = b.id })) {
+                Column(Modifier.width(108.dp).combinedClickable(
+                    onClick = { if (b.status == BookStatus.Reading && b.inApp) onOpen(b) else onDetails(b) },
+                    onLongClick = { AppState.bookMenu.value = b.id })) {
                     BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
                     if (b.status == BookStatus.Reading) {
                         Spacer(Modifier.height(5.dp))
