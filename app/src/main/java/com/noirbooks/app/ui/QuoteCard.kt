@@ -118,7 +118,7 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
     // Ventana a pantalla completa y márgenes medidos en la ventana principal: así nada queda bajo las barras del móvil
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
-        Column(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH, bottom = navH.coerceAtLeast(16.dp) + 12.dp)) {
+        Column(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH.coerceAtLeast(28.dp) + 14.dp, bottom = navH.coerceAtLeast(12.dp) + 4.dp)) {
             // Cabecera: cerrar · formato (Historia | Publicación) · guardar
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, "Cerrar", tint = NB.text) }
@@ -143,7 +143,7 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
                 else Spacer(Modifier.size(48.dp))
             }
             // Vista previa grande, con sombra suave
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 64.dp, vertical = 22.dp), contentAlignment = Alignment.Center) {
                 val b = preview
                 if (b == null) CircularProgressIndicator(Modifier.size(26.dp), color = NB.text, strokeWidth = 2.dp)
                 else Image(b.asImageBitmap(), "Vista previa", contentScale = ContentScale.Fit,
@@ -171,7 +171,7 @@ fun QuoteShareDialog(q: QuoteShare, onDismiss: () -> Unit) {
             }
             // Una sola acción principal
             Box(
-                Modifier.padding(horizontal = 20.dp, vertical = 16.dp).fillMaxWidth().height(52.dp)
+                Modifier.padding(horizontal = 20.dp, vertical = 14.dp).fillMaxWidth().height(50.dp)
                     .clip(RoundedCornerShape(50)).background(NB.text)
                     .clickable { preview?.let { shareBitmap(ctx, it.copy(Bitmap.Config.ARGB_8888, false), "cita", "“${q.text}” — ${q.title}") } },
                 contentAlignment = Alignment.Center,

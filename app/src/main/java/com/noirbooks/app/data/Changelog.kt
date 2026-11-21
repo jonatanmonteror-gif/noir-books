@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.65", "21 nov 2026", listOf(
+            "Compartir cita: la barra Historia / Publicación baja un poco y la vista previa es más pequeña para que todo quepa con aire",
+        )),
         Entry("1.0.64", "21 nov 2026", listOf(
             "El botón Compartir de las citas ya cabe entero: la pantalla ocupa todo el móvil y respeta la barra de abajo",
             "Lo mismo en el diccionario y en la lectura rápida",
