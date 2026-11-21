@@ -518,7 +518,7 @@ class ReaderController(
 
     private fun prepareInit() {
         initJson = JSONObject()
-            .put("settings", Prefs.effectiveReader().toJson())
+            .put("settings", jsSettings())
             .put("target", target)
             .put("lang", epub.language.ifBlank { "es" })
             .put("highlights", highlightsJson(chapter))
@@ -599,7 +599,80 @@ class ReaderController(
         prepareInit()
         val eff = Prefs.effectiveReader()
         web?.setBackgroundColor(eff.palette().bg.toInt())
-        js("window.noir && noir.apply(${JSONObject.quote(eff.toJson().toString())})")
+        js("window.noir && noir.apply(${JSONObject.quote(jsSettings().toString())})")
+    }
+
+    /** Ajustes para el JavaScript: los de lectura + los de este libro (continuo) y el gesto del borde. */
+    private fun jsSettings(): JSONObject = Prefs.effectiveReader().toJson()
+        .put("scroll", Prefs.isScrollBook(bookId))
+        .put("edge", Prefs.edgeFontSize)
+
+    val scrollMode: Boolean get() = Prefs.isScrollBook(bookId)
+    fun setScrollMode(on: Boolean) { Prefs.setScrollBook(bookId, on); applySettings() }
+
+    // ---- Tamaño de letra con el borde ----
+    /** Tamaño que se está eligiendo con el dedo (se ve en grande); null cuando no se está deslizando. */
+    var fontPreview by mutableStateOf<Int?>(null)
+        private set
+
+    // ---- Cita que sigue en la página siguiente ----
+    /** Primera parte de una cita que continúa en la página siguiente (mismo capítulo). */
+    var pendingStart by mutableStateOf<TextSelection?>(null)
+        private set
+
+    fun canContinueSelection() = page < count - 1
+
+    fun continueSelection() {
+        val s = selection ?: return
+        pendingStart = s
+        js("window.noir && noir.clearSelection()")
+        selection = null
+        js("window.noir && noir.markPending(${JSONObject.quote(s.range)})")
+        next()
+    }
+
+    fun cancelContinue() {
+        pendingStart = null
+        js("window.noir && noir.clearPending()")
+    }
+
+    /** Junta la primera parte con lo que se acaba de seleccionar. */
+    private fun mergeWithPending(sel: TextSelection): TextSelection {
+        val p = pendingStart ?: return sel
+        return runCatching {
+            val a = JSONObject(p.range); val b = JSONObject(sel.range)
+            val r = JSONObject().put("s", a.getJSONArray("s")).put("so", a.getInt("so"))
+                .put("e", b.getJSONArray("e")).put("eo", b.getInt("eo"))
+            sel.copy(range = r.toString(), text = (p.text.trimEnd() + " " + sel.text.trimStart()).trim(), fraction = p.fraction)
+        }.getOrDefault(sel)
+    }
+
+    // ---- Lectura rápida (palabra a palabra) ----
+    /** Frases desde la página visible (texto y posición), para la lectura rápida. */
+    fun sentencesFromHere(fromHere: Boolean, cb: (List<Pair<String, String>>) -> Unit) {
+        val w = web ?: return cb(emptyList())
+        w.evaluateJavascript("window.noir ? noir.ttsSentences($fromHere) : '[]'") { raw ->
+            cb(runCatching {
+                val arr = JSONArray(org.json.JSONTokener(raw).nextValue() as String)
+                (0 until arr.length()).map { i -> arr.getJSONObject(i).let { it.getString("t") to it.getJSONObject("r").toString() } }
+            }.getOrDefault(emptyList()))
+        }
+    }
+
+    /** Lleva la página a una frase y la marca un momento. */
+    fun showSentence(range: String) {
+        js("window.noir && noir.ttsMark(${JSONObject.quote(range)})")
+        main.postDelayed({ js("window.noir && noir.ttsClear()") }, 1800)
+    }
+
+    private var onReadyOnce: (() -> Unit)? = null
+    /** Pasa al capítulo siguiente y avisa cuando está listo. Devuelve false si era el último. */
+    fun nextChapterThen(cb: () -> Unit): Boolean {
+        if (chapter >= epub.spine.lastIndex) return false
+        onReadyOnce = cb
+        closePage(turned = true)
+        loadChapter(chapter + 1, START)
+        return true
     }
 
     fun snippet(cb: (String) -> Unit) {
@@ -647,6 +720,7 @@ class ReaderController(
             text = s.text, color = color, note = note, chapterTitle = chapterTitle(),
         )
         clearSelection()
+        if (pendingStart != null) cancelContinue()
         scope.launch {
             Library.update(bookId) { b -> b.copy(highlights = (b.highlights + h).sortedWith(compareBy({ it.chapter }, { it.fraction }))) }
             repaintHighlights()
@@ -781,6 +855,22 @@ class ReaderController(
             pageSince = System.currentTimeMillis()
             savePosition()
             if (ttsNextChapter && ttsActive) { ttsNextChapter = false; ttsFetch(fromHere = false) }
+            onReadyOnce?.let { onReadyOnce = null; it() }
+            if (pendingStart != null) cancelContinue()
+        }
+
+        @JavascriptInterface
+        fun onFontStep(d: Int) = main.post {
+            val cur = fontPreview ?: Prefs.effectiveReader().fontSize
+            fontPreview = (cur + d).coerceIn(12, 40)
+        }
+
+        @JavascriptInterface
+        fun onFontEnd() = main.post {
+            val n = fontPreview ?: return@post
+            main.postDelayed({ fontPreview = null }, 700)
+            val s = Prefs.reader.value
+            if (n != s.fontSize) Prefs.setReader(s.copy(fontSize = n))
         }
 
         @JavascriptInterface
@@ -820,7 +910,7 @@ class ReaderController(
 
         @JavascriptInterface
         fun onSelection(json: String?) = main.post {
-            selection = if (json.isNullOrBlank()) null else runCatching {
+            val parsed = if (json.isNullOrBlank()) null else runCatching {
                 val o = JSONObject(json)
                 TextSelection(
                     range = o.getJSONObject("range").toString(),
@@ -831,6 +921,7 @@ class ReaderController(
                     bottom = o.optDouble("bottom", 0.0).toFloat(),
                 )
             }.getOrNull()
+            selection = parsed?.let { mergeWithPending(it) }
         }
 
         @JavascriptInterface

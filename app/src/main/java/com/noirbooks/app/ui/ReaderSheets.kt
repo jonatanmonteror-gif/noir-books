@@ -170,21 +170,21 @@ private fun Tab(label: String, selected: Boolean, onClick: () -> Unit) {
 /** Ajustes rápidos de lectura (se aplican al momento y se guardan para todos los libros). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StyleSheet(onDismiss: () -> Unit) {
+fun StyleSheet(onDismiss: () -> Unit, scroll: Boolean? = null, onScroll: ((Boolean) -> Unit)? = null) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
         ) {
-            ReadingControls()
+            ReadingControls(scroll = scroll, onScroll = onScroll)
         }
     }
 }
 
 /** Controles de lectura compartidos entre el lector y la pantalla de Ajustes. */
 @Composable
-fun ReadingControls(showPreview: Boolean = false) {
+fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScroll: ((Boolean) -> Unit)? = null) {
     val s by Prefs.reader
     fun set(n: ReaderSettings) = Prefs.setReader(n)
 
@@ -315,6 +315,12 @@ fun ReadingControls(showPreview: Boolean = false) {
     }
     FoldSection("Avanzado", "Concentración, tablet, botones y pantalla") {
         Toggle("Modo concentración (solo el texto)", s.focus) { set(s.copy(focus = it)) }
+        var edge by remember { mutableStateOf(Prefs.edgeFontSize) }
+        Toggle("Cambiar el tamaño de letra deslizando por el borde derecho", edge) { edge = it; Prefs.edgeFontSize = it; set(s.copy()) }
+        if (scroll != null && onScroll != null) {
+            var sc by remember { mutableStateOf(scroll) }
+            Toggle("Desplazamiento continuo en este libro (sin páginas)", sc) { sc = it; onScroll(it) }
+        }
         Label("Zonas al tocar la página")
         TapZones(s.tapLayout) { set(s.copy(tapLayout = it)) }
         Spacer(Modifier.height(10.dp))

@@ -466,6 +466,24 @@ object Prefs {
         get() = sp.getString("shelf_mode", "all") ?: "all"
         set(v) { sp.edit().putString("shelf_mode", v).apply() }
 
+    /** Cambiar el tamaño de letra deslizando por el borde derecho. */
+    var edgeFontSize: Boolean
+        get() = sp.getBoolean("edge_font_size", true)
+        set(v) { sp.edit().putBoolean("edge_font_size", v).apply() }
+
+    /** Libros que se leen con desplazamiento continuo (en vez de por páginas). */
+    fun isScrollBook(id: String) = sp.getStringSet("scroll_books", emptySet())?.contains(id) == true
+    fun setScrollBook(id: String, on: Boolean) {
+        val set = (sp.getStringSet("scroll_books", emptySet()) ?: emptySet()).toMutableSet()
+        if (on) set.add(id) else set.remove(id)
+        sp.edit().putStringSet("scroll_books", set).apply()
+    }
+
+    /** Palabras por minuto de la lectura rápida. */
+    var rsvpWpm: Int
+        get() = sp.getInt("rsvp_wpm", 300)
+        set(v) { sp.edit().putInt("rsvp_wpm", v).apply() }
+
     var libraryColumns: Int
         get() = sp.getInt("library_columns", 3)
         set(v) { sp.edit().putInt("library_columns", v).apply() }

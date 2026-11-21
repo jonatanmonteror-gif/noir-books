@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.57", "21 nov 2026", listOf(
+            "Tamaño de letra deslizando arriba o abajo por el borde derecho (se ve el número en grande); se puede desactivar en Lectura → Avanzado",
+            "Desplazamiento continuo por libro, sin páginas (Lectura → Avanzado); al final, «Siguiente capítulo»",
+            "Citas que siguen en la página siguiente: selecciona, pulsa «Sigue ›» y elige dónde termina",
+            "Lectura rápida palabra a palabra (botón Rápida abajo): de 100 a 800 palabras por minuto",
+        )),
         Entry("1.0.56", "21 nov 2026", listOf(
             "Subrayar más fino: la selección ya no mueve la página ni se escapa a la página siguiente",
             "Android ya no amplía la selección por su cuenta («selección inteligente»)",

@@ -179,6 +179,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
     var noteFor by remember { mutableStateOf<Int?>(null) } // color del subrayado nuevo con nota
     var dictionaryWord by remember { mutableStateOf<Pair<String, String>?>(null) }
     var translateText by remember { mutableStateOf<String?>(null) }
+    var rsvp by remember { mutableStateOf(false) }
     val cpm = remember { Stats.charsPerMinute() }
 
     var askSave by remember { mutableStateOf(false) }
@@ -495,11 +496,38 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             }
         }
 
+        // Tamaño de letra mientras se desliza por el borde
+        c.fontPreview?.let { n ->
+            Box(
+                Modifier.align(Alignment.Center).clip(RoundedCornerShape(20.dp)).background(Color(0xE6151517))
+                    .padding(horizontal = 28.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$n", color = Color.White, fontSize = 44.sp, fontFamily = InterDisplay, fontWeight = FontWeight.SemiBold)
+                    Text("tamaño de letra", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontFamily = Inter)
+                }
+            }
+        }
+
+        // Cita que sigue en esta página: aviso hasta que se selecciona el final
+        if (c.pendingStart != null && c.selection == null) {
+            Row(
+                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 10.dp, start = 16.dp, end = 16.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0xF0151517)).padding(start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Selecciona dónde termina la cita", color = Color.White, fontSize = 13.sp, fontFamily = Inter)
+                TextButton(onClick = { c.cancelContinue() }) { Text("Cancelar", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp) }
+            }
+        }
+
         // Barra inferior
         AnimatedVisibility(bars, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter)) {
             BottomBar(c, fg, muted, bg,
                 onToc = { sheet = Sheet.Toc; bars = false },
-                onStyle = { sheet = Sheet.Style; bars = false })
+                onStyle = { sheet = Sheet.Style; bars = false },
+                onRapid = { rsvp = true; bars = false })
         }
 
         // Barra de selección propia (subrayar, nota, copiar, compartir, diccionario)
@@ -524,6 +552,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     c.clearSelection()
                 },
                 onTranslate = { translateText = sel.text.trim(); c.clearSelection() },
+                onContinue = if (c.canContinueSelection()) ({ c.continueSelection() }) else null,
                 modifier = Modifier.align(if (sel.top > 0.5f) Alignment.TopCenter else Alignment.BottomCenter),
             )
         }
@@ -537,7 +566,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 
     when (sheet) {
         Sheet.Toc -> TocSheet(c, onDismiss = { sheet = Sheet.None })
-        Sheet.Style -> StyleSheet(onDismiss = { sheet = Sheet.None })
+        Sheet.Style -> StyleSheet(onDismiss = { sheet = Sheet.None }, scroll = c.scrollMode, onScroll = { c.setScrollMode(it) })
         Sheet.Search -> SearchSheet(c, onDismiss = { sheet = Sheet.None })
         Sheet.None -> {}
     }
@@ -556,6 +585,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
             onDismiss = { c.tappedHighlight = null },
         )
     }
+    if (rsvp) RsvpOverlay(c, onClose = { rsvp = false })
     dictionaryWord?.let { (w, _) -> DictionarySheet(w, onDismiss = { dictionaryWord = null }, language = c.epub.language) }
     translateText?.let { t -> DictionarySheet(t, onDismiss = { translateText = null }, language = c.epub.language, startTab = -1) }
     if (askSave && book != null) {
@@ -604,7 +634,7 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 }
 
 @Composable
-private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit) {
+private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, onToc: () -> Unit, onStyle: () -> Unit, onRapid: () -> Unit) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val book = c.book
     Column(
@@ -667,6 +697,13 @@ private fun BottomBar(c: ReaderController, fg: Color, muted: Color, bg: Color, o
                     Text("Aa", color = fg, fontSize = 18.sp, fontFamily = Playfair, modifier = Modifier.height(22.dp))
                     Text("Lectura", color = fg, fontSize = 11.sp, fontFamily = Inter)
                 }
+                Column(
+                    Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onRapid).padding(horizontal = 12.dp, vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(painterResource(R.drawable.ic_speed), null, tint = fg, modifier = Modifier.size(22.dp))
+                    Text("Rápida", color = fg, fontSize = 11.sp, fontFamily = Inter)
+                }
             }
             Spacer(Modifier.weight(1f))
             val canNext = c.chapter < c.epub.spine.lastIndex
@@ -692,6 +729,7 @@ private fun SelectionBar(
     sel: TextSelection, fg: Color, bg: Color,
     onColor: (Int) -> Unit, onNote: () -> Unit, onCopy: () -> Unit, onShare: () -> Unit, onDefine: () -> Unit,
     onTranslate: () -> Unit,
+    onContinue: (() -> Unit)? = null,
     modifier: Modifier,
 ) {
     val single = !sel.text.trim().contains(' ')
@@ -715,6 +753,7 @@ private fun SelectionBar(
             BarAction("Compartir", onShare)
             if (single) BarAction("Definir", onDefine)
             BarAction("Traducir", onTranslate)
+            if (onContinue != null) BarAction("Sigue ›", onContinue)
         }
     }
 }

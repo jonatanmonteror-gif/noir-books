@@ -24,8 +24,16 @@
   // columna completa y la última página quedaba descolocada.
   function setOffset(x) {
     offset = x;
-    document.documentElement.style.setProperty('transform', 'translateX(' + (-x) + 'px)', 'important');
+    if (S && S.scroll) {
+      document.documentElement.style.setProperty('transform', 'none', 'important');
+      scrolling = true; window.scrollTo(0, x); setTimeout(function () { scrolling = false; }, 60);
+    } else {
+      document.documentElement.style.setProperty('transform', 'translateX(' + (-x) + 'px)', 'important');
+    }
   }
+  /** Lo que avanza una «página»: el ancho (por páginas) o casi una pantalla de alto (desplazamiento continuo). */
+  function step() { return (S && S.scroll) ? Math.max(120, vh() - 56) : vw(); }
+  var scrolling = false;
 
   function cssFor(s) {
     var m = s.margin;
@@ -79,6 +87,14 @@
     c.push('::highlight(nb-tts){background-color:' + (s.dark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.10)') + ';}');
     c.push('::highlight(nb-search){background-color:' + (s.dark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.22)') + ';}');
     c.push('#__noir_end{display:block!important;height:0!important;margin:0!important;padding:0!important;border:0!important;}');
+    if (s.scroll) {
+      // Desplazamiento continuo: sin columnas, el capítulo entero hacia abajo
+      c.push('html{height:auto!important;min-height:' + H + 'px!important;column-count:auto!important;columns:auto!important;' +
+        'overflow-x:hidden!important;overflow-y:visible!important;transform:none!important;padding-bottom:' + Math.round(H * 0.35) + 'px!important;}');
+      c.push('body{overflow:visible!important;}');
+      c.push('#__noir_next{display:block;margin:2.5em auto 0 auto;padding:0.8em 1.6em;border:1px solid currentColor;border-radius:999px;' +
+        'font:600 15px sans-serif;text-align:center;width:max-content;opacity:0.75;text-indent:0!important;}');
+    }
     return c.join('\n');
   }
 
@@ -89,6 +105,11 @@
       (document.head || document.documentElement).appendChild(styleEl);
     }
     styleEl.textContent = cssFor(S);
+    var nx = document.getElementById('__noir_next');
+    if (S && S.scroll && !nx && document.body) {
+      nx = document.createElement('div'); nx.id = '__noir_next'; nx.textContent = 'Siguiente capítulo ›';
+      document.body.appendChild(nx);
+    } else if (nx && !(S && S.scroll)) { nx.parentNode.removeChild(nx); }
     if (!document.getElementById('__noir_end') && document.body) {
       var end = document.createElement('div');
       end.id = '__noir_end';
@@ -100,6 +121,11 @@
     var end = document.getElementById('__noir_end');
     var w = vw();
     if (!end || w <= 0) { count = 1; return; }
+    if (S && S.scroll) {
+      var h = document.documentElement.scrollHeight;
+      count = Math.max(1, Math.ceil(Math.max(0, h - vh()) / step()) + 1);
+      return;
+    }
     var x = end.getBoundingClientRect().left + offset;
     count = Math.max(1, Math.floor((x + 1) / w) + 1);
   }
@@ -147,6 +173,7 @@
   }
 
   function pageOfRect(rect) {
+    if (S && S.scroll) return Math.max(0, Math.min(count - 1, Math.floor((rect.top + window.scrollY - 4) / step())));
     return Math.max(0, Math.min(count - 1, Math.floor((rect.left + offset + 1) / vw())));
   }
 
@@ -187,7 +214,7 @@
 
   function show(p, notify) {
     page = Math.max(0, Math.min(count - 1, p));
-    setOffset(page * vw());
+    setOffset(page * step());
     if (notify !== false) { A.onPage(page, count, anchorNow()); reportPrinted(); }
   }
 
@@ -367,7 +394,7 @@
     return r.getClientRects()[0] || r.getBoundingClientRect();
   }
   function clampSelection(sel) {
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !S) return false;
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed || !S || S.scroll) return false;
     var W = vw(), H = vh();
     var m = S.margin || 20, mt = S.mtop || 22, mb = S.mbottom || 14;
     var r = sel.getRangeAt(0);
@@ -393,12 +420,24 @@
     return changed;
   }
   function lockScroll() {
+    if (S && S.scroll) { if (window.scrollX) window.scrollTo(0, window.scrollY); return; }
     if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
     var de = document.documentElement, b = document.body;
     if (de && (de.scrollLeft || de.scrollTop)) { de.scrollLeft = 0; de.scrollTop = 0; }
     if (b && (b.scrollLeft || b.scrollTop)) { b.scrollLeft = 0; b.scrollTop = 0; }
   }
   window.addEventListener('scroll', lockScroll, true);
+  // Desplazamiento continuo: la «página» sigue a lo que se ve (para la posición, el pie y las estadísticas)
+  var scrollTimer = null;
+  window.addEventListener('scroll', function () {
+    if (!S || !S.scroll || !ready || scrolling) return;
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function () {
+      var p = Math.max(0, Math.min(count - 1, Math.round(window.scrollY / step())));
+      offset = window.scrollY;
+      if (p !== page) { page = p; A.onPage(page, count, anchorNow()); reportPrinted(); }
+    }, 250);
+  }, { passive: true });
   document.addEventListener('scroll', lockScroll, true);
 
   var selTimer = null, lastSel = '';
@@ -427,12 +466,29 @@
 
   // ---- Gestos: deslizar para pasar página, tocar para que la app decida ----
   var sx = 0, sy = 0, st = 0, multi = false;
+  // Borde derecho: deslizar arriba o abajo cambia el tamaño de letra
+  var edge = null, edgeUsed = false;
   document.addEventListener('touchstart', function (e) {
     multi = e.touches.length > 1;
     var t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now();
+    edgeUsed = false;
+    edge = (S && S.edge && !multi && t.clientX > vw() * 0.9) ? { y: t.clientY, steps: 0 } : null;
   }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!edge || e.touches.length > 1) return;
+    var t = e.touches[0];
+    var dy = edge.y - t.clientY;
+    if (Math.abs(dy) < 14 && !edgeUsed) return;
+    if (!edgeUsed && Math.abs(t.clientX - sx) > Math.abs(dy)) { edge = null; return; }
+    edgeUsed = true;
+    e.preventDefault();
+    var n = (dy > 0 ? Math.floor : Math.ceil)(dy / 26);
+    if (n !== edge.steps) { A.onFontStep(n - edge.steps); edge.steps = n; }
+  }, { passive: false });
   document.addEventListener('touchend', function (e) {
+    if (edgeUsed) { edge = null; A.onFontEnd(); return; }
     if (multi) return;
+    if (S && S.scroll) return; // en continuo, deslizar desplaza el texto
     var t = e.changedTouches[0];
     var dx = t.clientX - sx, dy = t.clientY - sy;
     if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4 && Date.now() - st < 900) {
@@ -443,6 +499,8 @@
   }, { passive: true });
 
   document.addEventListener('click', function (e) {
+    if (edgeUsed) { e.preventDefault(); return; }
+    if (e.target && e.target.id === '__noir_next') { e.preventDefault(); A.onEnd(); return; }
     var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (a) {
       e.preventDefault();
@@ -540,6 +598,11 @@
       } catch (e) {}
     },
     ttsClear: function () { try { CSS.highlights.delete('nb-tts'); } catch (e) {} },
+    /** Marca suave de una parte ya elegida (cita que sigue en la página siguiente). */
+    markPending: function (json) {
+      try { var r = toRange(typeof json === 'string' ? JSON.parse(json) : json); if (r) CSS.highlights.set('nb-search', new Highlight(r)); } catch (e) {}
+    },
+    clearPending: function () { try { CSS.highlights.delete('nb-search'); } catch (e) {} },
     pageOfRangeJson: function (json) { var r = toRange(JSON.parse(json)); return r ? pageOfRange(r) : -1; },
     /** Primeras palabras de la página visible (para los marcadores). */
     snippet: function () {
