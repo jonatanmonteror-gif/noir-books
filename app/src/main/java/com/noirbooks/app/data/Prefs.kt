@@ -113,6 +113,8 @@ data class ReaderSettings(
     val focus: Boolean = false,
     /** La hora arriba a la izquierda, discreta (como en Kindle). */
     val headerClock: Boolean = false,
+    /** La hora y la batería de arriba también en modo concentración. */
+    val headerInFocus: Boolean = false,
     val justify: Boolean = true,
     val hyphens: Boolean = true,
     val twoPages: Boolean = true,    // dos páginas en horizontal en pantallas anchas
@@ -171,6 +173,9 @@ object Prefs {
     val reader = mutableStateOf(ReaderSettings())
     /** Apariencia de la app: "system", "dark" o "light". */
     val appearanceState = mutableStateOf("dark")
+    /** Tamaño de la interfaz de la app (no del texto de los libros): 0,85 pequeño, 0,92 medio, 1 normal. */
+    val uiScale = mutableStateOf(0.92f)
+    fun setUiScale(v: Float) { uiScale.value = v; sp.edit().putFloat("ui_scale", v).apply() }
     /** Valoraciones: "basic" (estrellas) o "aspects" (trama, personajes y prosa). */
     val ratingMode = mutableStateOf("basic")
     /** Elogios: avisos discretos al terminar un libro o un mes. */
@@ -200,6 +205,7 @@ object Prefs {
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
         appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
+        uiScale.value = sp.getFloat("ui_scale", 0.92f)
         ratingMode.value = sp.getString("rating_mode", "basic") ?: "basic"
         praise.value = sp.getBoolean("praise", true)
         loadProfiles()
@@ -221,6 +227,7 @@ object Prefs {
             .putString("reader_footer_right", s.footerRight.key)
             .putBoolean("reader_focus", s.focus)
             .putBoolean("reader_header_clock", s.headerClock)
+            .putBoolean("reader_header_focus", s.headerInFocus)
             .putBoolean("reader_justify", s.justify)
             .putBoolean("reader_hyphens", s.hyphens)
             .putBoolean("reader_two_pages", s.twoPages)
@@ -253,6 +260,7 @@ object Prefs {
             footerRight = FooterInfo.of(sp.getString("reader_footer_right", null), d.footerRight, FooterInfo.RIGHT),
             focus = sp.getBoolean("reader_focus", d.focus),
             headerClock = sp.getBoolean("reader_header_clock", d.headerClock),
+            headerInFocus = sp.getBoolean("reader_header_focus", d.headerInFocus),
             justify = sp.getBoolean("reader_justify", d.justify),
             hyphens = sp.getBoolean("reader_hyphens", d.hyphens),
             twoPages = sp.getBoolean("reader_two_pages", d.twoPages),
@@ -328,7 +336,7 @@ object Prefs {
     fun settingsToJson(s: ReaderSettings): JSONObject = JSONObject()
         .put("theme", s.theme.key).put("font", s.font.key).put("size", s.fontSize).put("lh", s.lineHeight.toDouble())
         .put("mh", s.marginH).put("mv", s.marginV).put("para", s.paraSpacing.toDouble()).put("indent", s.indent.toDouble())
-        .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus).put("hclock", s.headerClock)
+        .put("publisher", s.publisher).put("fl", s.footerLeft.key).put("fr", s.footerRight.key).put("focus", s.focus).put("hclock", s.headerClock).put("hfocus", s.headerInFocus)
         .put("justify", s.justify).put("hyphens", s.hyphens).put("two", s.twoPages).put("vol", s.volumeKeys)
         .put("bright", s.brightness.toDouble()).put("awake", s.keepScreenOn).put("tap", s.tapLayout.key)
         .put("cbg", s.customBg).put("cfg", s.customFg).put("auto", s.autoTheme).put("day", s.dayTheme.key).put("night", s.nightTheme.key)
@@ -341,7 +349,7 @@ object Prefs {
             marginH = o.optInt("mh", d.marginH), marginV = o.optInt("mv", d.marginV),
             paraSpacing = o.optDouble("para", -1.0).toFloat(), indent = o.optDouble("indent", -1.0).toFloat(),
             publisher = o.optBoolean("publisher"), footerLeft = FooterInfo.of(o.optString("fl"), d.footerLeft, FooterInfo.LEFT),
-            footerRight = FooterInfo.of(o.optString("fr"), d.footerRight, FooterInfo.RIGHT), focus = o.optBoolean("focus"), headerClock = o.optBoolean("hclock"),
+            footerRight = FooterInfo.of(o.optString("fr"), d.footerRight, FooterInfo.RIGHT), focus = o.optBoolean("focus"), headerClock = o.optBoolean("hclock"), headerInFocus = o.optBoolean("hfocus"),
             justify = o.optBoolean("justify", d.justify), hyphens = o.optBoolean("hyphens", d.hyphens), twoPages = o.optBoolean("two", d.twoPages),
             volumeKeys = o.optBoolean("vol"), brightness = o.optDouble("bright", -1.0).toFloat(), keepScreenOn = o.optBoolean("awake", true),
             tapLayout = TapLayout.of(o.optString("tap")),

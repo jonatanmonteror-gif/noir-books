@@ -200,6 +200,16 @@ object AppState {
 
 @Composable
 fun App() {
+    // Tamaño de la interfaz (Ajustes → Apariencia): todo un poco más pequeño de serie
+    val scale by com.noirbooks.app.data.Prefs.uiScale
+    val base = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(base.density * scale, base.fontScale),
+    ) { AppContent() }
+}
+
+@Composable
+private fun AppContent() {
     NoirTheme {
         val ctx = LocalContext.current
         val screen by AppState.screen

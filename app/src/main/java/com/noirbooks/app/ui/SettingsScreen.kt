@@ -74,6 +74,15 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                     Spacer(Modifier.height(18.dp))
+                    val uiScale by com.noirbooks.app.data.Prefs.uiScale
+                    Text("Tamaño de la app", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0.85f to "Pequeño", 0.92f to "Medio", 1f to "Normal").forEach { (v, l) ->
+                            Chip(l, kotlin.math.abs(uiScale - v) < 0.01f) { com.noirbooks.app.data.Prefs.setUiScale(v) }
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
                     LibraryLookSettings()
                 }
 

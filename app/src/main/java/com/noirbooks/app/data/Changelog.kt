@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.61", "21 nov 2026", listOf(
+            "Hora y batería fijas arriba del todo en el lector, con margen por las esquinas del móvil",
+            "Elige si se ven también en modo concentración (Lectura → Pie de página → Arriba)",
+            "Márgenes con − y + de 4 en 4",
+            "Toda la app un poco más pequeña; el tamaño se cambia en Ajustes → Apariencia (Pequeño, Medio, Normal)",
+        )),
         Entry("1.0.60", "21 nov 2026", listOf(
             "Diccionario: cambiar entre RAE, Wikipedia y Traducir ya no hace un pantallazo negro ni recarga la página",
         )),

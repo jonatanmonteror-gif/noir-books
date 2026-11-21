@@ -267,9 +267,9 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         }
 
         Label("Márgenes laterales")
-        PxSlider(s.marginH, 4, 72) { set(s.copy(marginH = it)) }
+        StepControl(s.marginH, 4, 72, 4) { set(s.copy(marginH = it)) }
         Label("Márgenes arriba y abajo")
-        PxSlider(s.marginV, 6, 72) { set(s.copy(marginV = it)) }
+        StepControl(s.marginV, 6, 72, 4) { set(s.copy(marginV = it)) }
 
         Label("Espacio entre párrafos")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -307,9 +307,10 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         FooterChoices(FooterInfo.RIGHT, s.footerRight) { set(s.copy(footerRight = it)) }
         Label("Arriba")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("Hora arriba", s.headerClock, Modifier.weight(1f)) { set(s.copy(headerClock = true)) }
+            Choice("Hora y batería", s.headerClock, Modifier.weight(1f)) { set(s.copy(headerClock = true)) }
             Choice("Nada", !s.headerClock, Modifier.weight(1f)) { set(s.copy(headerClock = false)) }
         }
+        if (s.headerClock) Toggle("Mostrarlas también en modo concentración", s.headerInFocus) { set(s.copy(headerInFocus = it)) }
         Spacer(Modifier.height(6.dp))
         Text("También puedes tocar cada lado del pie mientras lees para cambiarlo.", color = NB.text3, fontSize = 12.sp)
     }
@@ -353,6 +354,17 @@ private fun Preview(s: ReaderSettings) {
 }
 
 /** Deslizador que solo aplica el cambio al soltar (cada cambio vuelve a maquetar el capítulo). */
+/** − valor + : cambia de [step] en [step] (más fácil de ajustar que un deslizador). */
+@Composable
+private fun StepControl(value: Int, min: Int, max: Int, step: Int, onChange: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Choice("−", false, Modifier.width(56.dp)) { onChange((value - step).coerceAtLeast(min)) }
+        Text("$value", color = NB.text, fontSize = 16.sp, fontFamily = Inter, fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.weight(1f))
+        Choice("+", false, Modifier.width(56.dp)) { onChange((value + step).coerceAtMost(max)) }
+    }
+}
+
 @Composable
 private fun PxSlider(value: Int, min: Int, max: Int, onDone: (Int) -> Unit) {
     var v by remember(value) { mutableStateOf(value.toFloat()) }

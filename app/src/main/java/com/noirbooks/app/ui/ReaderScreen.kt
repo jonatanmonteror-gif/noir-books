@@ -307,14 +307,19 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
 
     Box(Modifier.fillMaxSize().background(bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.displayCutout)) {
-            if (settings.headerClock && !settings.focus) {
+            // Arriba del todo, fijo: hora a la izquierda y batería a la derecha, con margen por las esquinas redondeadas
+            if (settings.headerClock && (!settings.focus || settings.headerInFocus)) {
                 var now by remember { mutableStateOf(System.currentTimeMillis()) }
                 LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(20_000) } }
-                Text(
-                    java.text.SimpleDateFormat("H:mm", java.util.Locale.getDefault()).format(java.util.Date(now)),
-                    color = muted, fontSize = 12.sp, fontFamily = Inter, maxLines = 1,
-                    modifier = Modifier.padding(start = settings.marginH.dp.coerceAtLeast(16.dp), top = 10.dp, bottom = 2.dp),
-                )
+                val battery = remember(now) {
+                    (ctx.getSystemService(android.content.Context.BATTERY_SERVICE) as? android.os.BatteryManager)
+                        ?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
+                }
+                Row(Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(java.text.SimpleDateFormat("H:mm", java.util.Locale.getDefault()).format(java.util.Date(now)),
+                        color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (battery != null) Text("$battery %", color = muted, fontSize = 11.sp, fontFamily = Inter, maxLines = 1)
+                }
             }
             key(c.webKey) {
                 AndroidView(
