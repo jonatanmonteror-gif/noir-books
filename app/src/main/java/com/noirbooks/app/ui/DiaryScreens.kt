@@ -659,8 +659,44 @@ fun StatsScreen() {
         }
 
         Spacer(Modifier.height(22.dp))
-        SectionLabel("Horas por mes")
-        BarChart(byMonth.map { it / 3600f }, MONTHS_SHORT, highlight = if (year == now.get(Calendar.YEAR)) now.get(Calendar.MONTH) else -1)
+        // Tiempo de lectura por semana (días), mes (días) o año (meses)
+        val isNow = year == now.get(Calendar.YEAR)
+        var chart by rememberSaveable { mutableStateOf("year") }
+        val mode = if (!isNow) "year" else chart
+        val perDay = remember(all) { all.groupBy { it.date }.mapValues { (_, l) -> l.sumOf { it.seconds } } }
+        fun dk(c: Calendar) = "%04d-%02d-%02d".format(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("TIEMPO DE LECTURA", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f))
+            if (isNow) {
+                Chip("Semana", mode == "week") { chart = "week" }
+                Spacer(Modifier.width(6.dp))
+                Chip("Mes", mode == "month") { chart = "month" }
+                Spacer(Modifier.width(6.dp))
+                Chip("Año", mode == "year") { chart = "year" }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        when (mode) {
+            "week" -> {
+                val start = Calendar.getInstance().apply { while (get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) add(Calendar.DAY_OF_MONTH, -1) }
+                val vals = (0 until 7).map { i -> (perDay[dk((start.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, i) })] ?: 0L) }
+                BarChart(vals.map { it / 60f }, listOf("L", "M", "X", "J", "V", "S", "D"), highlight = (now.get(Calendar.DAY_OF_WEEK) + 5) % 7)
+                Text("Esta semana: ${durationLabel(vals.sum()).takeIf { vals.sum() > 0 } ?: "0 min"}", color = NB.text3, fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            }
+            "month" -> {
+                val dim = now.getActualMaximum(Calendar.DAY_OF_MONTH)
+                val vals = (1..dim).map { d -> perDay["%04d-%02d-%02d".format(year, now.get(Calendar.MONTH) + 1, d)] ?: 0L }
+                BarChart(vals.map { it / 60f }, (1..dim).map { if (it == 1 || it % 5 == 0) "$it" else "" }, highlight = now.get(Calendar.DAY_OF_MONTH) - 1)
+                Text("Este mes: ${durationLabel(vals.sum()).takeIf { vals.sum() > 0 } ?: "0 min"} · minutos por día", color = NB.text3, fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            }
+            else -> {
+                BarChart(byMonth.map { it / 3600f }, MONTHS_SHORT, highlight = if (isNow) now.get(Calendar.MONTH) else -1)
+                Text("Horas por mes", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            }
+        }
 
         Spacer(Modifier.height(22.dp))
         SectionLabel("A qué hora lees")
@@ -678,6 +714,11 @@ fun StatsScreen() {
                     Text(durationLabel(s), color = NB.text3, fontSize = 13.sp)
                 }
             }
+        }
+        if (yearReads.isNotEmpty()) {
+            Spacer(Modifier.height(22.dp))
+            SectionLabel("Por género")
+            GenreStats(yearReads, books, year)
         }
         if (all.isEmpty()) {
             Text(

@@ -5,6 +5,13 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.44", "21 nov 2026", listOf(
+            "Gráficos del tiempo de lectura por semana, mes y año (Estadísticas)",
+            "Género de cada libro: se busca solo y se puede cambiar desde el menú del libro; estadísticas por género",
+            "Nota opcional al guardar una lectura («¿qué te ha parecido?»), visible en el registro",
+            "Elogios: un aviso discreto al terminar un libro o un mes cuando hay algo que destacar (Ajustes → Diario)",
+            "Valoración básica o por aspectos (trama, personajes y prosa), a elegir en Ajustes → Diario",
+        )),
         Entry("1.0.43", "21 nov 2026", listOf(
             "Meta diaria en Estadísticas: «Hoy: 18 de 30 min»",
             "Calendario del año entero: un cuadrito por día, más oscuro cuanto más leíste",

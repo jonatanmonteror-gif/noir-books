@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.text.TextPaint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -425,4 +426,75 @@ fun shareBitmap(ctx: Context, bmp: Bitmap, name: String, text: String) {
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         ctx.startActivity(Intent.createChooser(i, "Compartir").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.onFailure { ErrorLog.note("Compartir imagen", it); AppState.toast("No se pudo crear la imagen") }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Género
+// ---------------------------------------------------------------------------------------------
+
+/** Elegir el género de un libro (o escribir otro). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun GenreDialog(current: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    var custom by remember { mutableStateOf(if (current.isNotBlank() && current !in com.noirbooks.app.data.Genres.ALL) current else "") }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = { Text("Género", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    com.noirbooks.app.data.Genres.ALL.forEach { g -> Chip(g, g == current) { onPick(g) } }
+                }
+                Spacer(Modifier.height(14.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    custom, { custom = it.take(40) }, singleLine = true,
+                    placeholder = { Text("Otro género", color = NB.text3) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+                        focusedTextColor = NB.text, unfocusedTextColor = NB.text),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { if (custom.isNotBlank()) onPick(custom.trim()) else onDismiss() }) {
+                Text(if (custom.isNotBlank()) "Guardar" else "Cerrar", color = NB.text, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = { if (current.isNotBlank()) TextButton(onClick = { onPick("") }) { Text("Quitar género", color = NB.text2) } },
+    )
+}
+
+
+/** Tiempo de lectura del año por género, con los libros terminados de cada uno. */
+@Composable
+fun GenreStats(yearReads: List<DayRead>, books: List<Book>, year: Int) {
+    val byId = books.associateBy { it.id }
+    val rows = yearReads.groupBy { byId[it.bookId]?.genre?.ifBlank { null } ?: "Sin género" }
+        .mapValues { (_, l) -> l.sumOf { it.seconds } }
+        .entries.sortedByDescending { it.value }
+    if (rows.isEmpty()) return
+    val max = rows.first().value.coerceAtLeast(1)
+    val finishedBy = books.filter { b ->
+        b.status == BookStatus.Read && finishedAt(b).let { t -> t > 0 && Calendar.getInstance().apply { timeInMillis = t }.get(Calendar.YEAR) == year }
+    }.groupingBy { it.genre.ifBlank { "Sin género" } }.eachCount()
+    Column(Modifier.padding(horizontal = 20.dp)) {
+        rows.take(8).forEach { (g, secs) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(g, color = NB.text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.width(120.dp))
+                Box(Modifier.weight(1f).height(10.dp)) {
+                    Box(Modifier.fillMaxWidth((secs.toFloat() / max).coerceIn(0.03f, 1f)).height(10.dp)
+                        .clip(RoundedCornerShape(3.dp)).background(if (g == "Sin género") NB.line else NB.text))
+                }
+                Spacer(Modifier.width(8.dp))
+                val n = finishedBy[g] ?: 0
+                Text(durationLabel(secs) + if (n > 0) " · $n" else "", color = NB.text3, fontSize = 12.sp)
+            }
+        }
+        Text("El número tras el tiempo son los libros terminados de ese género. Cambia el género desde el menú de cada libro.",
+            color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+    }
 }

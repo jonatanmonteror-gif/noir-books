@@ -79,6 +79,30 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ReadingControls(showPreview = true)
                 }
 
+                val ratingMode by com.noirbooks.app.data.Prefs.ratingMode
+                val praise by com.noirbooks.app.data.Prefs.praise
+                FoldSection("Diario", (if (ratingMode == "aspects") "Valoración por aspectos" else "Valoración con estrellas") +
+                    if (praise) " · con elogios" else "") {
+                    Text("Valoraciones", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("Básica", ratingMode != "aspects") { com.noirbooks.app.data.Prefs.setRatingMode("basic") }
+                        Chip("Por aspectos", ratingMode == "aspects") { com.noirbooks.app.data.Prefs.setRatingMode("aspects") }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (ratingMode == "aspects") "Valoras trama, personajes y prosa; la nota del libro es la media."
+                        else "Una nota de media estrella a cinco estrellas.", color = NB.text3, fontSize = 12.sp)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Elogios", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("Activados", praise) { com.noirbooks.app.data.Prefs.setPraise(true) }
+                        Chip("Desactivados", !praise) { com.noirbooks.app.data.Prefs.setPraise(false) }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("Un aviso discreto al terminar un libro o un mes, solo cuando hay algo que destacar.", color = NB.text3, fontSize = 12.sp)
+                }
+
                 if (BuildConfig.SELF_UPDATE) {
                 FoldSection("Actualizaciones", "Versión ${BuildConfig.VERSION_NAME}") {
                         val status = when (val u = update) {

@@ -168,8 +168,8 @@ class ReaderController(
     }
 
     /** "Guardar lectura": el tiempo cuenta y la posición se queda. */
-    fun commitReading() {
-        Stats.commitAppReading(bookId, pending.toList())
+    fun commitReading(note: String = "") {
+        Stats.commitAppReading(bookId, pending.toList(), note)
         pending.clear()
         Prefs.pendingReading = ""
     }

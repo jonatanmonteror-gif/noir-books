@@ -40,6 +40,8 @@ class EpubBook(
     val year: String = "",
     /** ISBN de la edición, si el EPUB lo trae entre sus identificadores. */
     val isbn: String = "",
+    /** Temas del libro (dc:subject), si los trae. */
+    val subjects: List<String> = emptyList(),
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -85,6 +87,7 @@ object Epub {
             val description = meta?.select("dc|description, description")?.firstOrNull()?.text()?.trim()
                 ?.let { d -> if ('<' in d) Jsoup.parse(d).text() else d }.orEmpty()
             val publisher = meta?.firstText("dc|publisher", "publisher").orEmpty()
+            val subjects = meta?.select("dc|subject, subject")?.map { it.text().trim() }?.filter { it.isNotEmpty() }.orEmpty()
             val year = meta?.firstText("dc|date", "date").orEmpty().take(4).filter { it.isDigit() }
 
             // Portada: EPUB 3 (properties="cover-image"), EPUB 2 (<meta name="cover">) o un archivo llamado "cover".
@@ -126,7 +129,7 @@ object Epub {
                 if (ncx != null) pages = runCatching { parseNcxPages(z, ncx.href) }.getOrDefault(emptyList())
             }
             EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages,
-                description = description, publisher = publisher, year = year, isbn = isbn)
+                description = description, publisher = publisher, year = year, isbn = isbn, subjects = subjects)
         }
     }
 

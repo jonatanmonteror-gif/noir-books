@@ -446,6 +446,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
     var shelvesOpen by remember { mutableStateOf(false) }
     var restarting by remember { mutableStateOf(false) }
     var editPages by remember { mutableStateOf(false) }
+    var editGenre by remember { mutableStateOf(false) }
     val date = SimpleDateFormat("d MMM yyyy", Locale("es", "ES"))
 
     if (abandoning) {
@@ -494,6 +495,8 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
         )
         return
     }
+    if (editGenre) GenreDialog(b.genre, onPick = { g -> scope.launch { Library.update(b.id) { it.copy(genre = g) } }; editGenre = false },
+        onDismiss = { editGenre = false })
     if (editPages) {
         var t by remember { mutableStateOf(if (b.pages > 0) b.pages.toString() else "") }
         AlertDialog(
@@ -533,7 +536,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                StarRating(b.rating, size = 30) { v -> scope.launch { Library.update(b.id) { it.copy(rating = v) } } }
+                BookRating(b.id, size = 30)
                 Spacer(Modifier.height(10.dp))
                 val secs = Stats.secondsForBook(b.id)
                 val info = buildString {
@@ -565,6 +568,7 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería…" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
                 MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel…") { editPages = true }
+                MenuRow(if (b.genre.isNotBlank()) "Género: ${b.genre}" else "Género…") { editGenre = true }
                 MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
                 if (b.status != BookStatus.Read) MenuRow("Marcar como leído") {
                     scope.launch { Library.setStatus(b.id, BookStatus.Read) }; onDismiss()

@@ -294,7 +294,7 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (
             lastFormat = format; lastUnit = unit; lastStatus = status
             scope.launch {
                 val b = runCatching {
-                    Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description)
+                    Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description, com.noirbooks.app.data.Genres.from(r.categories))
                 }.getOrElse { ErrorLog.note("Añadir libro", it); null }
                 saving = false
                 if (b != null) { AppState.toast("Añadido: ${b.title}"); then(b) } else AppState.toast("No se pudo añadir")
@@ -396,6 +396,7 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
     }
     var value by remember { mutableStateOf(valueOf(b.progress, unit0, b.pages)) }
     var finished by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
 
     // Si la hora de fin es anterior a la de inicio, se entiende que empezó el día antes (leer de noche).
     val effStart = if (start > end) start - 24 * 3600_000L else start
@@ -491,6 +492,7 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                     Checkbox(finished, { finished = it }, colors = CheckboxDefaults.colors(checkedColor = NB.text, checkmarkColor = NB.onText, uncheckedColor = NB.text3))
                     Text("Lo he terminado", color = NB.text, fontSize = 15.sp)
                 }
+                if (!r.onlyProgress) { Spacer(Modifier.height(8.dp)); SessionNoteField(note) { note = it } }
             }
         },
         confirmButton = {
@@ -502,7 +504,7 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                         if (!b.isEpub) Library.update(b.id) { it.copy(unit = unit, pages = if (unit != ProgressUnit.Percent && totalN > 0) totalN else it.pages) }
                         val pagesKnown = if (unit == ProgressUnit.Page && totalN > 0) totalN else if (unit != ProgressUnit.Location && b.pages > 0 && b.unit == ProgressUnit.Page) b.pages else 0
                         val pagesRead = if (newP != null && pagesKnown > 0) ((newP - oldP) * pagesKnown).toInt().coerceAtLeast(0) else 0
-                        if (!r.onlyProgress && seconds >= 60) Stats.addSession(b.id, effStart, seconds, pagesRead)
+                        if (!r.onlyProgress && seconds >= 60) Stats.addSession(b.id, effStart, seconds, pagesRead, note)
                         if (newP != null) Library.setProgress(b.id, newP)
                         val msg = buildList {
                             if (!r.onlyProgress && seconds >= 60) add(durationLabel(seconds))
@@ -594,6 +596,8 @@ fun SessionRows(list: List<com.noirbooks.app.data.Session>, showBook: Boolean) {
                 )
                 Text(if (s.manual) "Apuntada a mano" else "Leída en la app" + if (s.pages > 0) " · ${s.pages} páginas" else "",
                     color = NB.text3, fontSize = 12.sp)
+                if (s.note.isNotBlank()) Text("«${s.note}»", color = NB.text2, fontSize = 13.sp, fontFamily = Playfair,
+                    modifier = Modifier.padding(top = 2.dp))
             }
             Text("Borrar", color = NB.text3, fontSize = 12.sp,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirm = s }.padding(horizontal = 8.dp, vertical = 6.dp))
@@ -868,4 +872,19 @@ fun scanIsbn(ctx: android.content.Context, onIsbn: (String) -> Unit) {
             ErrorLog.note("Escanear ISBN", e)
             AppState.toast("No se pudo abrir el escáner (necesita los servicios de Google Play)")
         }
+}
+
+/** Una línea opcional al guardar una lectura («¿qué te ha parecido?»); queda en el registro. */
+@Composable
+fun SessionNoteField(value: String, onChange: (String) -> Unit) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value, onValueChange = { onChange(it.take(200)) }, singleLine = true,
+        placeholder = { Text("¿Qué te ha parecido? (opcional)", color = NB.text3, fontSize = 14.sp) },
+        shape = RoundedCornerShape(12.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+            focusedTextColor = NB.text, unfocusedTextColor = NB.text,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

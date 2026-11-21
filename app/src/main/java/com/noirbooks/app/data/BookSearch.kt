@@ -19,6 +19,8 @@ data class FoundBook(
     val language: String,
     val source: String,
     val description: String = "",
+    /** Categorías o temas del catálogo (para deducir el género). */
+    val categories: List<String> = emptyList(),
 )
 
 /**
@@ -83,6 +85,26 @@ object BookSearch {
         pool[pool.size / 2]
     }
 
+    /**
+     * Género del libro según los catálogos (por ISBN o por título y autor). "" si no aparece.
+     * Lanza excepción si no hay conexión.
+     */
+    suspend fun genre(title: String, author: String, isbn: String): String = withContext(Dispatchers.IO) {
+        val t = key(title.substringBefore(':').substringBefore('(')).take(16)
+        val surname = key(author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
+        fun matches(f: FoundBook) = t.length >= 3 && key(f.title).startsWith(t) && (surname.length < 3 || key(f.author).contains(surname))
+        val cats = mutableListOf<String>()
+        if (isbn.isNotBlank()) runCatching { google("isbn:$isbn") }.getOrNull()?.forEach { cats += it.categories }
+        if (cats.isEmpty() && t.length >= 3) {
+            val q = "intitle:${title.substringBefore(':')}" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
+            val g = runCatching { google(q) }
+            val o = runCatching { openLibrary("${title.substringBefore(':')} ${author.substringBefore(',')}".trim()) }
+            if (g.isFailure && o.isFailure) throw (g.exceptionOrNull() ?: java.io.IOException("Sin conexión"))
+            (g.getOrDefault(emptyList()) + o.getOrDefault(emptyList())).filter(::matches).forEach { cats += it.categories }
+        }
+        Genres.from(cats)
+    }
+
     private suspend fun openLibraryIsbn(isbn: String): Int {
         val json = Http.get("https://openlibrary.org/isbn/$isbn.json")
         return JSONObject(json).optInt("number_of_pages")
@@ -115,12 +137,13 @@ object BookSearch {
                 pages = v.optInt("pageCount"), isbn = isbn, publisher = v.optString("publisher"),
                 year = v.optString("publishedDate").take(4), language = v.optString("language"), source = "Google Books",
                 description = v.optString("description").let { d -> if ('<' in d) org.jsoup.Jsoup.parse(d).text() else d },
+                categories = v.optJSONArray("categories")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
             )
         }
     }
 
     private suspend fun openLibrary(q: String): List<FoundBook> {
-        val fields = "title,author_name,cover_i,number_of_pages_median,isbn,publisher,first_publish_year,language"
+        val fields = "title,author_name,cover_i,number_of_pages_median,isbn,publisher,first_publish_year,language,subject"
         val json = Http.get("https://openlibrary.org/search.json?q=${enc(q)}&limit=20&fields=$fields")
         val docs = JSONObject(json).optJSONArray("docs") ?: return emptyList()
         return (0 until docs.length()).mapNotNull { i ->
@@ -138,6 +161,7 @@ object BookSearch {
                 publisher = d.optJSONArray("publisher")?.optString(0).orEmpty(),
                 year = d.optInt("first_publish_year", 0).takeIf { it > 0 }?.toString().orEmpty(),
                 language = if ("spa" in langs) "spa" else langs.firstOrNull().orEmpty(), source = "Open Library",
+                categories = d.optJSONArray("subject")?.let { a -> (0 until minOf(12, a.length())).map { a.optString(it) } }.orEmpty(),
             )
         }
     }

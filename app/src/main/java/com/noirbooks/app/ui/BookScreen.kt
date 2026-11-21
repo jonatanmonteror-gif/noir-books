@@ -90,6 +90,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     Text(b.author, color = NB.text2, fontSize = 15.sp, textAlign = TextAlign.Center)
                 }
                 val meta = buildList {
+                    if (b.genre.isNotBlank()) add(b.genre)
                     if (!b.isEpub) add(b.format.label)
                     if (b.pages > 0) add(if (b.unit == ProgressUnit.Location && !b.isEpub) "${b.pages} posiciones" else if (b.isEpub) "${b.pages} páginas en papel" else "${b.pages} páginas")
                     else if (b.isEpub) add("unas ${minutesLabel(b.totalChars, cpm)} de lectura")
@@ -105,7 +106,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     Text(b.shelves.joinToString(" · "), color = NB.text2, fontSize = 13.sp, textAlign = TextAlign.Center)
                 }
                 Spacer(Modifier.height(14.dp))
-                StarRating(b.rating, size = 26) { v -> scope.launch { Library.update(b.id) { it.copy(rating = v) } } }
+                BookRating(b.id, size = 26, centered = true)
 
                 // Progreso y acciones
                 Spacer(Modifier.height(20.dp))

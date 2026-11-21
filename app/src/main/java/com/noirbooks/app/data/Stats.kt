@@ -11,7 +11,7 @@ import java.util.Locale
 
 /** Lectura de un día con un libro: segundos y páginas. */
 /** Una lectura del historial: en la app o apuntada a mano. */
-data class Session(val id: Long, val bookId: String, val start: Long, val seconds: Long, val pages: Int, val manual: Boolean) {
+data class Session(val id: Long, val bookId: String, val start: Long, val seconds: Long, val pages: Int, val manual: Boolean, val note: String = "") {
     val end: Long get() = start + seconds * 1000
 }
 
@@ -65,10 +65,10 @@ object Stats {
      * Sesión apuntada a mano (Kindle, papel…): se reparte por las horas en que ocurrió.
      */
     @Synchronized
-    fun addSession(bookId: String, startMillis: Long, seconds: Long, pages: Int) {
+    fun addSession(bookId: String, startMillis: Long, seconds: Long, pages: Int, note: String = "") {
         if (seconds <= 0 && pages <= 0) return
         spread(bookId, startMillis, seconds, pages, 1)
-        sessions.add(Session(System.currentTimeMillis(), bookId, startMillis, seconds, pages, manual = true))
+        sessions.add(Session(System.currentTimeMillis(), bookId, startMillis, seconds, pages, manual = true, note = note.trim()))
         saveSessions()
         flush()
     }
@@ -86,7 +86,7 @@ object Stats {
      * cada página en su día y su hora, y una entrada en el registro.
      */
     @Synchronized
-    fun commitAppReading(bookId: String, chunks: List<Chunk>) {
+    fun commitAppReading(bookId: String, chunks: List<Chunk>, note: String = "") {
         if (chunks.isEmpty()) return
         val cal = Calendar.getInstance()
         chunks.forEach { c ->
@@ -103,7 +103,7 @@ object Stats {
         version.intValue++
         val total = chunks.sumOf { it.seconds }
         val start = chunks.first().let { it.at - it.seconds * 1000 }
-        sessions.add(Session(System.currentTimeMillis(), bookId, start, total, chunks.count { it.page }, manual = false))
+        sessions.add(Session(System.currentTimeMillis(), bookId, start, total, chunks.count { it.page }, manual = false, note = note.trim()))
         saveSessions()
         flush()
     }
@@ -118,6 +118,15 @@ object Stats {
         } else {
             sessions.add(Session(System.currentTimeMillis(), bookId, start, seconds, pages, manual = false))
         }
+        saveSessions()
+    }
+
+    /** Cambia la nota de una lectura del registro. */
+    @Synchronized
+    fun setSessionNote(id: Long, note: String) {
+        val i = sessions.indexOfFirst { it.id == id }
+        if (i < 0) return
+        sessions[i] = sessions[i].copy(note = note.trim())
         saveSessions()
     }
 
@@ -219,7 +228,7 @@ object Stats {
         runCatching {
             val arr = org.json.JSONArray()
             sessions.forEach { x ->
-                arr.put(JSONObject().put("id", x.id).put("b", x.bookId).put("st", x.start).put("s", x.seconds).put("p", x.pages).put("m", x.manual))
+                arr.put(JSONObject().put("id", x.id).put("b", x.bookId).put("st", x.start).put("s", x.seconds).put("p", x.pages).put("m", x.manual).apply { if (x.note.isNotBlank()) put("n", x.note) })
             }
             val tmp = File(sessionsFile.parentFile, "sessions.json.tmp")
             tmp.writeText(arr.toString())
@@ -233,7 +242,7 @@ object Stats {
         val arr = org.json.JSONArray(sessionsFile.readText())
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            sessions += Session(o.optLong("id"), o.optString("b"), o.optLong("st"), o.optLong("s"), o.optInt("p"), o.optBoolean("m"))
+            sessions += Session(o.optLong("id"), o.optString("b"), o.optLong("st"), o.optLong("s"), o.optInt("p"), o.optBoolean("m"), o.optString("n"))
         }
     }
 

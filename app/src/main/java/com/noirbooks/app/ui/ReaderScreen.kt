@@ -580,7 +580,10 @@ private fun Reader(c: ReaderController, onClose: () -> Unit) {
                     Text("Al abrirlo estabas en", color = NB.text3, fontSize = 12.sp)
                     Text("${book.printedPageLabel(openP)} · ${percentLabel(openP)}", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(14.dp))
-                    MenuRow("Guardar lectura") { askSave = false; c.commitReading(); finishClose() }
+                    var note by remember { mutableStateOf("") }
+                    SessionNoteField(note) { note = it }
+                    Spacer(Modifier.height(6.dp))
+                    MenuRow("Guardar lectura") { askSave = false; c.commitReading(note); finishClose() }
                     MenuRow("No guardar (solo estaba mirando)") {
                         askSave = false
                         scope.launch { c.discardReading(); onClose() }
@@ -766,13 +769,14 @@ private fun EndOfBook(c: ReaderController, fg: Color, muted: Color, bg: Color, o
             Spacer(Modifier.height(22.dp))
             Text("¿Qué te ha parecido?", color = fg, fontFamily = Inter, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-            StarRating(rating, color = fg, size = 34) { rating = it }
+            if (Prefs.ratingMode.value == "aspects") BookRating(c.bookId, size = 34, color = fg, centered = true)
+            else StarRating(rating, color = fg, size = 34) { rating = it }
             Spacer(Modifier.height(26.dp))
             Box(
                 Modifier.clip(RoundedCornerShape(50)).background(fg).clickable {
                     scope.launch {
                         Library.setStatus(c.bookId, BookStatus.Read)
-                        Library.update(c.bookId) { it.copy(rating = rating) }
+                        if (Prefs.ratingMode.value != "aspects") Library.update(c.bookId) { it.copy(rating = rating) }
                     }
                     onClose()
                 }.padding(horizontal = 24.dp, vertical = 12.dp),

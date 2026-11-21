@@ -60,6 +60,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.noirbooks.app.data.Highlight
 import com.noirbooks.app.data.HighlightColor
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 /** Valoración en medias estrellas: tocar la mitad izquierda de una estrella da media; la derecha, la entera. */
 @Composable
@@ -347,5 +349,42 @@ fun SearchSheet(c: ReaderController, onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Valoración de un libro según el modo elegido en Ajustes: estrellas, o por aspectos (trama, personajes y prosa).
+ * Por aspectos, la nota general es la media de los aspectos valorados (en medias estrellas).
+ */
+@Composable
+fun BookRating(bookId: String, size: Int = 28, color: Color = NB.text, centered: Boolean = false) {
+    val scope = rememberCoroutineScope()
+    val books by com.noirbooks.app.data.Library.books
+    val b = books.firstOrNull { it.id == bookId } ?: return
+    val mode by com.noirbooks.app.data.Prefs.ratingMode
+    fun save(t: (com.noirbooks.app.data.Book) -> com.noirbooks.app.data.Book) = scope.launch { com.noirbooks.app.data.Library.update(bookId, t) }
+    if (mode != "aspects") {
+        StarRating(b.rating, color = color, size = size) { v -> save { it.copy(rating = v) } }
+        return
+    }
+    fun avg(x: com.noirbooks.app.data.Book): Float {
+        val l = listOf(x.ratingPlot, x.ratingChars, x.ratingProse).filter { it > 0f }
+        return if (l.isEmpty()) 0f else (kotlin.math.round(l.average() * 2) / 2).toFloat()
+    }
+    Column(horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
+        listOf(
+            Triple("Trama", b.ratingPlot) { v: Float -> save { val n = it.copy(ratingPlot = v); n.copy(rating = avg(n)) } },
+            Triple("Personajes", b.ratingChars) { v: Float -> save { val n = it.copy(ratingChars = v); n.copy(rating = avg(n)) } },
+            Triple("Prosa", b.ratingProse) { v: Float -> save { val n = it.copy(ratingProse = v); n.copy(rating = avg(n)) } },
+        ).forEach { (label, value, set) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = color.copy(alpha = 0.7f), fontSize = 13.sp, fontFamily = Inter, modifier = Modifier.width(84.dp))
+                StarRating(value, color = color, size = (size * 0.75f).toInt()) { v -> set(v) }
+            }
+        }
+        if (b.rating > 0f) Text(
+            "Nota media: " + String.format(java.util.Locale("es", "ES"), "%.1f", b.rating) + " ★",
+            color = color.copy(alpha = 0.7f), fontSize = 13.sp, fontFamily = Inter, modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }

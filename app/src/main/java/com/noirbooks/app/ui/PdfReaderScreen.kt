@@ -204,17 +204,24 @@ fun PdfReaderScreen(bookId: String, onClose: () -> Unit) {
         }
     }
 
+    var note by remember { mutableStateOf("") }
     if (askSave) {
         val mins = (chunks.sumOf { it.seconds } / 60).coerceAtLeast(1)
         val pages = chunks.count { it.page }
         AlertDialog(
             onDismissRequest = {}, containerColor = NB.surface2,
             title = { Text("¿Guardar esta lectura?", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
-            text = { Text("$mins min · ${if (pages == 1) "1 página" else "$pages páginas"}. Si la guardas, cuenta en tu diario y estadísticas.",
-                color = NB.text2, fontFamily = Inter) },
+            text = {
+                Column {
+                    Text("$mins min · ${if (pages == 1) "1 página" else "$pages páginas"}. Si la guardas, cuenta en tu diario y estadísticas.",
+                        color = NB.text2, fontFamily = Inter)
+                    Spacer(Modifier.height(12.dp))
+                    SessionNoteField(note) { note = it }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    Stats.commitAppReading(bookId, chunks.toList())
+                    Stats.commitAppReading(bookId, chunks.toList(), note)
                     askSave = false; onClose()
                 }) { Text("Guardar lectura", color = NB.text, fontWeight = FontWeight.SemiBold) }
             },

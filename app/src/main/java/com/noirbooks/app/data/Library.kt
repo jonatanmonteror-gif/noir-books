@@ -107,6 +107,10 @@ data class Book(
     val status: BookStatus = BookStatus.ToRead,
     /** Valoración en medias estrellas, de 0,5 a 5 (0 = sin valorar). */
     val rating: Float = 0f,
+    /** Valoración por aspectos (0 = sin valorar): trama, personajes y prosa. */
+    val ratingPlot: Float = 0f,
+    val ratingChars: Float = 0f,
+    val ratingProse: Float = 0f,
     val abandonReason: String = "",
     val review: String = "",
     val readings: List<Reading> = emptyList(),
@@ -130,6 +134,8 @@ data class Book(
     val description: String = "",
     /** Estanterías propias en las que está el libro. */
     val shelves: List<String> = emptyList(),
+    /** Género (se busca solo en los catálogos y se puede cambiar). */
+    val genre: String = "",
 ) {
     val isEpub: Boolean get() = format == BookFormat.Epub
     val isPdf: Boolean get() = format == BookFormat.Pdf
@@ -406,7 +412,13 @@ object Library {
         )
     }
 
-    suspend fun setStatus(id: String, status: BookStatus, reason: String = "") = update(id) { b ->
+    suspend fun setStatus(id: String, status: BookStatus, reason: String = "") {
+        val wasRead = get(id)?.status == BookStatus.Read
+        setStatusOnly(id, status, reason)
+        if (status == BookStatus.Read && !wasRead) runCatching { Praise.onFinished(id) }
+    }
+
+    private suspend fun setStatusOnly(id: String, status: BookStatus, reason: String) = update(id) { b ->
         val now = System.currentTimeMillis()
         val closing = status == BookStatus.Read || status == BookStatus.Abandoned
         val readings = when {
@@ -467,6 +479,23 @@ object Library {
         }
         Prefs.markPaperLookedUp(id)
         if (n > 0) update(id) { if (it.pages > 0) it else it.copy(pages = n, pagesAuto = true, isbn = it.isbn.ifBlank { isbn }) }
+    }
+
+    /** Género de un libro: primero los temas del EPUB; si no, los catálogos. Se busca una vez (si no hay conexión, otro día). */
+    suspend fun ensureGenre(id: String) = withContext(Dispatchers.IO) {
+        val b = get(id) ?: return@withContext
+        if (b.genre.isNotBlank() || Prefs.genreLookedUp(id)) return@withContext
+        val fromEpub = if (b.isEpub) runCatching { Genres.from(Epub.open(epubOf(id)).subjects) }.getOrDefault("") else ""
+        val g = fromEpub.ifBlank {
+            try { BookSearch.genre(b.title, b.author, b.isbn) } catch (e: Exception) { return@withContext }
+        }
+        Prefs.markGenreLookedUp(id)
+        if (g.isNotBlank()) update(id) { if (it.genre.isBlank()) it.copy(genre = g) else it }
+    }
+
+    suspend fun ensureAllGenres() {
+        books.value.filter { !it.inTrash && it.genre.isBlank() && !Prefs.genreLookedUp(it.id) }
+            .forEach { runCatching { ensureGenre(it.id) }; kotlinx.coroutines.delay(500) }
     }
 
     /** Busca las páginas en papel de todos los EPUB que aún no las tienen (en segundo plano, de uno en uno). */
@@ -536,7 +565,7 @@ object Library {
     suspend fun addManual(
         title: String, author: String, format: BookFormat, pages: Int, unit: ProgressUnit,
         coverUrl: String?, isbn: String, publisher: String, year: String, status: BookStatus,
-        description: String = "",
+        description: String = "", genre: String = "",
     ): Book = withContext(Dispatchers.IO) {
         val id = "m" + java.lang.Long.toHexString(System.currentTimeMillis()) + (100..999).random()
         dirOf(id).mkdirs()
@@ -545,7 +574,7 @@ object Library {
         val book = Book(
             id = id, title = title.trim(), author = author.trim(), addedAt = now,
             status = status, format = format, pages = pages, unit = unit, hasCover = hasCover,
-            isbn = isbn, publisher = publisher, year = year, description = description,
+            isbn = isbn, publisher = publisher, year = year, description = description, genre = genre,
             readings = if (status == BookStatus.Reading) listOf(Reading(now)) else if (status == BookStatus.Read) listOf(Reading(now, now)) else emptyList(),
             lastOpened = if (status == BookStatus.Reading) now else 0L,
             manualProgress = if (status == BookStatus.Read) 1f else 0f,
@@ -690,6 +719,10 @@ object Library {
                 put("chapter", b.chapter); put("fraction", b.fraction.toDouble()); put("anchor", b.anchor)
                 put("lengths", JSONArray(b.chapterLengths))
                 put("status", b.status.key); put("rating", b.rating.toDouble())
+                if (b.genre.isNotBlank()) put("genre", b.genre)
+                if (b.ratingPlot > 0f) put("rPlot", b.ratingPlot.toDouble())
+                if (b.ratingChars > 0f) put("rChars", b.ratingChars.toDouble())
+                if (b.ratingProse > 0f) put("rProse", b.ratingProse.toDouble())
                 put("abandonReason", b.abandonReason); put("review", b.review)
                 put("hasCover", b.hasCover); put("deletedAt", b.deletedAt)
                 put("format", b.format.key); put("pages", b.pages); put("pagesAuto", b.pagesAuto); put("unit", b.unit.key)
@@ -777,6 +810,10 @@ object Library {
                 chapterLengths = lengths,
                 status = status,
                 rating = (kotlin.math.round(o.optDouble("rating", 0.0) * 2) / 2).toFloat(), // medias estrellas
+                genre = o.optString("genre"),
+                ratingPlot = o.optDouble("rPlot", 0.0).toFloat(),
+                ratingChars = o.optDouble("rChars", 0.0).toFloat(),
+                ratingProse = o.optDouble("rProse", 0.0).toFloat(),
                 abandonReason = o.optString("abandonReason"),
                 review = o.optString("review"),
                 readings = readings,

@@ -151,6 +151,9 @@ object AppState {
             added > 1 -> toast("$added libros añadidos")
         }
         if (added == 1 && !openIfSingle) last?.let { askStatus.value = it }
+        if (added > 0) background.launch {
+            com.noirbooks.app.data.Library.ensureAllPaperPages(); com.noirbooks.app.data.Library.ensureAllGenres()
+        }
         if (openIfSingle && uris.size == 1) last?.let { screen.value = Screen.Reader(it) }
     }
 
@@ -201,8 +204,11 @@ fun App() {
         val snack = remember { SnackbarHostState() }
 
         LaunchedEffect(Unit) {
+            // Elogios: se muestran como un aviso discreto
+            com.noirbooks.app.data.Praise.sink = { AppState.toast(it) }
+            AppState.background.launch { kotlinx.coroutines.delay(2500); runCatching { com.noirbooks.app.data.Praise.checkMonth() } }
             // Páginas en papel de los libros que aún no las tienen (sin prisa, en segundo plano)
-            AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllPaperPages() }
+            AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllPaperPages(); com.noirbooks.app.data.Library.ensureAllGenres() }
             val ts = com.noirbooks.app.data.Prefs.timerStart
             val tb = com.noirbooks.app.data.Prefs.timerBook
             if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) {
