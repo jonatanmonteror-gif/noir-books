@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.77", "22 nov 2026", listOf(
+            "La ficha ya no muestra como editorial las firmas o alias que traen algunos EPUB (por ejemplo «lineasdesaparecidas»)",
+        )),
         Entry("1.0.76", "22 nov 2026", listOf(
             "Lista de deseos: marca un libro como «Lo quiero» (aún no lo tienes). Filtro propio en Biblioteca y etiqueta en la portada",
             "Sagas: nombre y número («3 de 7»). En Estanterías › Sagas cada saga sale ordenada",

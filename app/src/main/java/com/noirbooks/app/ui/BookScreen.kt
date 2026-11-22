@@ -95,7 +95,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     if (b.pages > 0) add(if (b.unit == ProgressUnit.Location && !b.isEpub) "${b.pages} posiciones" else if (b.isEpub) "${b.pages} páginas en papel" else "${b.pages} páginas")
                     else if (b.isEpub) add("unas ${minutesLabel(b.totalChars, cpm)} de lectura")
                     if (b.year.isNotBlank()) add(b.year)
-                    if (b.publisher.isNotBlank()) add(b.publisher)
+                    com.noirbooks.app.data.cleanPublisher(b.publisher).let { if (it.isNotBlank()) add(it) }
                 }.joinToString(" · ")
                 if (meta.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))

@@ -86,7 +86,7 @@ object Epub {
             val lang = meta?.firstText("dc|language", "language").orEmpty()
             val description = meta?.select("dc|description, description")?.firstOrNull()?.text()?.trim()
                 ?.let { d -> if ('<' in d) Jsoup.parse(d).text() else d }.orEmpty()
-            val publisher = meta?.firstText("dc|publisher", "publisher").orEmpty()
+            val publisher = cleanPublisher(meta?.firstText("dc|publisher", "publisher").orEmpty())
             val subjects = meta?.select("dc|subject, subject")?.map { it.text().trim() }?.filter { it.isNotEmpty() }.orEmpty()
             val year = meta?.firstText("dc|date", "date").orEmpty().take(4).filter { it.isDigit() }
 
@@ -330,4 +330,20 @@ fun isbnOf(raw: String): String? {
         if ((if (check == 10) 'X' else '0' + check) == d[9]) return d
     }
     return null
+}
+
+/**
+ * Muchos EPUB traen en «editorial» la firma de quien lo maquetó o un alias («lineasdesaparecidas», «epublibre»),
+ * no la editorial de verdad. Eso no se muestra: solo vale si parece un nombre de editorial.
+ */
+fun cleanPublisher(raw: String): String {
+    val p = raw.trim()
+    if (p.isEmpty()) return ""
+    val k = p.lowercase().filter { it.isLetterOrDigit() }
+    val tags = listOf("lineasdesaparecidas", "epublibre", "lectulandia", "elejandria", "unknown", "desconocido", "calibre", "sigil", "editor", "epubgratis", "espaebook", "epl")
+    if (tags.any { k == it || k.startsWith(it) }) return ""
+    if ("http" in p || "www." in p || "@" in p) return ""
+    // Una sola palabra toda en minúsculas (o un alias con números) no suele ser una editorial
+    if (' ' !in p && p == p.lowercase() && p.length > 3) return ""
+    return p
 }
