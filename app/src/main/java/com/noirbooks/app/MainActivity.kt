@@ -51,6 +51,15 @@ class MainActivity : FragmentActivity() {
     /** "Abrir con" o "Compartir" un .epub desde otra app: se importa y, si es uno solo, se abre. */
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+        // Desde el widget: compartir la cita del día con el diseño para redes
+        if (intent.getBooleanExtra(com.noirbooks.app.data.QuoteWidget.EXTRA_SHARE, false)) {
+            AppState.screen.value = com.noirbooks.app.ui.Screen.Library
+            AppState.tab.intValue = 2
+            com.noirbooks.app.data.QuoteWidget.daily()?.let { (b, h) ->
+                AppState.shareQuote.value = com.noirbooks.app.ui.QuoteShare(h.text, b.title, b.author, b.id, h.color)
+            }
+            return
+        }
         // Desde el widget de la cita del día: abrir Citas
         if (intent.getBooleanExtra(com.noirbooks.app.data.QuoteWidget.EXTRA_QUOTES, false)) {
             AppState.screen.value = com.noirbooks.app.ui.Screen.Library

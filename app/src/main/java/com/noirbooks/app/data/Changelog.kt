@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.81", "22 nov 2026", listOf(
+            "Cita del día: botón «Compartir» en Citas y en el widget, que abre directamente la imagen para Instagram y otras redes",
+        )),
         Entry("1.0.80", "22 nov 2026", listOf(
             "Etiquetas en las citas: añádelas desde la cita (#amor, #ideas…) y filtra por ellas en Citas. También salen al exportar",
             "Widget «Cita del día» para la pantalla de inicio del móvil: una de tus citas cada día; al tocarlo abre Citas",

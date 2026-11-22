@@ -432,9 +432,7 @@ fun QuotesScreen() {
         .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) ||
             fold(b.author).contains(sq) || h.tags.any { fold(it).contains(sq.removePrefix("#")) } }
     val tagCounts = all.flatMap { it.second.tags }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
-    val daily = remember(all.size) {
-        if (all.isEmpty()) null else all[(Stats.today().hashCode() and 0x7fffffff) % all.size]
-    }
+    val daily = remember(all.size) { com.noirbooks.app.data.QuoteWidget.daily() }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Citas") {
@@ -470,6 +468,11 @@ fun QuotesScreen() {
                             Text("“${h.text}”", fontFamily = Playfair, fontSize = 18.sp, lineHeight = 26.sp, color = NB.text, maxLines = 8, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(8.dp))
                             Text(b.title + if (b.author.isNotBlank()) " · ${b.author}" else "", fontSize = 12.sp, color = NB.text3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(Modifier.height(12.dp))
+                            // Compartir en redes (Instagram, WhatsApp…) con el diseño de las citas
+                            PillButton("Compartir la cita del día", primary = true) {
+                                AppState.shareQuote.value = QuoteShare(h.text, b.title, b.author, b.id, h.color)
+                            }
                         }
                         Spacer(Modifier.height(12.dp))
                     }

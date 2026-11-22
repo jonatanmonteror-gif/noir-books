@@ -21,6 +21,15 @@ class QuoteWidget : AppWidgetProvider() {
 
     companion object {
         const val EXTRA_QUOTES = "open_quotes"
+        const val EXTRA_SHARE = "share_daily_quote"
+
+        /** La cita del día: la misma en el widget y en Citas, cambia a medianoche. */
+        fun daily(): Pair<Book, Highlight>? {
+            val all = Library.books.value.filter { !it.inTrash }.flatMap { b -> b.highlights.map { b to it } }.sortedByDescending { it.second.id }
+            if (all.isEmpty()) return null
+            val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+            return all[(day.hashCode() and 0x7fffffff) % all.size]
+        }
 
         /** Vuelve a pintar los widgets (al cerrar la app, por si hay citas nuevas). */
         fun refresh(ctx: Context) = runCatching {
@@ -31,11 +40,8 @@ class QuoteWidget : AppWidgetProvider() {
 
         private fun views(ctx: Context): RemoteViews {
             runCatching { ErrorLog.init(ctx); Prefs.init(ctx); Library.init(ctx) }
-            val all = Library.books.value.filter { !it.inTrash }.flatMap { b -> b.highlights.map { b to it } }.sortedByDescending { it.second.id }
-            val day = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
             val v = RemoteViews(ctx.packageName, R.layout.widget_quote)
-            if (all.isNotEmpty()) {
-                val (b, h) = all[(day.hashCode() and 0x7fffffff) % all.size]
+            daily()?.let { (b, h) ->
                 val text = h.text.replace(Regex("\\s+"), " ").trim().let { if (it.length > 280) it.take(277) + "…" else it }
                 v.setTextViewText(R.id.widget_quote, "“$text”")
                 v.setTextViewText(R.id.widget_source, b.title + if (b.author.isNotBlank()) " · ${b.author}" else "")
@@ -45,6 +51,11 @@ class QuoteWidget : AppWidgetProvider() {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             v.setOnClickPendingIntent(R.id.widget_root, open)
+            val share = PendingIntent.getActivity(ctx, 78,
+                Intent(ctx, MainActivity::class.java).putExtra(EXTRA_SHARE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            v.setOnClickPendingIntent(R.id.widget_share, share)
             return v
         }
     }
