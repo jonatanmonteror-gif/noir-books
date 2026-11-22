@@ -136,7 +136,28 @@ data class Book(
     val shelves: List<String> = emptyList(),
     /** Género (se busca solo en los catálogos y se puede cambiar). */
     val genre: String = "",
+    /** Lista de deseos: lo quieres pero aún no lo tienes. */
+    val wish: Boolean = false,
+    /** Saga: nombre, número dentro de ella (texto: «3», «2.5») y total de libros si se sabe (0 = no se sabe). */
+    val series: String = "",
+    val seriesNo: String = "",
+    val seriesTotal: Int = 0,
+    /** Préstamo de un libro de papel: a quién, desde cuándo y para cuándo debería volver (0 = sin fecha). */
+    val loanTo: String = "",
+    val loanAt: Long = 0L,
+    val loanDue: Long = 0L,
+    /** Retomar un abandonado: cuándo se preguntó por última vez y si no quieres que se vuelva a preguntar. */
+    val resurfaceAskedAt: Long = 0L,
+    val noResurface: Boolean = false,
 ) {
+    val onLoan: Boolean get() = loanTo.isNotBlank()
+    /** «3 de 7», «n.º 3» o vacío. */
+    val seriesLabel: String get() = when {
+        series.isBlank() -> ""
+        seriesNo.isNotBlank() && seriesTotal > 0 -> "$seriesNo de $seriesTotal"
+        seriesNo.isNotBlank() -> "n.º $seriesNo"
+        else -> ""
+    }
     val isEpub: Boolean get() = format == BookFormat.Epub
     val isPdf: Boolean get() = format == BookFormat.Pdf
     /** Se lee dentro de la app (EPUB o PDF). */
@@ -737,6 +758,11 @@ object Library {
                 put("lengths", JSONArray(b.chapterLengths))
                 put("status", b.status.key); put("rating", b.rating.toDouble())
                 if (b.genre.isNotBlank()) put("genre", b.genre)
+                if (b.wish) put("wish", true)
+                if (b.series.isNotBlank()) { put("series", b.series); put("seriesNo", b.seriesNo); put("seriesTotal", b.seriesTotal) }
+                if (b.loanTo.isNotBlank()) { put("loanTo", b.loanTo); put("loanAt", b.loanAt); put("loanDue", b.loanDue) }
+                if (b.resurfaceAskedAt > 0) put("resurfaceAskedAt", b.resurfaceAskedAt)
+                if (b.noResurface) put("noResurface", true)
                 if (b.ratingPlot > 0f) put("rPlot", b.ratingPlot.toDouble())
                 if (b.ratingChars > 0f) put("rChars", b.ratingChars.toDouble())
                 if (b.ratingProse > 0f) put("rProse", b.ratingProse.toDouble())
@@ -828,6 +854,15 @@ object Library {
                 status = status,
                 rating = (kotlin.math.round(o.optDouble("rating", 0.0) * 2) / 2).toFloat(), // medias estrellas
                 genre = o.optString("genre"),
+                wish = o.optBoolean("wish"),
+                series = o.optString("series"),
+                seriesNo = o.optString("seriesNo"),
+                seriesTotal = o.optInt("seriesTotal"),
+                loanTo = o.optString("loanTo"),
+                loanAt = o.optLong("loanAt"),
+                loanDue = o.optLong("loanDue"),
+                resurfaceAskedAt = o.optLong("resurfaceAskedAt"),
+                noResurface = o.optBoolean("noResurface"),
                 ratingPlot = o.optDouble("rPlot", 0.0).toFloat(),
                 ratingChars = o.optDouble("rChars", 0.0).toFloat(),
                 ratingProse = o.optDouble("rProse", 0.0).toFloat(),

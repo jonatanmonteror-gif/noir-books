@@ -112,6 +112,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(6.dp))
                     Text("Un aviso discreto al terminar un libro o un mes, solo cuando hay algo que destacar.", color = NB.text3, fontSize = 12.sp)
+                    Spacer(Modifier.height(16.dp))
+                    var resurface by remember { mutableStateOf(com.noirbooks.app.data.Prefs.resurface) }
+                    Text("Retomar abandonados", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("Proponer", resurface) { resurface = true; com.noirbooks.app.data.Prefs.resurface = true }
+                        Chip("No", !resurface) { resurface = false; com.noirbooks.app.data.Prefs.resurface = false }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("Pasados 3 meses, una tarjeta discreta en Inicio te pregunta si quieres volver a un libro que dejaste.", color = NB.text3, fontSize = 12.sp)
                 }
 
                 if (BuildConfig.SELF_UPDATE) {

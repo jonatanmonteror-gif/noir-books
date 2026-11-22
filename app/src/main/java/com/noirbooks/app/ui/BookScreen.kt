@@ -105,6 +105,19 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                     Spacer(Modifier.height(6.dp))
                     Text(b.shelves.joinToString(" · "), color = NB.text2, fontSize = 13.sp, textAlign = TextAlign.Center)
                 }
+                if (b.series.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("Saga «${b.series}»" + if (b.seriesLabel.isNotBlank()) " · ${b.seriesLabel}" else "",
+                        color = NB.text2, fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+                val tags = buildList {
+                    if (b.wish) add("Lo quiero")
+                    if (b.onLoan) add("Prestado a ${b.loanTo} desde el " + SimpleDateFormat("d MMM", Locale("es", "ES")).format(b.loanAt))
+                }
+                if (tags.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(tags.joinToString(" · "), color = NB.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+                }
                 Spacer(Modifier.height(14.dp))
                 BookRating(b.id, size = 26, centered = true)
 

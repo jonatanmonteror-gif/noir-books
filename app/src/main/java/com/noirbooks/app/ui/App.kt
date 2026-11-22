@@ -259,6 +259,7 @@ private fun AppContent() {
         LaunchedEffect(Unit) {
             // Elogios: se muestran como un aviso discreto
             com.noirbooks.app.data.Praise.sink = { AppState.toast(it) }
+            runCatching { com.noirbooks.app.data.LoanReminder.syncAll(ctx) }
             AppState.background.launch { kotlinx.coroutines.delay(2500); runCatching { com.noirbooks.app.data.Praise.checkMonth() } }
             // Páginas en papel de los libros que aún no las tienen (sin prisa, en segundo plano)
             AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllPaperPages(); com.noirbooks.app.data.Library.ensureAllGenres() }

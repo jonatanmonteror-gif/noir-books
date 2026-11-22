@@ -60,9 +60,17 @@ const val GENRE_PREFIX = "\u0002g:"
 fun genreShelf(g: String) = GENRE_PREFIX + g
 fun isGenreShelf(s: String?) = s?.startsWith(GENRE_PREFIX) == true
 
+/** Estantería automática de una saga (se forma sola con los libros que tienen esa saga). */
+const val SERIES_PREFIX = "\u0003s:"
+fun seriesShelf(s: String) = SERIES_PREFIX + s
+fun isSeriesShelf(s: String?) = s?.startsWith(SERIES_PREFIX) == true
+/** Orden dentro de una saga: por número (2.5 entre el 2 y el 3); los que no tienen número, al final. */
+fun seriesOrder(b: Book) = b.seriesNo.replace(',', '.').toFloatOrNull() ?: 9999f
+
 fun shelfLabel(s: String) = when {
     s == NO_SHELF -> "Sin estantería"
     isGenreShelf(s) -> s.removePrefix(GENRE_PREFIX)
+    isSeriesShelf(s) -> "Saga: " + s.removePrefix(SERIES_PREFIX)
     else -> s
 }
 
@@ -70,6 +78,7 @@ fun inShelf(b: Book, s: String?) = when {
     s == null -> true
     s == NO_SHELF -> b.shelves.isEmpty() && b.genre.isBlank()
     isGenreShelf(s) -> b.genre == s.removePrefix(GENRE_PREFIX)
+    isSeriesShelf(s) -> b.series == s.removePrefix(SERIES_PREFIX)
     else -> s in b.shelves
 }
 
@@ -109,6 +118,7 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
                     Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ModeChip("Mis estanterías", mode == "custom") { mode = "custom"; Prefs.shelfMode = "custom" }
                         ModeChip("Por género", mode == "genre") { mode = "genre"; Prefs.shelfMode = "genre" }
+                        ModeChip("Sagas", mode == "series") { mode = "series"; Prefs.shelfMode = "series" }
                         ModeChip("Todas", mode == "all") { mode = "all"; Prefs.shelfMode = "all" }
                     }
                     IconButton(onClick = { newShelf = true }) {
@@ -133,11 +143,24 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
                 }
             }
         }
-        if (mode != "genre") items(shelves, key = { it }) { s ->
+        if (mode == "series") {
+            val sagas = books.filter { it.series.isNotBlank() }.groupBy { it.series }.entries.sortedBy { fold(it.key) }
+            if (sagas.isEmpty()) item(key = "noseries") {
+                Text("Aún no hay sagas. Ponle una a un libro desde su menú (tres puntos de la ficha → Saga) y aparecerá aquí, en orden.",
+                    color = NB.text3, fontSize = 14.sp)
+            }
+            items(sagas, key = { "s:" + it.key }) { (name, list) ->
+                val sorted = list.sortedWith(compareBy({ seriesOrder(it) }, { fold(it.title) }))
+                val total = list.maxOf { it.seriesTotal }
+                ShelfRow(if (total > 0) "$name · ${list.size} de $total" else name, sorted, current == seriesShelf(name), style, view, scale,
+                    onOpen = { onPick(seriesShelf(name)) }, onAdd = null, onEdit = null, onBook = onBook)
+            }
+        }
+        if (mode != "genre" && mode != "series") items(shelves, key = { it }) { s ->
             val inside = books.filter { s in it.shelves }.sortedBy { fold(it.author.ifBlank { "~" }) + fold(it.title) }
             ShelfRow(s, inside, current == s, style, view, scale, onOpen = { onPick(s) }, onAdd = { addTo = s }, onEdit = { editShelf = s }, onBook = onBook)
         }
-        if (mode != "custom") {
+        if (mode == "genre" || mode == "all") {
             val genres = books.filter { it.genre.isNotBlank() }.groupBy { it.genre }.entries.sortedByDescending { it.value.size }
             if (genres.isEmpty()) item(key = "nogenre") {
                 Text("Aún no hay libros con género. Se buscan solos al abrir la app; también puedes ponerlo desde el menú de cada libro.",

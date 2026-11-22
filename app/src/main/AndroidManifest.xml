@@ -57,6 +57,10 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".data.LoanReceiver"
+            android:exported="false" />
+
         <service
             android:name=".data.ReadAloudService"
             android:exported="false"

@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.noirbooks.app.data.Book
+import com.noirbooks.app.data.BookFormat
 import com.noirbooks.app.data.BookStatus
 import com.noirbooks.app.data.Library
 import com.noirbooks.app.data.Prefs
@@ -97,7 +98,7 @@ fun LibraryScreen() {
     val cpm = remember(all.size) { Stats.charsPerMinute() }
     val shelves by Library.shelves
     var shelf by rememberSaveable { mutableStateOf<String?>(null) }
-    if (shelf != null && shelf != NO_SHELF && !isGenreShelf(shelf) && shelf !in shelves) shelf = null
+    if (shelf != null && shelf != NO_SHELF && !isGenreShelf(shelf) && !isSeriesShelf(shelf) && shelf !in shelves) shelf = null
     // Tres vistas: Inicio (lo que lees y lo reciente), Biblioteca (todos) y Estanterías
     var mode by rememberSaveable { mutableStateOf("home") }
     var addToShelf by remember { mutableStateOf<String?>(null) }
@@ -120,10 +121,18 @@ fun LibraryScreen() {
     val q = fold(query.trim())
     val shown = books
         .filter { q.isEmpty() || fold(it.title).contains(q) || fold(it.author).contains(q) }
-        .filter { filter == "all" || it.status.key == filter }
+        .filter {
+            when (filter) {
+                "all" -> true
+                "wish" -> it.wish
+                "loan" -> it.onLoan
+                else -> it.status.key == filter && !it.wish
+            }
+        }
         .filter { inShelf(it, shelf) }
         .let { list ->
-            when (sort) {
+            if (isSeriesShelf(shelf)) list.sortedWith(compareBy({ seriesOrder(it) }, { fold(it.title) }))
+            else when (sort) {
                 "title" -> list.sortedBy { fold(it.title) }
                 "author" -> list.sortedWith(compareBy({ fold(it.author.ifBlank { "~" }) }, { fold(it.title) }))
                 "rating" -> list.sortedByDescending { it.rating }
@@ -244,9 +253,11 @@ fun LibraryScreen() {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Chip("Todos", filter == "all") { filter = "all" }
                         BookStatus.entries.forEach { st ->
-                            val n = books.count { it.status == st }
+                            val n = books.count { it.status == st && !it.wish }
                             if (n > 0) Chip("${st.label} · $n", filter == st.key) { filter = st.key }
                         }
+                        books.count { it.wish }.let { n -> if (n > 0) Chip("Lo quiero · $n", filter == "wish") { filter = "wish" } }
+                        books.count { it.onLoan }.let { n -> if (n > 0) Chip("Prestados · $n", filter == "loan") { filter = "loan" } }
                     }
                     // Estantería elegida (desde el icono de arriba): una sola franja, no una fila de etiquetas
                     shelf?.let { s ->
@@ -288,6 +299,8 @@ fun LibraryScreen() {
                 )) {
                     Box {
                         BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
+                        if (b.onLoan) CoverBadge("Prestado", Modifier.align(Alignment.BottomStart))
+                        else if (b.wish) CoverBadge("Lo quiero", Modifier.align(Alignment.BottomStart))
                         if (selecting) {
                             Box(Modifier.matchParentSize().background(if (isSel) Color.Black.copy(alpha = 0.35f) else Color.Transparent))
                             Box(
@@ -536,6 +549,10 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
             onDismiss = { reviewing = false })
         return
     }
+    var seriesOpen by remember { mutableStateOf(false) }
+    var loanOpen by remember { mutableStateOf(false) }
+    if (seriesOpen) { SeriesDialog(b) { seriesOpen = false }; return }
+    if (loanOpen) { LoanDialog(b) { loanOpen = false }; return }
     val menuScroll = rememberScrollState()
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -608,6 +625,12 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 MenuGroup("Libro")
                 val shelfNames = (if (b.genre.isNotBlank()) listOf(b.genre) else emptyList()) + b.shelves
                 SheetRow(if (shelfNames.isEmpty()) "Añadir a una estantería" else "Estanterías: ${shelfNames.joinToString(", ")}") { shelvesOpen = true }
+                SheetRow(if (b.series.isBlank()) "Saga" else "Saga: ${b.series}" + if (b.seriesLabel.isNotBlank()) " (${b.seriesLabel})" else "") { seriesOpen = true }
+                if (b.format == BookFormat.Paper) SheetRow(if (b.onLoan) "Prestado a ${b.loanTo}" else "Prestar") { loanOpen = true }
+                SheetRow(if (b.wish) "Ya lo tengo (quitar de «Lo quiero»)" else "Lo quiero (aún no lo tengo)") {
+                    scope.launch { Library.update(b.id) { it.copy(wish = !it.wish) } }
+                    AppState.toast(if (b.wish) "Quitado de «Lo quiero»" else "Añadido a «Lo quiero»")
+                }
                 SheetRow("Ver ficha del libro") { onDismiss(); AppState.screen.value = Screen.Book(b.id) }
                 SheetRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 SheetRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
@@ -709,6 +732,10 @@ private fun HomePane(
                     ) { i -> ContinueCard(reading[i], cpm, onOpen = { onOpen(reading[i]) }, fixedHeight = true) }
                 }
             }
+        }
+
+        resurfaceCandidate(books)?.let { r ->
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) { ResurfaceCard(r) { onDetails(r) } }
         }
 
         HomeTitle("Recientes", "Ver todos", onSeeAll)

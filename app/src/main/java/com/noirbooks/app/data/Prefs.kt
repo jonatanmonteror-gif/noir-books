@@ -428,6 +428,11 @@ object Prefs {
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
 
+    /** Proponer retomar un libro abandonado hace más de 3 meses (en Inicio). */
+    var resurface: Boolean
+        get() = sp.getBoolean("resurface", true)
+        set(v) { sp.edit().putBoolean("resurface", v).apply() }
+
     /** Tamaño de las portadas de «Recientes» en Inicio: s, m, l. */
     var recentSize: String
         get() = sp.getString("recent_size", "m") ?: "m"
