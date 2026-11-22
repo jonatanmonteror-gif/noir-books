@@ -262,7 +262,7 @@ private fun AppContent() {
             runCatching { com.noirbooks.app.data.LoanReminder.syncAll(ctx) }
             AppState.background.launch { kotlinx.coroutines.delay(2500); runCatching { com.noirbooks.app.data.Praise.checkMonth() } }
             // Páginas en papel de los libros que aún no las tienen (sin prisa, en segundo plano)
-            AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllPaperPages(); com.noirbooks.app.data.Library.ensureAllGenres() }
+            AppState.background.launch { kotlinx.coroutines.delay(4000); com.noirbooks.app.data.Library.ensureAllSeries(); com.noirbooks.app.data.Library.ensureAllPaperPages(); com.noirbooks.app.data.Library.ensureAllGenres() }
             val ts = com.noirbooks.app.data.Prefs.timerStart
             val tb = com.noirbooks.app.data.Prefs.timerBook
             if (ts > 0L && com.noirbooks.app.data.Library.get(tb) != null) {

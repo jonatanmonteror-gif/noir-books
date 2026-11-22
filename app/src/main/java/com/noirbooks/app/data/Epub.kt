@@ -42,6 +42,9 @@ class EpubBook(
     val isbn: String = "",
     /** Temas del libro (dc:subject), si los trae. */
     val subjects: List<String> = emptyList(),
+    /** Saga y número dentro de ella, si el EPUB los trae (Calibre o EPUB 3). */
+    val series: String = "",
+    val seriesIndex: String = "",
 )
 
 class DrmException : IOException("Este libro tiene protección DRM y no se puede abrir.")
@@ -89,6 +92,7 @@ object Epub {
             val publisher = cleanPublisher(meta?.firstText("dc|publisher", "publisher").orEmpty())
             val subjects = meta?.select("dc|subject, subject")?.map { it.text().trim() }?.filter { it.isNotEmpty() }.orEmpty()
             val year = meta?.firstText("dc|date", "date").orEmpty().take(4).filter { it.isDigit() }
+            val (series, seriesIndex) = seriesOf(opf)
 
             // Portada: EPUB 3 (properties="cover-image"), EPUB 2 (<meta name="cover">) o un archivo llamado "cover".
             val cover = manifestById.values.firstOrNull { "cover-image" in it.properties.split(' ') }?.href
@@ -129,7 +133,8 @@ object Epub {
                 if (ncx != null) pages = runCatching { parseNcxPages(z, ncx.href) }.getOrDefault(emptyList())
             }
             EpubBook(title.trim(), author, lang, spine, toc, cover, manifestByPath, uniqueId, uuidId, obfuscatedFonts(z), pages,
-                description = description, publisher = publisher, year = year, isbn = isbn, subjects = subjects)
+                description = description, publisher = publisher, year = year, isbn = isbn, subjects = subjects,
+                series = series, seriesIndex = seriesIndex)
         }
     }
 
@@ -183,6 +188,51 @@ object Epub {
             else -> return bytes
         }
         return out
+    }
+
+    /**
+     * Saga del EPUB: Calibre la guarda en <meta name="calibre:series"> y «calibre:series_index»;
+     * EPUB 3, en <meta property="belongs-to-collection"> con «collection-type» = series y «group-position».
+     */
+    private fun seriesOf(opf: org.jsoup.nodes.Document): Pair<String, String> {
+        val calName = opf.select("meta").firstOrNull { it.attr("name") == "calibre:series" }?.attr("content")?.trim().orEmpty()
+        if (calName.isNotEmpty()) {
+            val idx = opf.select("meta").firstOrNull { it.attr("name") == "calibre:series_index" }?.attr("content")?.trim().orEmpty()
+            return calName to normIndex(idx)
+        }
+        val cols = opf.select("meta").filter { it.attr("property") == "belongs-to-collection" }
+        for (c in cols) {
+            val name = c.text().trim()
+            if (name.isEmpty()) continue
+            val id = c.attr("id")
+            fun refine(prop: String) = if (id.isEmpty()) "" else opf.select("meta")
+                .firstOrNull { it.attr("refines") == "#$id" && it.attr("property") == prop }?.text()?.trim().orEmpty()
+            val type = refine("collection-type")
+            if (type.isNotEmpty() && type != "series") continue
+            return name to normIndex(refine("group-position"))
+        }
+        return "" to ""
+    }
+
+    /** «3.0» → «3»; «2.5» se queda. */
+    fun normIndex(raw: String): String {
+        val f = raw.replace(',', '.').toFloatOrNull() ?: return ""
+        if (f <= 0f) return ""
+        return if (f == kotlin.math.floor(f)) f.toInt().toString() else f.toString()
+    }
+
+    /**
+     * Saga escrita en el título, al final y entre paréntesis: «Alas de sangre (Empíreo 1)»,
+     * «El nombre del viento (Crónica del asesino de reyes, #1)». Devuelve título limpio, saga y número.
+     */
+    fun seriesFromTitle(title: String): Triple<String, String, String>? {
+        val m = Regex("""^(.+?)\s*[(\[]\s*([^()\[\]]{2,60}?)[\s,;:.#]*(?:n\.?\s*º|nº|no\.|vol\.?|libro|book|tomo)?\s*#?\s*(\d{1,2}(?:[.,]\d)?)\s*[)\]]\s*$""",
+            RegexOption.IGNORE_CASE).find(title.trim()) ?: return null
+        val name = m.groupValues[2].trim().trimEnd(',', '-', ':', ' ').removePrefix("Saga ").removePrefix("saga ").trim()
+        if (name.length < 2 || name.any { it.isDigit() }) return null
+        // «(Edición 2)», «(Tomo 1)»… no son sagas
+        if (name.lowercase() in setOf("edición", "edicion", "edition", "ed.", "volumen", "vol", "parte", "part", "tomo", "libro", "book")) return null
+        return Triple(m.groupValues[1].trim(), name, normIndex(m.groupValues[3]))
     }
 
     private fun parseNav(z: ZipFile, path: String): List<TocEntry> {

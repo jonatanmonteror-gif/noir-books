@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.79", "22 nov 2026", listOf(
+            "Sagas automáticas: se leen del propio EPUB (los preparados con Calibre o EPUB 3 las traen) o del título, p. ej. «Alas de sangre (Empíreo 1)». También en los libros que ya tenías",
+        )),
         Entry("1.0.78", "22 nov 2026", listOf(
             "Asistente de bienvenida al instalar: apariencia, letra de lectura, copia de seguridad y traer tus libros",
             "Ajustes › Privacidad: bloquear la app con la huella (o el PIN del móvil) al abrirla y al volver después de un minuto",

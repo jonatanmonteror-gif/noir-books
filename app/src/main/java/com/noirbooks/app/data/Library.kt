@@ -321,6 +321,8 @@ object Library {
                 hasCover = hasCover,
                 description = epub.description, publisher = epub.publisher, year = epub.year,
                 isbn = epub.isbn,
+                series = epub.series.ifBlank { Epub.seriesFromTitle(epub.title)?.second.orEmpty() },
+                seriesNo = if (epub.series.isNotBlank()) epub.seriesIndex else Epub.seriesFromTitle(epub.title)?.third.orEmpty(),
             )
             lock.withLock {
                 books.value = books.value + book
@@ -517,6 +519,26 @@ object Library {
     suspend fun ensureAllGenres() {
         books.value.filter { !it.inTrash && it.genre.isBlank() && !Prefs.genreLookedUp(it.id) }
             .forEach { runCatching { ensureGenre(it.id) }; kotlinx.coroutines.delay(500) }
+    }
+
+    /**
+     * Saga de los libros que aún no la tienen: del propio EPUB (Calibre / EPUB 3) o, si no, del título
+     * («Alas de sangre (Empíreo 1)»). Se mira una sola vez por libro; lo que pongas a mano no se toca.
+     */
+    suspend fun ensureAllSeries() = withContext(Dispatchers.IO) {
+        books.value.filter { !it.inTrash && it.series.isBlank() && !Prefs.seriesLookedUp(it.id) }.forEach { b ->
+            runCatching {
+                var name = ""; var no = ""
+                if (b.isEpub && epubOf(b.id).exists()) {
+                    val e = Epub.open(epubOf(b.id), b.title)
+                    name = e.series; no = e.seriesIndex
+                }
+                if (name.isBlank()) Epub.seriesFromTitle(b.title)?.let { (_, n, i) -> name = n; no = i }
+                if (name.isNotBlank()) update(b.id) { if (it.series.isBlank()) it.copy(series = name, seriesNo = no) else it }
+            }
+            Prefs.markSeriesLookedUp(b.id)
+            kotlinx.coroutines.delay(150)
+        }
     }
 
     /** Busca las páginas en papel de todos los EPUB que aún no las tienen (en segundo plano, de uno en uno). */

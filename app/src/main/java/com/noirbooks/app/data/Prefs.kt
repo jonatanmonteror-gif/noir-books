@@ -411,6 +411,8 @@ object Prefs {
     fun descLookedUp(id: String) = sp.getBoolean("desc_lookup_$id", false)
     fun markDescLookedUp(id: String) { sp.edit().putBoolean("desc_lookup_$id", true).apply() }
     /** Búsqueda mejorada de páginas en papel (por ISBN, título y autor); se repite para los libros ya mirados antes. */
+    fun seriesLookedUp(id: String) = sp.getBoolean("series_lookup_$id", false)
+    fun markSeriesLookedUp(id: String) { sp.edit().putBoolean("series_lookup_$id", true).apply() }
     fun genreLookedUp(id: String) = sp.getBoolean("genre_lookup_$id", false)
     fun markGenreLookedUp(id: String) { sp.edit().putBoolean("genre_lookup_$id", true).apply() }
     fun paperLookedUp(id: String) = sp.getBoolean("paper_lookup_$id", false)
