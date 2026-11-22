@@ -55,6 +55,9 @@ android {
         create("github") {
             dimension = "store"
             buildConfigField("boolean", "SELF_UPDATE", "true")
+            // Solo móviles y tablets ARM (todos los Android reales). Quita las copias para emuladores x86,
+            // que eran casi la mitad del APK (el traductor sin conexión trae 17 MB por arquitectura).
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             signingConfig = signingConfigs.getByName("release")
         }
         create("play") {

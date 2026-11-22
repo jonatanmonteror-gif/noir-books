@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.70", "22 nov 2026", listOf(
+            "La app pesa unos 30 MB menos: ya no lleva las piezas para emuladores de ordenador",
+        )),
         Entry("1.0.69", "22 nov 2026", listOf(
             "Actualizar: la comprobación de seguridad se hace antes de descargar, así no falla si sales de la app mientras baja",
             "Si no hay internet, el aviso lo dice claro y ya no llena el registro de errores",
