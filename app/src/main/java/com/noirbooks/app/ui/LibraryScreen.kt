@@ -281,7 +281,8 @@ fun LibraryScreen() {
                 val isSel = b.id in selected
                 Column(Modifier.combinedClickable(
                     onClick = { if (selecting) selected = if (isSel) selected - b.id else selected + b.id else details(b) },
-                    onLongClick = { if (selecting) selected = selected + b.id else AppState.bookMenu.value = b.id },
+                    // Mantener pulsado = seleccionar varios (para meterlos en estanterías o cambiar su estado)
+                    onLongClick = { selecting = true; selected = selected + b.id },
                 )) {
                     Box {
                         BookCover(b, Modifier.fillMaxWidth(), titleSize = if (columns >= 4) 11 else if (columns == 3) 13 else 16)
@@ -593,7 +594,8 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
 
                 // Organizar y datos del libro
                 MenuGroup("Libro")
-                SheetRow(if (b.shelves.isEmpty()) "Añadir a una estantería" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
+                val shelfNames = (if (b.genre.isNotBlank()) listOf(b.genre) else emptyList()) + b.shelves
+                SheetRow(if (shelfNames.isEmpty()) "Añadir a una estantería" else "Estanterías: ${shelfNames.joinToString(", ")}") { shelvesOpen = true }
                 SheetRow("Ver ficha del libro") { onDismiss(); AppState.screen.value = Screen.Book(b.id) }
                 SheetRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
                 SheetRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }

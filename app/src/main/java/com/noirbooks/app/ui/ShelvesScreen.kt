@@ -52,7 +52,7 @@ import com.noirbooks.app.data.Library
 import com.noirbooks.app.data.Prefs
 import kotlinx.coroutines.launch
 
-/** Filtro especial: libros que no están en ninguna estantería. */
+/** Filtro especial: libros que no están en ninguna estantería (ni tuya ni de género). */
 const val NO_SHELF = "\u0001sin"
 
 /** Estantería automática de un género (no se guarda: se forma sola con el género de cada libro). */
@@ -68,7 +68,7 @@ fun shelfLabel(s: String) = when {
 
 fun inShelf(b: Book, s: String?) = when {
     s == null -> true
-    s == NO_SHELF -> b.shelves.isEmpty()
+    s == NO_SHELF -> b.shelves.isEmpty() && b.genre.isBlank()
     isGenreShelf(s) -> b.genre == s.removePrefix(GENRE_PREFIX)
     else -> s in b.shelves
 }
@@ -101,7 +101,7 @@ fun ShelvesPane(books: List<Book>, current: String?, onPick: (String?) -> Unit, 
             Column {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuickTile("Toda la biblioteca", books.size, false, Modifier.weight(1f)) { onPick(null) }
-                    QuickTile("Sin estantería", books.count { it.shelves.isEmpty() }, false, Modifier.weight(1f)) { onPick(NO_SHELF) }
+                    QuickTile("Sin estantería", books.count { inShelf(it, NO_SHELF) }, false, Modifier.weight(1f)) { onPick(NO_SHELF) }
                 }
                 Spacer(Modifier.height(12.dp))
                 // Una sola fila: las pestañas pequeñas a la izquierda y el «+» suelto, siempre a la derecha
