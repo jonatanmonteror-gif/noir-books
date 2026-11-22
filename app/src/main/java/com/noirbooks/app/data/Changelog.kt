@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.82", "22 nov 2026", listOf(
+            "Preparando Noir Books Pro: los temas Verde, Negro y Propio, el tema automático y el pie de página a tu gusto serán Pro",
+            "Ajustes › Vista de la app (temporal, para pruebas): ver la app como usuario nuevo, usuario Pro o desarrollador",
+        )),
         Entry("1.0.81", "22 nov 2026", listOf(
             "Cita del día: botón «Compartir» en Citas y en el widget, que abre directamente la imagen para Instagram y otras redes",
         )),

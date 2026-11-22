@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -84,8 +85,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(18.dp))
                     LibraryLookSettings()
-                    Spacer(Modifier.height(18.dp))
-                    PillButton("Ver el asistente de bienvenida") { AppState.welcome.value = true }
+
                 }
 
                 FoldSection("Inicio", "Qué secciones se ven y en qué orden") { HomeSectionsSettings() }
@@ -177,7 +177,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ChangelogList()
                 }
 
-                FoldSection("Registro de errores", run { errVersion; val n = ErrorLog.count(); if (n == 0) "Sin errores" else "$n anotados" }) {
+                if (com.noirbooks.app.data.Edition.isDev) FoldSection("Registro de errores", run { errVersion; val n = ErrorLog.count(); if (n == 0) "Sin errores" else "$n anotados" }) {
                     Text(
                         "Si algo falla (un libro que no abre, un cierre inesperado), aquí queda anotado sin datos personales. " +
                             "Cópialo o compártelo para arreglarlo.",
@@ -206,6 +206,31 @@ fun SettingsScreen(onBack: () -> Unit) {
                             TextButton(onClick = { scope.launch { com.noirbooks.app.data.Library.restore(b.id) } }) { Text("Recuperar", color = NB.text) }
                             TextButton(onClick = { scope.launch { com.noirbooks.app.data.Library.deleteForever(b.id) } }) { Text("Borrar", color = Color(0xFFFF6B6B)) }
                         }
+                    }
+                }
+
+                // TEMPORAL (pruebas): elegir cómo se ve la app. Se quita antes de publicar.
+                FoldSection("Vista de la app · temporal", when (com.noirbooks.app.data.Edition.mode.value) {
+                    "free" -> "Usuario nuevo (gratis)"; "pro" -> "Usuario Pro"; else -> "Desarrollador"
+                }) {
+                    Text("Solo para probar: ve la app como la verá cada tipo de usuario. Tus libros y datos no cambian. " +
+                        "Esta sección se quitará antes de publicar.", color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+                    Spacer(Modifier.height(12.dp))
+                    val mode by com.noirbooks.app.data.Edition.mode
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ViewOption("Usuario nuevo", "Primera instalación, sin Pro: sale el asistente y las funciones Pro con candado", mode == "free") {
+                            com.noirbooks.app.data.Edition.set("free"); AppState.welcome.value = true
+                        }
+                        ViewOption("Usuario Pro", "Todo desbloqueado, sin ajustes de desarrollador", mode == "pro") {
+                            com.noirbooks.app.data.Edition.set("pro")
+                        }
+                        ViewOption("Desarrollador", "Todo, más registro de errores y herramientas de prueba", mode == "dev") {
+                            com.noirbooks.app.data.Edition.set("dev")
+                        }
+                    }
+                    if (mode == "dev") {
+                        Spacer(Modifier.height(14.dp))
+                        PillButton("Ver el asistente de bienvenida") { AppState.welcome.value = true }
                     }
                 }
 
@@ -316,4 +341,16 @@ fun WhatsNewPrompt() {
         },
         confirmButton = { androidx.compose.material3.TextButton(onClick = { close() }) { Text("Vale", color = NB.text) } },
     )
+}
+
+@Composable
+private fun ViewOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .border(if (selected) 2.dp else 1.dp, if (selected) NB.text else NB.line, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 11.dp),
+    ) {
+        Text(title, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp)
+    }
 }

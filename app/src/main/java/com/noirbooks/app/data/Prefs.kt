@@ -205,6 +205,7 @@ object Prefs {
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
         runCatching { loadHome() }
+        Edition.init()
         appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
         uiScale.value = sp.getFloat("ui_scale", 0.96f).let { if (it == 0.92f) 0.96f else it }
         ratingMode.value = sp.getString("rating_mode", "basic") ?: "basic"
@@ -309,7 +310,7 @@ object Prefs {
     /** Claves que son de este aparato y no viajan en las copias. */
     private val LOCAL_ONLY = setOf("timer_book", "timer_start", "reader_pending_reading", "updates_last_check",
         "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at",
-        "drive_linked", "drive_last_backup", "data_changed_at", "app_lock", "onboarded")
+        "drive_linked", "drive_last_backup", "data_changed_at", "app_lock", "onboarded", "view_mode")
 
     fun setAppearance(v: String) {
         appearanceState.value = v
@@ -430,6 +431,11 @@ object Prefs {
     var shelfView: String
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
+
+    /** Vista de la app (TEMPORAL, ver Edition): free, pro o dev. */
+    var viewMode: String
+        get() = sp.getString("view_mode", "dev") ?: "dev"
+        set(v) { sp.edit().putString("view_mode", v).apply() }
 
     /** Ya se vio el asistente de bienvenida. */
     var onboarded: Boolean

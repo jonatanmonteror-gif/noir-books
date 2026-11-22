@@ -310,3 +310,58 @@ fun FullScreenDialogWindow() {
         run { window.statusBarColor = android.graphics.Color.TRANSPARENT; window.navigationBarColor = android.graphics.Color.TRANSPARENT }
     }
 }
+
+// ---------------- Pro ----------------
+
+/** Etiqueta «PRO» pequeña. */
+@Composable
+fun ProBadge(modifier: Modifier = Modifier) {
+    Text("PRO", color = NB.onText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
+        modifier = modifier.clip(RoundedCornerShape(4.dp)).background(NB.text).padding(horizontal = 5.dp, vertical = 1.dp))
+}
+
+/** Sección de ajustes que es Pro: sin Pro se ve con candado y abre la pantalla de Pro. */
+@Composable
+fun ProFoldSection(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
+    if (com.noirbooks.app.data.Edition.isPro) { FoldSection(title, subtitle, content = content); return }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
+            .clickable { AppState.showPro.value = true }.padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = NB.text)
+            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = NB.text3, fontFamily = Inter)
+        }
+        ProBadge()
+    }
+}
+
+/** Pantalla de Pro. De momento informativa: la compra llegará con Google Play. */
+@Composable
+fun ProDialog(onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Noir Books ", fontFamily = Playfair, fontSize = 22.sp, color = NB.text)
+                ProBadge()
+            }
+        },
+        text = {
+            Column {
+                Text("Para quien lee mucho y quiere la lectura exactamente a su gusto.", color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+                Spacer(Modifier.height(12.dp))
+                com.noirbooks.app.data.Edition.FEATURES.forEach { f ->
+                    Row(Modifier.padding(vertical = 4.dp)) {
+                        Text("✓  ", color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(f, color = NB.text, fontSize = 14.sp, lineHeight = 20.sp)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Muy pronto, con un pago único desde Google Play.", color = NB.text3, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Entendido", color = NB.text, fontWeight = FontWeight.SemiBold) } },
+    )
+}

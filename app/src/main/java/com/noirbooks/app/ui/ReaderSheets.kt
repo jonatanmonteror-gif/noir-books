@@ -209,15 +209,21 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
             val sel = s.theme == t && s.autoTheme == "off"
             val tbg = if (t == ReaderTheme.Custom) s.customBg else t.bg
             val tfg = if (t == ReaderTheme.Custom) s.customFg else t.fg
+            val locked = !com.noirbooks.app.data.Edition.isPro && t.key !in com.noirbooks.app.data.Edition.FREE_THEMES
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { set(s.copy(theme = t, autoTheme = "off")) },
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable {
+                    if (locked) AppState.showPro.value = true else set(s.copy(theme = t, autoTheme = "off"))
+                },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
                     Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).background(Color(tbg))
                         .border(if (sel) 2.dp else 1.dp, if (sel) NB.text else NB.line, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center,
-                ) { Text("Aa", color = Color(tfg), fontFamily = Playfair, fontSize = 17.sp) }
+                ) {
+                    Text("Aa", color = Color(tfg), fontFamily = Playfair, fontSize = 17.sp)
+                    if (locked) ProBadge(Modifier.align(Alignment.TopEnd).padding(3.dp))
+                }
                 Spacer(Modifier.height(5.dp))
                 Text(t.label, fontSize = 12.sp, color = if (sel) NB.text else NB.text3)
             }
@@ -276,10 +282,10 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
         Toggle("Justificar texto", s.justify) { set(s.copy(justify = it)) }
         Toggle("Dividir palabras al final de línea", s.hyphens) { set(s.copy(hyphens = it)) }
     }
-    FoldSection("Tema propio y automático", "Tus colores, y claro de día y oscuro de noche") {
+    ProFoldSection("Tema propio y automático", "Tus colores, y claro de día y oscuro de noche") {
         ThemeExtras(s) { set(it) }
     }
-    FoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
+    ProFoldSection("Pie de página", "Tiempo del capítulo, %, hora, batería") {
         Label("A la izquierda")
         FooterChoices(FooterInfo.LEFT, s.footerLeft) { set(s.copy(footerLeft = it)) }
         Label("A la derecha")
