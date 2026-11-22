@@ -418,6 +418,7 @@ fun QuotesScreen() {
     val vocab by Library.vocabulary
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var color by rememberSaveable { mutableIntStateOf(-1) }
+    var tag by rememberSaveable { mutableStateOf<String?>(null) }
     var open by remember { mutableStateOf<Pair<Book, Highlight>?>(null) }
     var defineWord by remember { mutableStateOf<String?>(null) }
 
@@ -427,7 +428,10 @@ fun QuotesScreen() {
     if (photoQuote) PhotoQuoteFlow(onDone = { photoQuote = false })
     val sq = fold(search.trim())
     val shown = all.filter { color < 0 || it.second.color == color }
-        .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) || fold(b.author).contains(sq) }
+        .filter { tag == null || tag in it.second.tags }
+        .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) ||
+            fold(b.author).contains(sq) || h.tags.any { fold(it).contains(sq.removePrefix("#")) } }
+    val tagCounts = all.flatMap { it.second.tags }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
     val daily = remember(all.size) {
         if (all.isEmpty()) null else all[(Stats.today().hashCode() and 0x7fffffff) % all.size]
     }
@@ -487,6 +491,12 @@ fun QuotesScreen() {
                         HighlightColor.entries.forEach { hc ->
                             val n = all.count { it.second.color == hc.ordinal }
                             if (n > 0) Chip("${hc.meaning} · $n", color == hc.ordinal) { color = hc.ordinal }
+                        }
+                    }
+                    if (tagCounts.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            tagCounts.forEach { (t, n) -> Chip("#$t · $n", tag == t) { tag = if (tag == t) null else t } }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
@@ -554,7 +564,7 @@ private fun exportMarkdown(all: List<Pair<Book, Highlight>>): String = buildStri
         hs.sortedWith(compareBy({ it.second.chapter }, { it.second.fraction })).forEach { (_, h) ->
             append("> ${h.text.replace("\n", " ")}\n")
             if (h.note.isNotBlank()) append("\n${h.note}\n")
-            val meta = listOf(h.chapterTitle, HighlightColor.of(h.color).meaning).filter { it.isNotBlank() }.joinToString(" · ")
+            val meta = (listOf(h.chapterTitle, HighlightColor.of(h.color).meaning) + h.tags.map { "#$it" }).filter { it.isNotBlank() }.joinToString(" · ")
             if (meta.isNotBlank()) append("\n*$meta*\n")
             append("\n")
         }

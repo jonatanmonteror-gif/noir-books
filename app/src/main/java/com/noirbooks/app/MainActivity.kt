@@ -37,6 +37,7 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         com.noirbooks.app.ui.AppLock.onStop()
+        com.noirbooks.app.data.QuoteWidget.refresh(this)
         com.noirbooks.app.data.Stats.flush()
         com.noirbooks.app.data.DriveBackup.autoBackup(this)
     }
@@ -50,6 +51,12 @@ class MainActivity : FragmentActivity() {
     /** "Abrir con" o "Compartir" un .epub desde otra app: se importa y, si es uno solo, se abre. */
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+        // Desde el widget de la cita del día: abrir Citas
+        if (intent.getBooleanExtra(com.noirbooks.app.data.QuoteWidget.EXTRA_QUOTES, false)) {
+            AppState.screen.value = com.noirbooks.app.ui.Screen.Library
+            AppState.tab.intValue = 2
+            return
+        }
         if (intent.action == com.noirbooks.app.data.TimerNotification.ACTION_STOP) {
             AppState.screen.value = com.noirbooks.app.ui.Screen.Library
             AppState.stopTimer()

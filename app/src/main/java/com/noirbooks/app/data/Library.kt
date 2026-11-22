@@ -86,6 +86,8 @@ data class Highlight(
     val color: Int,
     val note: String = "",
     val chapterTitle: String = "",
+    /** Etiquetas propias («amor», «para el discurso»…), para agrupar y filtrar citas. */
+    val tags: List<String> = emptyList(),
 )
 
 /** Una lectura completa o en curso (para las relecturas). */
@@ -811,6 +813,7 @@ object Library {
                             put("id", h.id); put("chapter", h.chapter); put("fraction", h.fraction.toDouble())
                             put("range", h.range); put("text", h.text); put("color", h.color)
                             put("note", h.note); put("chapterTitle", h.chapterTitle)
+                            if (h.tags.isNotEmpty()) put("tags", JSONArray(h.tags))
                         })
                     }
                 })
@@ -850,6 +853,7 @@ object Library {
                         fraction = h.optDouble("fraction", 0.0).toFloat(), range = h.optString("range"),
                         text = h.optString("text"), color = h.optInt("color"), note = h.optString("note"),
                         chapterTitle = h.optString("chapterTitle"),
+                        tags = h.optJSONArray("tags")?.let { t -> (0 until t.length()).map { t.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
                     )
                 }.distinctBy { it.id }
             }.orEmpty()

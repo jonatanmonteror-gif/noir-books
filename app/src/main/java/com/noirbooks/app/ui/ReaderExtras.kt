@@ -146,6 +146,8 @@ fun QuoteRow(h: Highlight, subtitle: String? = null, onClick: () -> Unit) {
             }
             Spacer(Modifier.height(4.dp))
             Text(subtitle ?: h.chapterTitle, fontFamily = Inter, fontSize = 12.sp, color = NB.text3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (h.tags.isNotEmpty()) Text(h.tags.joinToString("  ") { "#$it" }, fontFamily = Inter, fontSize = 12.sp, color = NB.text2,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -160,6 +162,7 @@ fun HighlightSheet(
 ) {
     val ctx = LocalContext.current
     var editing by remember { mutableStateOf(false) }
+    var tagging by remember { mutableStateOf(false) }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state, containerColor = NB.surface, contentColor = NB.text) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 16.dp)) {
@@ -181,6 +184,13 @@ fun HighlightSheet(
                 Spacer(Modifier.width(4.dp))
                 Text(HighlightColor.of(h.color).meaning, fontFamily = Inter, fontSize = 12.sp, color = NB.text3)
             }
+            // Etiquetas: tocar una la quita; «+ Etiqueta» para añadir
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                h.tags.forEach { t -> Chip("#$t  ×", true) { onChange(h.copy(tags = h.tags - t)) } }
+                Chip("+ Etiqueta", false) { tagging = true }
+            }
             Spacer(Modifier.height(14.dp))
             ButtonRow {
                 PillButton(if (h.note.isBlank()) "Añadir nota" else "Editar nota") { editing = true }
@@ -197,6 +207,48 @@ fun HighlightSheet(
     if (editing) {
         NoteDialog("Nota", h.note, onSave = { onChange(h.copy(note = it)); editing = false }, onDismiss = { editing = false })
     }
+    if (tagging) TagDialog(h.tags, onPick = { t -> onChange(h.copy(tags = (h.tags + t).distinct())); tagging = false }, onDismiss = { tagging = false })
+}
+
+/** Todas las etiquetas que ya usas, de más a menos usada. */
+fun allQuoteTags(): List<String> = com.noirbooks.app.data.Library.books.value.filter { !it.inTrash }
+    .flatMap { b -> b.highlights.flatMap { it.tags } }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TagDialog(current: List<String>, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val known = remember { allQuoteTags().filter { it !in current } }
+    val clean = text.trim().removePrefix("#").trim().lowercase().take(30)
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = NB.surface2,
+        title = { Text("Etiqueta", fontFamily = Inter, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column {
+                androidx.compose.material3.OutlinedTextField(
+                    text, { text = it.take(30) }, singleLine = true, placeholder = { Text("amor, para el discurso, ideas…", color = NB.text3) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+                        focusedTextColor = NB.text, unfocusedTextColor = NB.text),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val matches = known.filter { clean.isEmpty() || it.contains(clean) }.take(12)
+                if (matches.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Las que ya usas", color = NB.text3, fontSize = 12.sp)
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        matches.forEach { t -> Chip("#$t", false) { onPick(t) } }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = clean.isNotEmpty(), onClick = { onPick(clean) }) { Text("Añadir", color = NB.text, fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
+    )
 }
 
 /**

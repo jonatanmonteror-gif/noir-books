@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.80", "22 nov 2026", listOf(
+            "Etiquetas en las citas: añádelas desde la cita (#amor, #ideas…) y filtra por ellas en Citas. También salen al exportar",
+            "Widget «Cita del día» para la pantalla de inicio del móvil: una de tus citas cada día; al tocarlo abre Citas",
+            "Ajustes › Apariencia › «Ver el asistente de bienvenida», para ver cómo lo ve quien instala la app",
+        )),
         Entry("1.0.79", "22 nov 2026", listOf(
             "Sagas automáticas: se leen del propio EPUB (los preparados con Calibre o EPUB 3 las traen) o del título, p. ej. «Alas de sangre (Empíreo 1)». También en los libros que ya tenías",
         )),

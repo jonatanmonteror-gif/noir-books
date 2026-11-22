@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Noir Books</string>
+    <string name="widget_quote_desc">Una de tus citas cada día</string>
 </resources>

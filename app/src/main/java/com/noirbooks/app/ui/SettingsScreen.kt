@@ -84,6 +84,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(18.dp))
                     LibraryLookSettings()
+                    Spacer(Modifier.height(18.dp))
+                    PillButton("Ver el asistente de bienvenida") { AppState.welcome.value = true }
                 }
 
                 FoldSection("Inicio", "Qué secciones se ven y en qué orden") { HomeSectionsSettings() }

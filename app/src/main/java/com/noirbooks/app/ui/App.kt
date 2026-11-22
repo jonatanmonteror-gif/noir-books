@@ -53,6 +53,8 @@ object AppState {
     val screen = mutableStateOf<Screen>(Screen.Library)
     /** Pestaña de la pantalla principal: 0 Biblioteca, 1 Calendario, 2 Citas, 3 Estadísticas. */
     val tab = mutableIntStateOf(0)
+    /** Asistente de bienvenida en pantalla (la primera vez, o desde Ajustes para verlo). */
+    val welcome = mutableStateOf(false)
     /** Al abrir un libro desde una cita: ir directamente a esa cita. */
     val jumpTo = mutableStateOf<Pair<String, com.noirbooks.app.data.Highlight>?>(null)
     val resumeCount = mutableIntStateOf(0)
@@ -279,11 +281,14 @@ private fun AppContent() {
         // Bloqueo con huella: mientras está bloqueada no se pinta nada más (ni diálogos)
         if (AppLock.locked.value) { LockScreen(); return@NoirTheme }
         // Asistente la primera vez (si ya hay libros, es alguien que actualiza: no se enseña)
-        var welcome by remember {
-            mutableStateOf(!com.noirbooks.app.data.Prefs.onboarded && com.noirbooks.app.data.Library.books.value.isEmpty())
+        remember {
+            if (!com.noirbooks.app.data.Prefs.onboarded) {
+                if (com.noirbooks.app.data.Library.books.value.isEmpty()) AppState.welcome.value = true
+                else com.noirbooks.app.data.Prefs.onboarded = true
+            }
+            0
         }
-        if (!welcome && !com.noirbooks.app.data.Prefs.onboarded) com.noirbooks.app.data.Prefs.onboarded = true
-        if (welcome) { WelcomeScreen(onDone = { welcome = false }); return@NoirTheme }
+        if (AppState.welcome.value) { WelcomeScreen(onDone = { AppState.welcome.value = false }); return@NoirTheme }
         Box(Modifier.fillMaxSize().background(NB.bg)) {
             when (val s = screen) {
                 Screen.Library -> MainScreen()
