@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.84", "22 nov 2026", listOf(
+            "Pantalla de Pro más compacta: se ve entera sin desplazar",
+        )),
         Entry("1.0.83", "22 nov 2026", listOf(
             "Pantalla de Noir Books Pro con precio de lanzamiento y tarjeta «¿Te pasas a Pro?» arriba en Ajustes",
             "Sin Pro, los temas Pro salen al final y apagados, y las secciones Pro se pueden desplegar para verlas, pero no tocar",

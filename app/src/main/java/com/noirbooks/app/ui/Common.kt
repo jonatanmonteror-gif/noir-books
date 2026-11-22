@@ -383,7 +383,7 @@ fun ProUpsellCard() {
     }
 }
 
-/** Pantalla de Pro a pantalla completa: qué trae, precio con descuento y botón de compra (de momento sin cobrar). */
+/** Pantalla de Pro a pantalla completa: qué trae, precio con descuento y botón de compra (de momento sin cobrar). Cabe sin desplazar. */
 @Composable
 fun ProDialog(onDismiss: () -> Unit) {
     val navH = activityNavBarHeight()
@@ -391,65 +391,56 @@ fun ProDialog(onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
-        Column(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH.coerceAtLeast(28.dp), bottom = navH.coerceAtLeast(12.dp))) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.weight(1f))
-                androidx.compose.material3.IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2)
-                }
-            }
-            Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Noir", fontFamily = Playfair, fontSize = 46.sp, color = NB.text)
+        Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(20.dp) + 6.dp)) {
+            Column(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Arriba: marca y frase (el espacio libre se reparte para que todo quepa sin desplazar)
+                Spacer(Modifier.weight(0.6f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("BOOKS  ", fontSize = 12.sp, letterSpacing = 5.sp, color = NB.text3)
+                    Text("Noir ", fontFamily = Playfair, fontSize = 34.sp, color = NB.text)
+                    Text("BOOKS  ", fontSize = 11.sp, letterSpacing = 4.sp, color = NB.text3)
                     ProBadge()
                 }
-                Spacer(Modifier.height(18.dp))
-                Text("Tu lectura, exactamente a tu gusto.", color = NB.text, fontSize = 19.sp, lineHeight = 25.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                Spacer(Modifier.height(24.dp))
-                Column(Modifier.widthIn(max = 460.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface).padding(18.dp)) {
-                    com.noirbooks.app.data.Edition.FEATURES.forEach { f ->
-                        Row(Modifier.padding(vertical = 6.dp)) {
-                            Text("✓", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
-                            Text(f, color = NB.text, fontSize = 15.sp, lineHeight = 21.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("Tu lectura, exactamente a tu gusto.", color = NB.text2, fontSize = 15.sp)
+                Spacer(Modifier.weight(0.5f))
+                Column(Modifier.widthIn(max = 460.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    (com.noirbooks.app.data.Edition.FEATURES + "Y todo lo nuevo que llegue a Pro").forEach { f ->
+                        Row(Modifier.padding(vertical = 4.dp)) {
+                            Text("✓", color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(22.dp))
+                            Text(f, color = NB.text, fontSize = 14.sp, lineHeight = 19.sp)
                         }
                     }
-                    Row(Modifier.padding(vertical = 6.dp)) {
-                        Text("✓", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
-                        Text("Y todo lo nuevo que llegue a Pro", color = NB.text2, fontSize = 15.sp, lineHeight = 21.sp)
-                    }
                 }
-                Spacer(Modifier.height(26.dp))
+                Spacer(Modifier.weight(0.5f))
                 // Precio: oferta frente al precio normal
-                Text("OFERTA DE LANZAMIENTO  ${ProPrice.OFF}", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text2, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(ProPrice.BEFORE, color = NB.text3, fontSize = 18.sp,
+                Text("OFERTA DE LANZAMIENTO  ${ProPrice.OFF}", fontSize = 11.sp, letterSpacing = 1.2.sp, color = NB.text2, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(ProPrice.BEFORE, color = NB.text3, fontSize = 16.sp,
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
                     Spacer(Modifier.width(10.dp))
-                    Text(ProPrice.NOW, color = NB.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                    Text(" /año", color = NB.text2, fontSize = 15.sp, modifier = Modifier.padding(bottom = 5.dp))
+                    Text(ProPrice.NOW, color = NB.text, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                    Text(" /año", color = NB.text2, fontSize = 14.sp)
                 }
-                Text("Menos de 1 € al mes", color = NB.text3, fontSize = 13.sp)
-                Spacer(Modifier.height(20.dp))
-            }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Menos de 1 € al mes", color = NB.text3, fontSize = 12.sp)
+                Spacer(Modifier.weight(0.5f))
                 Box(
-                    Modifier.widthIn(max = 460.dp).fillMaxWidth().height(54.dp).clip(RoundedCornerShape(50)).background(NB.text)
+                    Modifier.widthIn(max = 460.dp).fillMaxWidth().height(52.dp).clip(RoundedCornerShape(50)).background(NB.text)
                         .clickable { AppState.toast("La compra estará disponible cuando la app esté en Google Play") },
                     contentAlignment = Alignment.Center,
                 ) { Text("Pasarme a Pro · ${ProPrice.NOW}/año", color = NB.onText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
-                Spacer(Modifier.height(8.dp))
-                Text("Se renueva cada año. Cancela cuando quieras desde Google Play.", color = NB.text3, fontSize = 12.sp,
+                Spacer(Modifier.height(6.dp))
+                Text("Se renueva cada año. Cancela cuando quieras desde Google Play.", color = NB.text3, fontSize = 11.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 Text("Restaurar compra", color = NB.text2, fontSize = 13.sp,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
                         AppState.toast("La compra estará disponible cuando la app esté en Google Play")
-                    }.padding(10.dp))
+                    }.padding(horizontal = 10.dp, vertical = 6.dp))
+            }
+            // La X no ocupa fila: va encima, en la esquina
+            androidx.compose.material3.IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) {
+                Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2)
             }
         }
     }
