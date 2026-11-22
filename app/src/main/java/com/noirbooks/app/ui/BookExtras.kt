@@ -60,6 +60,7 @@ private fun Field(value: String, onChange: (String) -> Unit, hint: String, numbe
 }
 
 /** Saga: nombre, número y total. Sugiere las sagas que ya tienes para no escribirlas dos veces. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SeriesDialog(b: Book, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -111,6 +112,7 @@ fun SeriesDialog(b: Book, onDismiss: () -> Unit) {
 }
 
 /** Prestar un libro (o marcarlo como devuelto), con aviso el día de devolución. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun LoanDialog(b: Book, onDismiss: () -> Unit) {
     val ctx = LocalContext.current

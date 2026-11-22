@@ -113,7 +113,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(6.dp))
                     Text("Un aviso discreto al terminar un libro o un mes, solo cuando hay algo que destacar.", color = NB.text3, fontSize = 12.sp)
                     Spacer(Modifier.height(16.dp))
-                    var resurface by remember { mutableStateOf(com.noirbooks.app.data.Prefs.resurface) }
+                    var resurface by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.noirbooks.app.data.Prefs.resurface) }
                     Text("Retomar abandonados", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
