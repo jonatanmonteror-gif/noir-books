@@ -209,8 +209,13 @@ object AppState {
                 update.value = UpdateState.Ready(rel, file)
                 if (!Updater.install(app, file)) toast("Permite instalar apps desde Noir Books y vuelve a pulsar Instalar")
             } catch (e: Exception) {
-                ErrorLog.note("Descargar actualización", e)
-                update.value = UpdateState.Failed(e.message ?: "Error al descargar")
+                // Sin internet no es un fallo de la app: se avisa, pero no se apunta en el registro de errores
+                val offline = generateSequence<Throwable>(e) { it.cause }.any {
+                    it is java.net.UnknownHostException || it is java.net.SocketTimeoutException || it is java.net.ConnectException
+                }
+                if (!offline) ErrorLog.note("Descargar actualización", e)
+                update.value = UpdateState.Failed(
+                    if (offline) "Sin conexión con GitHub. Revisa internet y vuelve a intentarlo." else e.message ?: "Error al descargar")
             }
         }
     }

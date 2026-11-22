@@ -45,6 +45,9 @@ object Updater {
      * Al terminar comprueba la huella SHA-256.
      */
     suspend fun download(ctx: Context, rel: Release, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
+        // La huella se pide ANTES de descargar, con la app delante. Si se pide al final y la app está en
+        // segundo plano, Android (ahorro de datos, Samsung) le corta internet y falla con «Unable to resolve host».
+        val expected = rel.shaUrl?.let { url -> fetchSha(url) }
         File(ctx.cacheDir, "updates").listFiles()?.forEach { it.delete() }
         val ext = ctx.getExternalFilesDir(null)
         val file = if (ext != null) {
@@ -87,8 +90,7 @@ object Updater {
         } else {
             downloadDirect(ctx, rel, onProgress)
         }
-        rel.shaUrl?.let { url ->
-            val expected = Http.get(url).trim().take(64).lowercase()
+        expected?.let { expected ->
             val actual = sha256(file)
             if (expected.length == 64 && expected != actual) {
                 file.delete()
@@ -96,6 +98,15 @@ object Updater {
             }
         }
         file
+    }
+
+    /** Huella SHA-256 publicada junto al APK, con reintentos por si la conexión parpadea. */
+    private suspend fun fetchSha(url: String): String {
+        var last: Exception? = null
+        repeat(3) { i ->
+            try { return Http.get(url).trim().take(64).lowercase() } catch (e: Exception) { last = e; kotlinx.coroutines.delay(1200L * (i + 1)) }
+        }
+        throw IOException("No hay conexión con GitHub. Revisa internet y vuelve a pulsar Descargar.", last)
     }
 
     /** Descarga directa con reintentos y continuación (si el móvil no tiene almacenamiento para el gestor de descargas). */
