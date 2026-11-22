@@ -195,8 +195,9 @@ fun AddBookScreen(onClose: () -> Unit) {
                     MenuRow("Importar tu biblioteca de Goodreads (CSV)") {
                         goodreadsPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "*/*"))
                     }
-                    MenuRow("Importar tu biblioteca de Bookmory (Excel o CSV)") {
+                    MenuRow("Importar tu biblioteca de Bookmory (.zip, Excel o CSV)") {
                         bookmoryPicker.launch(arrayOf(
+                            "application/zip", "application/x-zip-compressed", "text/plain",
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             "text/csv", "text/comma-separated-values", "*/*"))
                     }
@@ -205,7 +206,7 @@ fun AddBookScreen(onClose: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text("Goodreads: en la web, Mis libros → Importar y exportar → Exportar biblioteca.", color = NB.text3, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("Bookmory: Ajustes → Copia de seguridad → Exportar en Excel. Sirve el .xlsx tal cual.", color = NB.text3, fontSize = 12.sp)
+                    Text("Bookmory: Ajustes → Exportar. Sirve el .zip tal cual, sin descomprimir.", color = NB.text3, fontSize = 12.sp)
                 }
                 return@Column
             }

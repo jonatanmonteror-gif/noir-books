@@ -224,6 +224,9 @@ object BookmoryImport {
     suspend fun import(ctx: Context, uri: Uri, progress: (Int, Int) -> Unit): GoodreadsImport.Result = withContext(Dispatchers.IO) {
         val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw java.io.IOException("No se pudo leer el archivo")
+        // La exportación habitual de Bookmory es un .zip con un .txt por libro (o un .txt suelto)
+        val texts = txtFiles(bytes)
+        if (texts.isNotEmpty()) return@withContext importTexts(texts, progress)
         val all = readRows(bytes).filter { r -> r.any { it.isNotBlank() } }
         // La cabecera es la primera fila (de las 5 primeras) que tenga columna de título
         val headIdx = all.take(5).indexOfFirst { r -> r.any { colKind(it) == "title" } }
@@ -293,5 +296,161 @@ object BookmoryImport {
         }
         progress(data.size, data.size)
         GoodreadsImport.Result(added, skipped, data.size)
+    }
+
+    // ---------- Exportación en texto (.zip con un .txt por libro) ----------
+
+    /** Textos de los .txt del zip, o el propio archivo si es un .txt de Bookmory. Vacío si no es este formato. */
+    private fun txtFiles(bytes: ByteArray): List<String> {
+        val isZip = bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()
+        if (!isZip) {
+            val t = String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
+            return if (t.contains("### ") && t.contains("- T")) listOf(t) else emptyList()
+        }
+        val out = ArrayList<String>()
+        runCatching {
+            ZipInputStream(bytes.inputStream()).use { z ->
+                while (true) {
+                    val e = z.nextEntry ?: break
+                    if (!e.isDirectory && e.name.endsWith(".txt", true) && !e.name.contains("__MACOSX")) {
+                        out.add(String(z.readBytes(), Charsets.UTF_8).removePrefix("\uFEFF"))
+                    }
+                }
+            }
+        }
+        return out.filter { it.contains("### ") }
+    }
+
+    private class TxtReading(val start: Long, val end: Long, val stars: Float, val comment: String, val seconds: Long)
+    private class TxtBook(val fields: Map<String, String>, val readings: List<TxtReading>)
+
+    /** Cada .txt: «### información del libro» con «- Clave: valor» y luego «### Registro de lectura N». */
+    private fun parseTxt(text: String): TxtBook {
+        val info = HashMap<String, String>()
+        val regs = ArrayList<HashMap<String, String>>()
+        var cur: HashMap<String, String> = info
+        var lastKey: String? = null
+        text.lines().forEach { raw ->
+            val line = raw.trimEnd()
+            when {
+                line.startsWith("###") -> {
+                    val h = norm(line)
+                    cur = if (h.contains("registro") || h.contains("record") || h.contains("log") || h.contains("기록")) HashMap<String, String>().also { regs.add(it) } else info
+                    lastKey = null
+                }
+                line.startsWith("- ") && line.contains(':') -> {
+                    val k = norm(line.substring(2).substringBefore(':'))
+                    cur[k] = line.substringAfter(':').trim()
+                    lastKey = k
+                }
+                // Comentarios de varias líneas
+                line.isNotBlank() && lastKey != null -> cur[lastKey!!] = (cur[lastKey!!].orEmpty() + "\n" + line).trim()
+            }
+        }
+        fun pick(m: Map<String, String>, vararg keys: String) = keys.firstNotNullOfOrNull { k -> m.entries.firstOrNull { it.key.startsWith(k) }?.value }.orEmpty()
+        val readings = regs.map { r ->
+            val period = pick(r, "periododelectura", "periodo", "readingperiod", "period", "기간")
+            val s = date(period.substringBefore('~').trim())
+            val e = if (period.contains('~')) date(period.substringAfter('~').trim()) else 0L
+            val stars = pick(r, "calificacion", "rating", "star", "별점").replace(',', '.').toFloatOrNull() ?: 0f
+            TxtReading(s, e, stars, pick(r, "comentario", "comment", "review", "코멘트", "감상"), duration(pick(r, "tiempototal", "totalreading", "readingtime", "time", "시간")))
+        }
+        return TxtBook(info, readings)
+    }
+
+    /** «10 horas 46 minutos», «1 hour 5 minutes», «2시간 3분» → segundos. */
+    private fun duration(raw: String): Long {
+        val t = raw.lowercase()
+        val h = Regex("(\\d+)\\s*(h|hora|hour|시간)").find(t)?.groupValues?.get(1)?.toLongOrNull() ?: 0
+        val m = Regex("(\\d+)\\s*(m|min|분)").find(t)?.groupValues?.get(1)?.toLongOrNull() ?: 0
+        return h * 3600 + m * 60
+    }
+
+    /** «#MysteryThriller #SelfHelp» → «Mystery Thriller», «Self Help». */
+    private fun tags(raw: String) = raw.split('#').map { it.trim() }.filter { it.isNotEmpty() }
+        .map { it.replace(Regex("([a-z])([A-Z])"), "$1 $2") }
+
+    private suspend fun importTexts(texts: List<String>, progress: (Int, Int) -> Unit): GoodreadsImport.Result {
+        val existing = Library.books.value.map { bookKey(it.title, it.author) }.toHashSet()
+        var added = 0
+        var skipped = 0
+        texts.forEachIndexed { i, text ->
+            progress(i, texts.size)
+            val bk = parseTxt(text)
+            fun f(vararg keys: String) = keys.firstNotNullOfOrNull { k -> bk.fields.entries.firstOrNull { it.key.startsWith(k) }?.value?.takeIf { v -> v.isNotBlank() } }.orEmpty()
+            val title = f("titulo", "title", "제목")
+            val author = f("autores", "autor", "author", "저자")
+            if (title.isBlank()) { skipped++; return@forEachIndexed }
+            val rating0 = bk.readings.lastOrNull { it.stars > 0f }?.stars?.coerceIn(0f, 5f) ?: 0f
+            val review0 = bk.readings.map { it.comment.trim() }.filter { it.isNotEmpty() }.distinct().joinToString("\n\n")
+            if (!existing.add(bookKey(title, author))) {
+                // Ya está (por ejemplo, el EPUB que lees aquí): solo se completa la nota y la reseña si faltan
+                Library.books.value.firstOrNull { bookKey(it.title, it.author) == bookKey(title, author) }?.let { have ->
+                    if ((have.rating == 0f && rating0 > 0f) || (have.review.isBlank() && review0.isNotBlank()))
+                        Library.update(have.id) { it.copy(rating = if (it.rating == 0f) rating0 else it.rating, review = it.review.ifBlank { review0 }) }
+                }
+                skipped++; return@forEachIndexed
+            }
+
+            val st = norm(f("estado", "status", "상태"))
+            val status = when {
+                listOf("leidotodo", "loheleido", "finish", "complete", "read", "완독", "다읽").any { it in st } && "reading" !in st -> BookStatus.Read
+                listOf("leyendo", "reading", "읽는중").any { it in st } -> BookStatus.Reading
+                listOf("pausa", "pause", "abandon", "stop", "중단", "보류").any { it in st } -> BookStatus.Abandoned
+                else -> BookStatus.ToRead // «Leer más tarde», lista de deseos…
+            }
+            val code = f("isbn").filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
+                .let { if (it.length == 10 || it.length == 13) it else "" }
+            // «Pág. 320» = libro en papel por páginas; «100,00%» = por porcentaje
+            val total = f("totaldepaginas", "totalpages", "pages", "페이지")
+            val pages = if (total.contains('%')) 0 else total.filter(Char::isDigit).toIntOrNull()?.coerceAtMost(20000) ?: 0
+            val narrators = f("narradores", "narrator", "낭독")
+            val format = if (narrators.isNotBlank()) BookFormat.Audio else BookFormat.Paper
+            val year = Regex("(1[5-9]|20)\\d{2}").find(f("fechadepublicacion", "publicationdate", "published", "출판"))?.value.orEmpty()
+            val genre = Genres.from(tags(f("etiquetas", "tags", "태그")))
+            val cover = if (code.isNotEmpty()) "https://covers.openlibrary.org/b/isbn/$code-L.jpg?default=false" else null
+
+            val b = runCatching {
+                Library.addManual(title, author, format, pages, if (pages > 0) ProgressUnit.Page else ProgressUnit.Percent,
+                    cover, code, f("editorial", "publisher", "출판사"), year, status, genre = genre)
+            }.getOrNull() ?: run { skipped++; return@forEachIndexed }
+
+            val regs = bk.readings.filter { it.start > 0 || it.end > 0 }.sortedBy { it.start }
+            val readings = regs.mapIndexed { idx, r ->
+                val s = if (r.start > 0) r.start else r.end
+                val last = idx == regs.lastIndex
+                val e = when {
+                    r.end > 0 -> r.end
+                    last && status == BookStatus.Reading -> 0L // sigue abierta
+                    else -> s
+                }
+                Reading(s, e)
+            }
+            val rating = rating0
+            val review = review0
+            val first = readings.minOfOrNull { it.start }
+            Library.update(b.id) { cur ->
+                cur.copy(
+                    addedAt = first ?: cur.addedAt,
+                    rating = rating,
+                    review = review,
+                    readings = if (readings.isNotEmpty()) readings else if (status == BookStatus.ToRead) emptyList() else cur.readings,
+                    lastOpened = if (status == BookStatus.Reading) (readings.lastOrNull()?.start ?: cur.lastOpened) else 0L,
+                    manualProgress = if (status == BookStatus.Read) 1f else cur.manualProgress,
+                )
+            }
+            // El tiempo leído en Bookmory entra en las estadísticas: una sesión por registro, el día que terminó
+            bk.readings.forEach { r ->
+                if (r.seconds <= 0) return@forEach
+                val day = if (r.end > 0) r.end else if (r.start > 0) r.start else return@forEach
+                val cal = java.util.Calendar.getInstance().apply {
+                    timeInMillis = day; set(java.util.Calendar.HOUR_OF_DAY, 8); set(java.util.Calendar.MINUTE, 0)
+                }
+                Stats.addSession(b.id, cal.timeInMillis, r.seconds.coerceAtMost(15 * 3600L), 0, "Tiempo total importado de Bookmory")
+            }
+            added++
+        }
+        progress(texts.size, texts.size)
+        return GoodreadsImport.Result(added, skipped, texts.size)
     }
 }

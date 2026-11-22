@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.68", "22 nov 2026", listOf(
+            "Importar de Bookmory ahora lee su exportación real: el .zip con un .txt por libro. Trae estado, fechas de lectura, estrellas, comentario, ISBN, editorial, páginas, género y el tiempo leído",
+            "Si el libro ya estaba (por ejemplo, el EPUB que lees aquí), solo se completan la valoración y la reseña",
+        )),
         Entry("1.0.67", "21 nov 2026", listOf(
             "Importar tu biblioteca de Bookmory: el Excel (.xlsx) que exporta la app, o ese Excel guardado como CSV. Trae título, autor, ISBN, páginas, estado, valoración, fechas y reseña",
         )),
