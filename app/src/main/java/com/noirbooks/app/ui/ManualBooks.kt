@@ -219,7 +219,12 @@ fun AddBookScreen(onClose: () -> Unit) {
             }
             error?.let { Text(it, color = NB.text2, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) }
             LazyColumn(Modifier.weight(1f)) {
-                items(results) { r -> ResultRow(r) { picked = r } }
+                // Un libro por fila; si tiene varias ediciones, «N ediciones» las despliega para elegir la tuya
+                items(BookSearch.groupEditions(results)) { w ->
+                    var open by remember { mutableStateOf(false) }
+                    ResultRow(w.best, editions = w.editions.size, expanded = open, onEditions = { open = !open }) { picked = w.best }
+                    if (open) w.editions.forEach { e -> EditionRow(e) { picked = e } }
+                }
                 item {
                     MenuRow("No está: escribirlo a mano", color = NB.text2) {
                         picked = FoundBook(query.trim(), "", null, 0, "", "", "", "", "")
@@ -232,7 +237,7 @@ fun AddBookScreen(onClose: () -> Unit) {
 }
 
 @Composable
-private fun ResultRow(r: FoundBook, onClick: () -> Unit) {
+private fun ResultRow(r: FoundBook, editions: Int = 1, expanded: Boolean = false, onEditions: () -> Unit = {}, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(46.dp).height(69.dp).clip(RoundedCornerShape(4.dp)).background(NB.surface2)) {
             if (r.coverUrl != null) AsyncImage(r.coverUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -243,6 +248,38 @@ private fun ResultRow(r: FoundBook, onClick: () -> Unit) {
             if (r.author.isNotBlank()) Text(r.author, color = NB.text2, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val info = listOfNotNull(r.year.ifBlank { null }, if (r.pages > 0) "${r.pages} págs." else null, r.publisher.ifBlank { null }).joinToString(" · ")
             if (info.isNotBlank()) Text(info, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (editions > 1) Text(
+                (if (expanded) "Ocultar ediciones ▴" else "$editions ediciones · elegir la tuya ▾"),
+                color = NB.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onEditions).padding(vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** Una edición concreta: editorial, año, páginas, idioma e ISBN, para elegir la que tienes. */
+@Composable
+private fun EditionRow(e: FoundBook, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 40.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(32.dp).height(48.dp).clip(RoundedCornerShape(3.dp)).background(NB.surface2)) {
+            if (e.coverUrl != null) AsyncImage(e.coverUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            val lang = when {
+                e.language.startsWith("es") || e.language == "spa" -> "Español"
+                e.language.startsWith("en") || e.language == "eng" -> "Inglés"
+                e.language.startsWith("ca") || e.language == "cat" -> "Catalán"
+                e.language.isBlank() -> ""
+                else -> e.language.uppercase()
+            }
+            Text(listOf(e.publisher.ifBlank { "Editorial desconocida" }, e.year).filter { it.isNotBlank() }.joinToString(" · "),
+                color = NB.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(lang, if (e.pages > 0) "${e.pages} págs." else "", if (e.isbn.isNotBlank()) "ISBN ${e.isbn}" else "")
+                .filter { it.isNotBlank() }.joinToString(" · "), color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

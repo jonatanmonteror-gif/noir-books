@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.85", "22 nov 2026", listOf(
+            "Ediciones agrupadas: al buscar un libro sale una sola vez, con «N ediciones» para elegir la tuya (editorial, año, páginas, idioma e ISBN)",
+            "La cita del día se actualiza al momento si le cambias el color, la nota o las etiquetas (también en el widget)",
+        )),
         Entry("1.0.84", "22 nov 2026", listOf(
             "Pantalla de Pro más compacta: se ve entera sin desplazar",
         )),

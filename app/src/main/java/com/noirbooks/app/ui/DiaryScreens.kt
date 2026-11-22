@@ -432,7 +432,8 @@ fun QuotesScreen() {
         .filter { (b, h) -> sq.isEmpty() || fold(h.text).contains(sq) || fold(h.note).contains(sq) || fold(b.title).contains(sq) ||
             fold(b.author).contains(sq) || h.tags.any { fold(it).contains(sq.removePrefix("#")) } }
     val tagCounts = all.flatMap { it.second.tags }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
-    val daily = remember(all.size) { com.noirbooks.app.data.QuoteWidget.daily() }
+    // Sin «remember»: si cambias el color, la nota o las etiquetas de esa cita, la tarjeta del día se actualiza al momento
+    val daily = com.noirbooks.app.data.QuoteWidget.daily()
 
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Citas") {
@@ -463,7 +464,12 @@ fun QuotesScreen() {
                             Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface)
                                 .clickable { open = b to h }.padding(18.dp),
                         ) {
-                            Text("CITA DEL DÍA", fontSize = 11.sp, letterSpacing = 1.6.sp, color = NB.silver, fontWeight = FontWeight.Medium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).clip(CircleShape).background(Color(HighlightColor.of(h.color).argb)))
+                                Spacer(Modifier.width(8.dp))
+                                Text("CITA DEL DÍA · " + HighlightColor.of(h.color).meaning.uppercase(), fontSize = 11.sp, letterSpacing = 1.6.sp,
+                                    color = NB.silver, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                             Spacer(Modifier.height(8.dp))
                             Text("“${h.text}”", fontFamily = Playfair, fontSize = 18.sp, lineHeight = 26.sp, color = NB.text, maxLines = 8, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(8.dp))
@@ -540,7 +546,10 @@ fun QuotesScreen() {
         HighlightSheet(
             h = h, bookTitle = b.title, author = b.author,
             onChange = { nh ->
-                scope.launch { Library.update(b.id) { bk -> bk.copy(highlights = bk.highlights.map { if (it.id == nh.id) nh else it }) } }
+                scope.launch {
+                    Library.update(b.id) { bk -> bk.copy(highlights = bk.highlights.map { if (it.id == nh.id) nh else it }) }
+                    com.noirbooks.app.data.QuoteWidget.refresh(ctx)
+                }
                 open = b to nh
             },
             onDelete = {

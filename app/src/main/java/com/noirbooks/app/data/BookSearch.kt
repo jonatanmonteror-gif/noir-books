@@ -38,10 +38,11 @@ object BookSearch {
             val g = async { runCatching { google(if (isIsbn) "isbn:$digits" else q) }.getOrDefault(emptyList()) }
             val o = async { runCatching { openLibrary(if (isIsbn) "isbn:$digits" else q) }.getOrDefault(emptyList()) }
             val all = g.await() + o.await()
-            // Sin duplicados (mismo título y autor) y con los libros en español primero.
-            all.distinctBy { key(it.title) + "|" + key(it.author.substringBefore(',')) }
-                .sortedBy { if (it.language.startsWith("es") || it.language == "spa") 0 else 1 }
-                .take(40)
+            // Se quitan solo los repetidos de verdad (mismo ISBN, o misma edición sin ISBN); las distintas
+            // ediciones de un libro se quedan y la pantalla las agrupa (ver [groupEditions]).
+            all.distinctBy { if (it.isbn.isNotBlank()) "isbn:" + it.isbn else key(it.title) + "|" + key(it.author) + "|" + key(it.publisher) + "|" + it.year }
+                .sortedBy { if (isSpanish(it)) 0 else 1 }
+                .take(60)
         }
     }
 
@@ -76,6 +77,30 @@ object BookSearch {
                 .filter(::matches).forEach { f -> f.coverUrl?.let { out.add(it.replace("http://", "https://")) } }
         }
         out.toList()
+    }
+
+    private fun isSpanish(f: FoundBook) = f.language.startsWith("es") || f.language == "spa"
+
+    /** Un libro con todas sus ediciones encontradas; [best] es la que se propone por defecto. */
+    data class Work(val best: FoundBook, val editions: List<FoundBook>)
+
+    /**
+     * Junta las ediciones del mismo libro (mismo título, sin subtítulo, y mismo apellido de autor).
+     * La edición propuesta: en español, con portada, ISBN y páginas, y la más reciente.
+     */
+    fun groupEditions(results: List<FoundBook>): List<Work> {
+        fun workKey(f: FoundBook) = key(f.title.substringBefore(':').substringBefore('(').substringBefore(" - ")) + "|" +
+            key(f.author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
+        return results.groupBy(::workKey).values.map { eds ->
+            val sorted = eds.sortedWith(compareBy<FoundBook>(
+                { if (isSpanish(it)) 0 else 1 },
+                { if (it.coverUrl != null) 0 else 1 },
+                { if (it.isbn.isNotBlank()) 0 else 1 },
+                { if (it.pages > 0) 0 else 1 },
+                { -(it.year.take(4).toIntOrNull() ?: 0) },
+            ))
+            Work(sorted.first(), sorted)
+        }
     }
 
     /** Sinopsis de un libro en Google Books (por ISBN o por título y autor). */
