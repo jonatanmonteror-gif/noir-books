@@ -86,6 +86,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     LibraryLookSettings()
                 }
 
+                FoldSection("Inicio", "Qué secciones se ven y en qué orden") { HomeSectionsSettings() }
+
+                FoldSection("Privacidad", if (com.noirbooks.app.data.Prefs.appLock) "Bloqueo con huella activado" else "Bloqueo con huella") { LockSettings() }
+
                 FoldSection("Lectura", "Tema, letra, márgenes y brillo para todos los libros") {
                     ReadingControls(showPreview = true)
                 }

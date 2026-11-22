@@ -720,97 +720,110 @@ private fun HomePane(
     val recent = remember(books) { books.sortedByDescending { maxOf(it.lastOpened, it.addedAt) }.take(8) }
     val style = shelfStyle(Prefs.shelfStyle)
     val recentW = when (Prefs.recentSize) { "s" -> 84.dp; "l" -> 132.dp; else -> 108.dp }
+    val homeOrder by Prefs.homeOrder
+    val homeHidden by Prefs.homeHidden
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 28.dp)) {
-        if (reading.isNotEmpty()) {
-            Box(Modifier.padding(horizontal = 16.dp)) {
-                if (reading.size == 1) ContinueCard(reading[0], cpm, onOpen = { onOpen(reading[0]) })
-                else {
-                    val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
-                    androidx.compose.foundation.pager.HorizontalPager(
-                        state = pager, contentPadding = PaddingValues(horizontal = 2.dp), pageSpacing = 8.dp,
-                        key = { reading[it].id }, modifier = Modifier.fillMaxWidth(),
-                    ) { i -> ContinueCard(reading[i], cpm, onOpen = { onOpen(reading[i]) }, fixedHeight = true) }
-                }
-            }
-        }
-
-        resurfaceCandidate(books)?.let { r ->
-            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) { ResurfaceCard(r) { onDetails(r) } }
-        }
-
-        HomeTitle("Recientes", "Ver todos", onSeeAll)
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            recent.forEach { b ->
-                Column(Modifier.width(recentW).combinedClickable(
-                    onClick = { onDetails(b) },
-                    onLongClick = { AppState.bookMenu.value = b.id })) {
-                    BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
-                    if (b.status == BookStatus.Reading) {
-                        Spacer(Modifier.height(5.dp))
-                        ThinProgress(b.progress, Modifier.fillMaxWidth())
+        // Secciones en el orden elegido en Ajustes › Inicio (las ocultas no se pintan)
+        homeOrder.filter { it !in homeHidden }.forEach { section ->
+            when (section) {
+                "continue" -> {
+                if (reading.isNotEmpty()) {
+                    Box(Modifier.padding(horizontal = 16.dp)) {
+                        if (reading.size == 1) ContinueCard(reading[0], cpm, onOpen = { onOpen(reading[0]) })
+                        else {
+                            val pager = androidx.compose.foundation.pager.rememberPagerState { reading.size }
+                            androidx.compose.foundation.pager.HorizontalPager(
+                                state = pager, contentPadding = PaddingValues(horizontal = 2.dp), pageSpacing = 8.dp,
+                                key = { reading[it].id }, modifier = Modifier.fillMaxWidth(),
+                            ) { i -> ContinueCard(reading[i], cpm, onOpen = { onOpen(reading[i]) }, fixedHeight = true) }
+                        }
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(b.title, color = NB.text, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (b.author.isNotBlank()) Text(b.author, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-            }
-            // Atajo a todos los libros al final del carrusel
-            Box(
-                Modifier.width(recentW).aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp))
-                    .border(1.dp, NB.line, RoundedCornerShape(6.dp)).clickable(onClick = onSeeAll),
-                contentAlignment = Alignment.Center,
-            ) { Text("Ver los\n${books.size} libros", color = NB.text2, fontSize = 14.sp, textAlign = TextAlign.Center) }
-        }
-
-        HomeTitle("Por estado", null, null)
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            BookStatus.entries.forEach { st ->
-                val n = books.count { it.status == st }
-                Column(
-                    Modifier.width(104.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
-                        .border(1.dp, NB.line, RoundedCornerShape(14.dp)).clickable { onStatus(st.key) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                }
+                "resurface" -> {
+                resurfaceCandidate(books)?.let { r ->
+                    Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) { ResurfaceCard(r) { onDetails(r) } }
+                }
+                }
+                "recent" -> {
+                HomeTitle("Recientes", "Ver todos", onSeeAll)
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("$n", fontFamily = Playfair, fontSize = 22.sp, color = if (n > 0) NB.text else NB.text3)
-                    Text(st.label, fontSize = 13.sp, color = NB.text2, maxLines = 1)
+                    recent.forEach { b ->
+                        Column(Modifier.width(recentW).combinedClickable(
+                            onClick = { onDetails(b) },
+                            onLongClick = { AppState.bookMenu.value = b.id })) {
+                            BookCover(b, Modifier.fillMaxWidth(), titleSize = 12)
+                            if (b.status == BookStatus.Reading) {
+                                Spacer(Modifier.height(5.dp))
+                                ThinProgress(b.progress, Modifier.fillMaxWidth())
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(b.title, color = NB.text, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (b.author.isNotBlank()) Text(b.author, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    // Atajo a todos los libros al final del carrusel
+                    Box(
+                        Modifier.width(recentW).aspectRatio(2f / 3f).clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, NB.line, RoundedCornerShape(6.dp)).clickable(onClick = onSeeAll),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("Ver los\n${books.size} libros", color = NB.text2, fontSize = 14.sp, textAlign = TextAlign.Center) }
                 }
-            }
-        }
-
-        HomeTitle("Tus estanterías", "Ver todas", onShelves)
-        if (shelves.isEmpty()) {
-            Text(
-                "Aún no tienes estanterías. Créalas en la pestaña Estanterías.",
-                color = NB.text3, fontSize = 14.sp,
-                modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onShelves).padding(vertical = 6.dp),
-            )
-        } else {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                shelves.forEach { s ->
-                    val inside = books.filter { s in it.shelves }
-                    Column(Modifier.width(150.dp).clip(RoundedCornerShape(8.dp)).clickable { onShelf(s) }) {
-                        ShelfCompartment(style, 86.dp) {
-                            Row(Modifier.padding(start = 8.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.Bottom) {
-                                inside.take(3).forEach { b ->
-                                    Box(Modifier.width(44.dp)) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 7) }
+                }
+                "status" -> {
+                HomeTitle("Por estado", null, null)
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    BookStatus.entries.forEach { st ->
+                        val n = books.count { it.status == st }
+                        Column(
+                            Modifier.width(104.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
+                                .border(1.dp, NB.line, RoundedCornerShape(14.dp)).clickable { onStatus(st.key) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                        ) {
+                            Text("$n", fontFamily = Playfair, fontSize = 22.sp, color = if (n > 0) NB.text else NB.text3)
+                            Text(st.label, fontSize = 13.sp, color = NB.text2, maxLines = 1)
+                        }
+                    }
+                }
+                }
+                "shelves" -> {
+                HomeTitle("Tus estanterías", "Ver todas", onShelves)
+                if (shelves.isEmpty()) {
+                    Text(
+                        "Aún no tienes estanterías. Créalas en la pestaña Estanterías.",
+                        color = NB.text3, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onShelves).padding(vertical = 6.dp),
+                    )
+                } else {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        shelves.forEach { s ->
+                            val inside = books.filter { s in it.shelves }
+                            Column(Modifier.width(150.dp).clip(RoundedCornerShape(8.dp)).clickable { onShelf(s) }) {
+                                ShelfCompartment(style, 86.dp) {
+                                    Row(Modifier.padding(start = 8.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.Bottom) {
+                                        inside.take(3).forEach { b ->
+                                            Box(Modifier.width(44.dp)) { BookCover(b, Modifier.fillMaxWidth(), titleSize = 7) }
+                                        }
+                                    }
                                 }
+                                Spacer(Modifier.height(6.dp))
+                                Text(s, color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(if (inside.size == 1) "1 libro" else "${inside.size} libros", color = NB.text3, fontSize = 12.sp)
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text(s, color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (inside.size == 1) "1 libro" else "${inside.size} libros", color = NB.text3, fontSize = 12.sp)
                     }
+                }
                 }
             }
         }

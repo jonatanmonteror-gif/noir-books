@@ -276,6 +276,14 @@ private fun AppContent() {
             if (resume > 0) AppState.checkUpdate(ctx, manual = false)
         }
 
+        // Bloqueo con huella: mientras está bloqueada no se pinta nada más (ni diálogos)
+        if (AppLock.locked.value) { LockScreen(); return@NoirTheme }
+        // Asistente la primera vez (si ya hay libros, es alguien que actualiza: no se enseña)
+        var welcome by remember {
+            mutableStateOf(!com.noirbooks.app.data.Prefs.onboarded && com.noirbooks.app.data.Library.books.value.isEmpty())
+        }
+        if (!welcome && !com.noirbooks.app.data.Prefs.onboarded) com.noirbooks.app.data.Prefs.onboarded = true
+        if (welcome) { WelcomeScreen(onDone = { welcome = false }); return@NoirTheme }
         Box(Modifier.fillMaxSize().background(NB.bg)) {
             when (val s = screen) {
                 Screen.Library -> MainScreen()

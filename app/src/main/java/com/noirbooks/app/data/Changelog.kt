@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.78", "22 nov 2026", listOf(
+            "Asistente de bienvenida al instalar: apariencia, letra de lectura, copia de seguridad y traer tus libros",
+            "Ajustes › Privacidad: bloquear la app con la huella (o el PIN del móvil) al abrirla y al volver después de un minuto",
+            "Ajustes › Inicio: elige qué secciones ves en Inicio y en qué orden",
+        )),
         Entry("1.0.77", "22 nov 2026", listOf(
             "La ficha ya no muestra como editorial las firmas o alias que traen algunos EPUB (por ejemplo «lineasdesaparecidas»)",
         )),

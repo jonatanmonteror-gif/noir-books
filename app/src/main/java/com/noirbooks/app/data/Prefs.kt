@@ -204,6 +204,7 @@ object Prefs {
         if (::sp.isInitialized) return
         sp = ctx.getSharedPreferences("noirbooks", Context.MODE_PRIVATE)
         reader.value = runCatching { loadReader() }.getOrDefault(ReaderSettings())
+        runCatching { loadHome() }
         appearanceState.value = sp.getString("app_appearance", "dark") ?: "dark"
         uiScale.value = sp.getFloat("ui_scale", 0.96f).let { if (it == 0.92f) 0.96f else it }
         ratingMode.value = sp.getString("rating_mode", "basic") ?: "basic"
@@ -308,7 +309,7 @@ object Prefs {
     /** Claves que son de este aparato y no viajan en las copias. */
     private val LOCAL_ONLY = setOf("timer_book", "timer_start", "reader_pending_reading", "updates_last_check",
         "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at",
-        "drive_linked", "drive_last_backup", "data_changed_at")
+        "drive_linked", "drive_last_backup", "data_changed_at", "app_lock", "onboarded")
 
     fun setAppearance(v: String) {
         appearanceState.value = v
@@ -427,6 +428,32 @@ object Prefs {
     var shelfView: String
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
+
+    /** Ya se vio el asistente de bienvenida. */
+    var onboarded: Boolean
+        get() = sp.getBoolean("onboarded", false)
+        set(v) { sp.edit().putBoolean("onboarded", v).apply() }
+
+    /** Pedir huella (o el bloqueo del móvil) al abrir la app. */
+    var appLock: Boolean
+        get() = sp.getBoolean("app_lock", false)
+        set(v) { sp.edit().putBoolean("app_lock", v).apply() }
+
+    /** Secciones de Inicio, en orden. Las ocultas van en [homeHidden]. */
+    val HOME_SECTIONS = listOf("continue" to "Seguir leyendo", "resurface" to "Retomar abandonados", "recent" to "Recientes",
+        "status" to "Por estado", "shelves" to "Tus estanterías")
+    val homeOrder = mutableStateOf(HOME_SECTIONS.map { it.first })
+    val homeHidden = mutableStateOf(emptySet<String>())
+    private fun loadHome() {
+        val saved = sp.getString("home_order", "").orEmpty().split(',').filter { k -> HOME_SECTIONS.any { it.first == k } }
+        // Las secciones nuevas que aún no estaban guardadas se añaden al final
+        homeOrder.value = saved + HOME_SECTIONS.map { it.first }.filter { it !in saved }
+        homeHidden.value = sp.getString("home_hidden", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+    }
+    fun setHome(order: List<String>, hidden: Set<String>) {
+        homeOrder.value = order; homeHidden.value = hidden
+        sp.edit().putString("home_order", order.joinToString(",")).putString("home_hidden", hidden.joinToString(",")).apply()
+    }
 
     /** Proponer retomar un libro abandonado hace más de 3 meses (en Inicio). */
     var resurface: Boolean

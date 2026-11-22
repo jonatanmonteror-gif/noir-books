@@ -5,7 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
@@ -16,7 +16,7 @@ import com.noirbooks.app.ui.App
 import com.noirbooks.app.ui.AppState
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ErrorLog.init(this)
@@ -36,12 +36,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        com.noirbooks.app.ui.AppLock.onStop()
         com.noirbooks.app.data.Stats.flush()
         com.noirbooks.app.data.DriveBackup.autoBackup(this)
     }
 
     override fun onStart() {
         super.onStart()
+        com.noirbooks.app.ui.AppLock.onStart()
         AppState.resumeCount.intValue++
     }
 
