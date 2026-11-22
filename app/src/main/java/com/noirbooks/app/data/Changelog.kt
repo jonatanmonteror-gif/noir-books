@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.83", "22 nov 2026", listOf(
+            "Pantalla de Noir Books Pro con precio de lanzamiento y tarjeta «¿Te pasas a Pro?» arriba en Ajustes",
+            "Sin Pro, los temas Pro salen al final y apagados, y las secciones Pro se pueden desplegar para verlas, pero no tocar",
+            "El perfil listo «Kindle» se llama ahora «Verde». En la vista de usuario nuevo no salen perfiles, como en una instalación limpia",
+        )),
         Entry("1.0.82", "22 nov 2026", listOf(
             "Preparando Noir Books Pro: los temas Verde, Negro y Propio, el tema automático y el pie de página a tu gusto serán Pro",
             "Ajustes › Vista de la app (temporal, para pruebas): ver la app como usuario nuevo, usuario Pro o desarrollador",

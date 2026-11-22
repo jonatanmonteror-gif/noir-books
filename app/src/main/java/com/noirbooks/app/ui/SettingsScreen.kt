@@ -65,6 +65,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(Modifier.widthIn(max = 640.dp)) {
+                ProUpsellCard()
                 val appearance by com.noirbooks.app.data.Prefs.appearanceState
                 FoldSection("Apariencia", when (appearance) { "light" -> "Clara"; "system" -> "Como el sistema"; else -> "Oscura" } + " · biblioteca y estanterías") {
                     Text("Colores de la app (el libro tiene sus propios temas en Lectura).", color = NB.text2, fontSize = 14.sp)

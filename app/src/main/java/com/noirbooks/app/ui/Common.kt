@@ -1,5 +1,8 @@
 package com.noirbooks.app.ui
 
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.filled.Close
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -320,48 +323,134 @@ fun ProBadge(modifier: Modifier = Modifier) {
         modifier = modifier.clip(RoundedCornerShape(4.dp)).background(NB.text).padding(horizontal = 5.dp, vertical = 1.dp))
 }
 
-/** Sección de ajustes que es Pro: sin Pro se ve con candado y abre la pantalla de Pro. */
+/**
+ * Sección de ajustes que es Pro. Sin Pro se puede desplegar para ver qué trae, pero se ve apagada
+ * y no se puede tocar: cualquier toque abre la pantalla de Pro.
+ */
 @Composable
 fun ProFoldSection(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     if (com.noirbooks.app.data.Edition.isPro) { FoldSection(title, subtitle, content = content); return }
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
-            .clickable { AppState.showPro.value = true }.padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = NB.text)
-            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = NB.text3, fontFamily = Inter)
+    FoldSection("$title  ·  Pro", subtitle) {
+        Box {
+            Column(Modifier.alpha(0.35f)) { content() }
+            // Capa encima que se come los toques: se ve, pero no se cambia
+            Box(Modifier.matchParentSize().clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
+            ) { AppState.showPro.value = true })
         }
-        ProBadge()
+        Spacer(Modifier.height(10.dp))
+        PillButton("Desbloquear con Pro", primary = true) { AppState.showPro.value = true }
     }
 }
 
-/** Pantalla de Pro. De momento informativa: la compra llegará con Google Play. */
+/** Precio de Pro (de momento solo se enseña: la compra llegará con Google Play). */
+object ProPrice {
+    const val NOW = "9,90 €"
+    const val BEFORE = "23,90 €"
+    const val OFF = "-58 %"
+}
+
+/** Tarjeta «Pásate a Pro» (arriba en Ajustes, solo sin Pro). */
+@Composable
+fun ProUpsellCard() {
+    if (com.noirbooks.app.data.Edition.isPro) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(14.dp)).background(NB.surface)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Tienes Noir Books Pro", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            ProBadge()
+        }
+        return
+    }
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(18.dp)).background(NB.text)
+            .clickable { AppState.showPro.value = true }.padding(18.dp),
+    ) {
+        Text("¿Te pasas a Pro?", fontFamily = Playfair, fontSize = 22.sp, color = NB.onText)
+        Spacer(Modifier.height(4.dp))
+        Text("Más temas, tema automático y el pie de página a tu gusto.", color = NB.onText.copy(alpha = 0.75f), fontSize = 14.sp, lineHeight = 19.sp)
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(ProPrice.NOW, color = NB.onText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(" /año  ", color = NB.onText.copy(alpha = 0.75f), fontSize = 13.sp)
+            Text(ProPrice.BEFORE, color = NB.onText.copy(alpha = 0.55f), fontSize = 13.sp,
+                textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+            Spacer(Modifier.weight(1f))
+            Text("Ver Pro ›", color = NB.onText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** Pantalla de Pro a pantalla completa: qué trae, precio con descuento y botón de compra (de momento sin cobrar). */
 @Composable
 fun ProDialog(onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss, containerColor = NB.surface2,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Noir Books ", fontFamily = Playfair, fontSize = 22.sp, color = NB.text)
-                ProBadge()
+    val navH = activityNavBarHeight()
+    val statusH = activityStatusBarHeight()
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        FullScreenDialogWindow()
+        Column(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH.coerceAtLeast(28.dp), bottom = navH.coerceAtLeast(12.dp))) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                androidx.compose.material3.IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2)
+                }
             }
-        },
-        text = {
-            Column {
-                Text("Para quien lee mucho y quiere la lectura exactamente a su gusto.", color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
-                Spacer(Modifier.height(12.dp))
-                com.noirbooks.app.data.Edition.FEATURES.forEach { f ->
-                    Row(Modifier.padding(vertical = 4.dp)) {
-                        Text("✓  ", color = NB.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text(f, color = NB.text, fontSize = 14.sp, lineHeight = 20.sp)
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Noir", fontFamily = Playfair, fontSize = 46.sp, color = NB.text)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("BOOKS  ", fontSize = 12.sp, letterSpacing = 5.sp, color = NB.text3)
+                    ProBadge()
+                }
+                Spacer(Modifier.height(18.dp))
+                Text("Tu lectura, exactamente a tu gusto.", color = NB.text, fontSize = 19.sp, lineHeight = 25.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(24.dp))
+                Column(Modifier.widthIn(max = 460.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface).padding(18.dp)) {
+                    com.noirbooks.app.data.Edition.FEATURES.forEach { f ->
+                        Row(Modifier.padding(vertical = 6.dp)) {
+                            Text("✓", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
+                            Text(f, color = NB.text, fontSize = 15.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    Row(Modifier.padding(vertical = 6.dp)) {
+                        Text("✓", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
+                        Text("Y todo lo nuevo que llegue a Pro", color = NB.text2, fontSize = 15.sp, lineHeight = 21.sp)
                     }
                 }
-                Spacer(Modifier.height(12.dp))
-                Text("Muy pronto, con un pago único desde Google Play.", color = NB.text3, fontSize = 12.sp)
+                Spacer(Modifier.height(26.dp))
+                // Precio: oferta frente al precio normal
+                Text("OFERTA DE LANZAMIENTO  ${ProPrice.OFF}", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text2, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(ProPrice.BEFORE, color = NB.text3, fontSize = 18.sp,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+                    Spacer(Modifier.width(10.dp))
+                    Text(ProPrice.NOW, color = NB.text, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                    Text(" /año", color = NB.text2, fontSize = 15.sp, modifier = Modifier.padding(bottom = 5.dp))
+                }
+                Text("Menos de 1 € al mes", color = NB.text3, fontSize = 13.sp)
+                Spacer(Modifier.height(20.dp))
             }
-        },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Entendido", color = NB.text, fontWeight = FontWeight.SemiBold) } },
-    )
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier.widthIn(max = 460.dp).fillMaxWidth().height(54.dp).clip(RoundedCornerShape(50)).background(NB.text)
+                        .clickable { AppState.toast("La compra estará disponible cuando la app esté en Google Play") },
+                    contentAlignment = Alignment.Center,
+                ) { Text("Pasarme a Pro · ${ProPrice.NOW}/año", color = NB.onText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+                Spacer(Modifier.height(8.dp))
+                Text("Se renueva cada año. Cancela cuando quieras desde Google Play.", color = NB.text3, fontSize = 12.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("Restaurar compra", color = NB.text2, fontSize = 13.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        AppState.toast("La compra estará disponible cuando la app esté en Google Play")
+                    }.padding(10.dp))
+            }
+        }
+    }
 }

@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -205,13 +206,14 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
             color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ReaderTheme.entries.forEach { t ->
+        val free = com.noirbooks.app.data.Edition.FREE_THEMES
+        ReaderTheme.entries.sortedBy { if (it.key in free) 0 else 1 }.forEach { t ->
             val sel = s.theme == t && s.autoTheme == "off"
             val tbg = if (t == ReaderTheme.Custom) s.customBg else t.bg
             val tfg = if (t == ReaderTheme.Custom) s.customFg else t.fg
             val locked = !com.noirbooks.app.data.Edition.isPro && t.key !in com.noirbooks.app.data.Edition.FREE_THEMES
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable {
+                Modifier.weight(1f).alpha(if (locked) 0.35f else 1f).clip(RoundedCornerShape(12.dp)).clickable {
                     if (locked) AppState.showPro.value = true else set(s.copy(theme = t, autoTheme = "off"))
                 },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -222,7 +224,6 @@ fun ReadingControls(showPreview: Boolean = false, scroll: Boolean? = null, onScr
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("Aa", color = Color(tfg), fontFamily = Playfair, fontSize = 17.sp)
-                    if (locked) ProBadge(Modifier.align(Alignment.TopEnd).padding(3.dp))
                 }
                 Spacer(Modifier.height(5.dp))
                 Text(t.label, fontSize = 12.sp, color = if (sel) NB.text else NB.text3)
@@ -540,12 +541,16 @@ private fun ProfileChip(name: String, selected: Boolean, onClick: () -> Unit, on
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ProfilesBlock(current: ReaderSettings, apply: (ReaderSettings) -> Unit) {
-    val profiles by Prefs.profiles
+    val saved by Prefs.profiles
+    // «Usuario nuevo» se ve como una instalación limpia: sin perfiles guardados
+    val profiles = if (com.noirbooks.app.data.Edition.mode.value == "free") emptyList() else saved
     var naming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<String?>(null) }
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        ProfileChip("Kindle", current == current.kindle(), onClick = { apply(current.kindle()) }, onLong = null)
+        // Perfil listo «Verde» (letra Literata, tema verde): usa un tema Pro
+        if (com.noirbooks.app.data.Edition.isPro)
+            ProfileChip("Verde", current == current.kindle(), onClick = { apply(current.kindle()) }, onLong = null)
         profiles.forEach { (name, ps) ->
             ProfileChip(name, ps == current, onClick = { apply(ps) }, onLong = { deleting = name })
         }
