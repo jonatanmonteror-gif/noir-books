@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.71", "22 nov 2026", listOf(
+            "Menú del libro más compacto: portada pequeña y X arriba, acciones en una fila, estrellas más pequeñas y filas más juntas",
+            "Si queda algo por debajo, un degradado avisa de que puedes deslizar",
+        )),
         Entry("1.0.70", "22 nov 2026", listOf(
             "La app pesa unos 30 MB menos: ya no lleva las piezas para emuladores de ordenador",
         )),

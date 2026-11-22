@@ -479,11 +479,11 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 Column {
                     Text("Vuelve al principio (0 %). Tus citas y marcadores se quedan.", color = NB.text2, fontSize = 14.sp)
                     Spacer(Modifier.height(10.dp))
-                    MenuRow("Reiniciar y borrar sus lecturas del calendario") {
+                    SheetRow("Reiniciar y borrar sus lecturas del calendario") {
                         Stats.deleteBook(b.id)
                         scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado y lecturas borradas"); onDismiss()
                     }
-                    MenuRow("Reiniciar y conservar sus lecturas") {
+                    SheetRow("Reiniciar y conservar sus lecturas") {
                         scope.launch { Library.restart(b.id) }; restarting = false; AppState.toast("Libro reiniciado"); onDismiss()
                     }
                 }
@@ -523,19 +523,29 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
             onDismiss = { reviewing = false })
         return
     }
+    val menuScroll = rememberScrollState()
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = NB.surface2,
+        // Cabecera compacta: portada pequeña, título y autor, y la X para cerrar (sin botón «Cerrar» abajo)
         title = {
-            Column {
-                Text(b.title, fontFamily = Playfair, fontSize = 20.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                if (b.author.isNotBlank()) Text(b.author, fontSize = 14.sp, color = NB.text2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BookCover(b, Modifier.width(40.dp), titleSize = 6)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(b.title, fontFamily = Playfair, fontSize = 18.sp, lineHeight = 22.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (b.author.isNotBlank()) Text(b.author, fontSize = 13.sp, color = NB.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2, modifier = Modifier.size(20.dp))
+                }
             }
         },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                BookRating(b.id, size = 30)
-                Spacer(Modifier.height(10.dp))
+          Box {
+            Column(Modifier.verticalScroll(menuScroll)) {
+                BookRating(b.id, size = 22)
+                Spacer(Modifier.height(8.dp))
                 // Resumen corto: estado y progreso, tiempo y citas
                 val secs = Stats.secondsForBook(b.id)
                 val line1 = buildList {
@@ -557,17 +567,18 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
                 }
 
                 // Lo principal
-                Spacer(Modifier.height(14.dp))
-                ButtonRow {
-                    if (b.inApp) PillButton(if (b.status == BookStatus.Reading) "Seguir leyendo" else "Leer", primary = true) {
+                // Acciones en una sola fila, del mismo ancho
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (b.inApp) MenuAction(if (b.status == BookStatus.Reading) "Seguir leyendo" else "Leer", true, Modifier.weight(1.4f)) {
                         onDismiss(); AppState.openBook(b)
                     }
                     if (!b.inApp && b.status != BookStatus.Read) {
-                        if (AppState.timer.value?.first == b.id) PillButton("Terminar cronómetro", primary = true) { onDismiss(); AppState.stopTimer() }
-                        else PillButton("Cronómetro", primary = true) { onDismiss(); AppState.startTimer(b.id) }
+                        if (AppState.timer.value?.first == b.id) MenuAction("Parar", true, Modifier.weight(1f)) { onDismiss(); AppState.stopTimer() }
+                        else MenuAction("Cronómetro", true, Modifier.weight(1f)) { onDismiss(); AppState.startTimer(b.id) }
                     }
-                    PillButton("Apuntar lectura") { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
-                    if (!b.inApp) PillButton("Progreso") { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
+                    MenuAction("Apuntar", false, Modifier.weight(1f)) { onDismiss(); AppState.logSession.value = LogRequest(b.id) }
+                    if (!b.inApp) MenuAction("Progreso", false, Modifier.weight(1f)) { onDismiss(); AppState.logSession.value = LogRequest(b.id, onlyProgress = true) }
                 }
 
                 // Estado con un toque
@@ -582,37 +593,65 @@ fun BookMenu(bookId: String, onDismiss: () -> Unit) {
 
                 // Organizar y datos del libro
                 MenuGroup("Libro")
-                MenuRow(if (b.shelves.isEmpty()) "Añadir a una estantería" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
-                MenuRow("Ver ficha del libro") { onDismiss(); AppState.screen.value = Screen.Book(b.id) }
-                MenuRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
-                MenuRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
+                SheetRow(if (b.shelves.isEmpty()) "Añadir a una estantería" else "Estanterías: ${b.shelves.joinToString(", ")}") { shelvesOpen = true }
+                SheetRow("Ver ficha del libro") { onDismiss(); AppState.screen.value = Screen.Book(b.id) }
+                SheetRow("Historial de lecturas (${Stats.sessions(b.id).size})") { history = true }
+                SheetRow(if (b.review.isBlank()) "Escribir tu opinión" else "Editar tu opinión") { reviewing = true }
                 var more by remember { mutableStateOf(false) }
-                MenuRow(if (more) "Menos opciones ▴" else "Más opciones ▾", color = NB.text2) { more = !more }
+                SheetRow(if (more) "Menos opciones ▴" else "Más opciones ▾", color = NB.text2) { more = !more }
                 if (more) {
-                    MenuRow(if (b.genre.isNotBlank()) "Género: ${b.genre}" else "Género") { editGenre = true }
-                    if (b.isEpub) MenuRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel") { editPages = true }
-                    MenuRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
-                    if (b.rating > 0f || b.ratingPlot > 0f || b.ratingChars > 0f || b.ratingProse > 0f) MenuRow("Reiniciar valoración") {
+                    SheetRow(if (b.genre.isNotBlank()) "Género: ${b.genre}" else "Género") { editGenre = true }
+                    if (b.isEpub) SheetRow(if (b.pages > 0) "Páginas en papel: ${b.pages}" else "Páginas en papel") { editPages = true }
+                    SheetRow(if (b.hasCover) "Cambiar portada" else "Poner portada") { coverPicker.launch("image/*") }
+                    if (b.rating > 0f || b.ratingPlot > 0f || b.ratingChars > 0f || b.ratingProse > 0f) SheetRow("Reiniciar valoración") {
                         scope.launch { Library.update(b.id) { it.copy(rating = 0f, ratingPlot = 0f, ratingChars = 0f, ratingProse = 0f) } }
                         AppState.toast("Valoración quitada")
                     }
-                    if (b.progress > 0f || b.status == BookStatus.Read) MenuRow("Reiniciar libro (empezar desde cero)") { restarting = true }
-                    if (Stats.secondsForBook(b.id) > 0 || Stats.sessions(b.id).isNotEmpty()) MenuRow("Borrar lecturas…", color = Color(0xFFFF6B6B)) { deleteAll = true }
-                    MenuRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
+                    if (b.progress > 0f || b.status == BookStatus.Read) SheetRow("Reiniciar libro (empezar desde cero)") { restarting = true }
+                    if (Stats.secondsForBook(b.id) > 0 || Stats.sessions(b.id).isNotEmpty()) SheetRow("Borrar lecturas…", color = Color(0xFFFF6B6B)) { deleteAll = true }
+                    SheetRow("Mover a la papelera", color = Color(0xFFFF6B6B)) {
                         scope.launch { Library.moveToTrash(b.id) }
                         AppState.toast("Movido a la papelera (Ajustes → Papelera)")
                         onDismiss()
                     }
                 }
             }
+            // Degradado abajo cuando queda más por ver: así se nota que se puede deslizar
+            if (menuScroll.canScrollForward) Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(36.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, NB.surface2)))
+            )
+          }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = NB.text2) } },
+        confirmButton = {},
+    )
+}
+
+@Composable
+private fun MenuAction(label: String, primary: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(50)).background(if (primary) NB.text else NB.surface)
+            .border(1.dp, if (primary) NB.text else NB.line, RoundedCornerShape(50))
+            .clickable(onClick = onClick).padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (primary) NB.onText else NB.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Fila del menú del libro: más compacta que MenuRow para que quepa todo sin perderse abajo. */
+@Composable
+private fun SheetRow(label: String, color: Color = NB.text, onClick: () -> Unit) {
+    Text(
+        label, color = color, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(vertical = 9.dp, horizontal = 4.dp),
     )
 }
 
 @Composable
 private fun MenuGroup(title: String) {
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(12.dp))
     Text(title.uppercase(), fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.text3, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(4.dp))
 }
