@@ -45,6 +45,39 @@ object BookSearch {
         }
     }
 
+    /**
+     * Direcciones de portada para un libro, de la más fiable a la menos: por ISBN (Open Library y Google)
+     * y, si no, buscando título y autor y quedándose solo con resultados que coincidan de verdad.
+     */
+    suspend fun coverCandidates(title: String, author: String, isbn: String): List<String> = withContext(Dispatchers.IO) {
+        val out = LinkedHashSet<String>()
+        fun addGoogle(u: String?) {
+            if (u.isNullOrBlank()) return
+            val https = u.replace("http://", "https://").replace("&edge=curl", "")
+            // Google da miniaturas pequeñas: se pide primero una versión grande
+            if ("books.google" in https) out.add(https.replace(Regex("&zoom=\\d"), "") + "&fife=w800-h1200")
+            out.add(https)
+        }
+        val code = isbn.filter { it.isDigit() || it == 'X' || it == 'x' }
+        if (code.length == 10 || code.length == 13) {
+            out.add("https://covers.openlibrary.org/b/isbn/$code-L.jpg?default=false")
+            runCatching { google("isbn:$code") }.getOrNull()?.forEach { addGoogle(it.coverUrl) }
+        }
+        val t = key(title.substringBefore(':').substringBefore('(').substringBefore('.')).take(16)
+        val surname = key(author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
+        fun matches(f: FoundBook) = t.length >= 3 && key(f.title).startsWith(t) && (surname.length < 3 || key(f.author).contains(surname))
+        if (t.length >= 3) {
+            val base = title.substringBefore(':').substringBefore('(').trim()
+            val q = "intitle:$base" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
+            val g = runCatching { google(q) }.getOrDefault(emptyList()).filter(::matches)
+            // Primero las ediciones en español
+            g.sortedBy { if (it.language.startsWith("es")) 0 else 1 }.forEach { addGoogle(it.coverUrl) }
+            runCatching { openLibrary("$base ${author.substringBefore(',')}".trim()) }.getOrDefault(emptyList())
+                .filter(::matches).forEach { f -> f.coverUrl?.let { out.add(it.replace("http://", "https://")) } }
+        }
+        out.toList()
+    }
+
     /** Sinopsis de un libro en Google Books (por ISBN o por título y autor). */
     suspend fun description(title: String, author: String, isbn: String): String = withContext(Dispatchers.IO) {
         val q = if (isbn.isNotBlank()) "isbn:$isbn" else "intitle:$title" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""

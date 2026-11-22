@@ -149,6 +149,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                     BackupSection()
                 }
 
+                val noCover = books.count { !it.hasCover && !it.inTrash }
+                FoldSection("Portadas", if (noCover == 0) "Todos tus libros tienen portada" else "$noCover libros sin portada") {
+                    Text("Busca en Google Books y Open Library la portada de los libros que no tienen: primero por ISBN y, si no, por título y autor. " +
+                        "Las que ya tienes no se tocan.", color = NB.text2, fontSize = 14.sp)
+                    Spacer(Modifier.height(12.dp))
+                    ButtonRow { PillButton("Buscar portadas que faltan", primary = true) { AppState.fetchCovers() } }
+                }
+
                 FoldSection("Novedades", "Qué ha cambiado en cada versión") {
                     ChangelogList()
                 }

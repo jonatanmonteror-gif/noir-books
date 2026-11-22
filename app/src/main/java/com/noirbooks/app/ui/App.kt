@@ -81,11 +81,28 @@ object AppState {
             }.onSuccess { r ->
                 toast(if (r.added == 0) "No había libros nuevos que importar" else
                     "Importados ${r.added} libros de Goodreads" + if (r.skipped > 0) " (${r.skipped} ya estaban)" else "")
+                if (r.added > 0) fetchCovers(silent = true)
             }.onFailure {
                 com.noirbooks.app.data.ErrorLog.note("Importar de Goodreads", it)
                 toast(it.message ?: "No se pudo importar")
             }
             importing.intValue = 0
+        }
+    }
+
+    /** Busca portada para los libros que no tienen (Ajustes, y solo tras importar). */
+    fun fetchCovers(silent: Boolean = false) {
+        background.launch {
+            if (!silent) toast("Buscando portadas…")
+            runCatching { com.noirbooks.app.data.Library.fetchMissingCovers() }
+                .onSuccess { (found, total) ->
+                    if (!silent || found > 0) toast(when {
+                        total == 0 -> "Todos los libros tienen portada"
+                        found == total -> "Portadas puestas: $found"
+                        else -> "Portadas puestas: $found de $total. El resto no aparece en los catálogos; puedes ponerla con una foto"
+                    })
+                }
+                .onFailure { if (!silent) toast("No se pudieron buscar las portadas. Revisa la conexión") }
         }
     }
 
@@ -99,6 +116,7 @@ object AppState {
             }.onSuccess { r ->
                 toast(if (r.added == 0) "No había libros nuevos que importar" else
                     "Importados ${r.added} libros de Bookmory" + if (r.skipped > 0) " (${r.skipped} ya estaban o sin título)" else "")
+                if (r.added > 0) fetchCovers(silent = true)
             }.onFailure {
                 com.noirbooks.app.data.ErrorLog.note("Importar de Bookmory", it)
                 toast(it.message ?: "No se pudo importar")

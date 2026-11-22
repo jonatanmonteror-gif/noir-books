@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.72", "22 nov 2026", listOf(
+            "Ajustes › Portadas: busca sola la portada de los libros que no tienen (por ISBN y, si no, por título y autor)",
+            "Después de importar de Bookmory o Goodreads, las portadas que falten se buscan solas",
+        )),
         Entry("1.0.71", "22 nov 2026", listOf(
             "Menú del libro más compacto: portada pequeña y X arriba, acciones en una fila, estrellas más pequeñas y filas más juntas",
             "Si queda algo por debajo, un degradado avisa de que puedes deslizar",

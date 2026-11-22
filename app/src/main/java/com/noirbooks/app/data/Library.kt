@@ -595,6 +595,23 @@ object Library {
         if (ok) update(id) { it.copy(hasCover = true) }
     }
 
+    /**
+     * Busca y pone portada a los libros que no tienen. Devuelve (encontradas, que faltaban).
+     * No toca las portadas que ya hay.
+     */
+    suspend fun fetchMissingCovers(progress: (Int, Int) -> Unit = { _, _ -> }): Pair<Int, Int> = withContext(Dispatchers.IO) {
+        val missing = books.value.filter { !it.hasCover && !it.inTrash }
+        var found = 0
+        missing.forEachIndexed { i, b ->
+            progress(i, missing.size)
+            val urls = runCatching { BookSearch.coverCandidates(b.title, b.author, b.isbn) }.getOrDefault(emptyList())
+            val ok = urls.any { u -> downloadCover(u, coverOf(b.id)) }
+            if (ok) { update(b.id) { it.copy(hasCover = true) }; found++ }
+        }
+        progress(missing.size, missing.size)
+        found to missing.size
+    }
+
     private fun downloadCover(url: String, out: File): Boolean = runCatching {
         val req = okhttp3.Request.Builder().url(url.replace("http://", "https://")).header("User-Agent", Http.UA).build()
         val bytes = Http.client.newCall(req).execute().use { r -> if (r.isSuccessful) r.body?.bytes() else null } ?: return false
