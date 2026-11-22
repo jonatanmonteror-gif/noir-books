@@ -5,7 +5,7 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
-        Entry("1.0.75", "22 nov 2026", listOf(
+        Entry("1.0.76", "22 nov 2026", listOf(
             "Lista de deseos: marca un libro como «Lo quiero» (aún no lo tienes). Filtro propio en Biblioteca y etiqueta en la portada",
             "Sagas: nombre y número («3 de 7»). En Estanterías › Sagas cada saga sale ordenada",
             "Préstamos de libros de papel: a quién, desde cuándo y aviso el día que debería volver. Filtro «Prestados»",
