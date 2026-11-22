@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.74", "22 nov 2026", listOf(
+            "Selección de varios en Biblioteca: nuevo botón «Género» para ponérselo a todos a la vez (y así se forman sus estanterías de género)",
+        )),
         Entry("1.0.73", "22 nov 2026", listOf(
             "«Sin estantería» ahora son solo los libros que no están en ninguna: ni tuya ni de género",
             "Biblioteca: mantén pulsado un libro para seleccionar varios y meterlos en una estantería o cambiarles el estado. Un toque abre la ficha (y desde sus tres puntos, el resto de opciones)",

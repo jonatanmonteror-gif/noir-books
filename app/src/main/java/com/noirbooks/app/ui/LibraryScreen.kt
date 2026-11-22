@@ -106,6 +106,7 @@ fun LibraryScreen() {
     var selected by remember { mutableStateOf(setOf<String>()) }
     var shelvesFor by remember { mutableStateOf<Set<String>?>(null) }
     var statusFor by remember { mutableStateOf<Set<String>?>(null) }
+    var genreFor by remember { mutableStateOf<Set<String>?>(null) }
     var newShelf by remember { mutableStateOf(false) }
     var editShelf by remember { mutableStateOf<String?>(null) }
     fun endSelection() { selecting = false; selected = emptySet() }
@@ -213,11 +214,12 @@ fun LibraryScreen() {
                 Modifier.fillMaxWidth().background(NB.surface2).padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (selected.isEmpty()) "Toca los libros" else "${selected.size} seleccionados", color = NB.text, fontSize = 14.sp,
+                Text(if (selected.isEmpty()) "Toca libros" else "✓ ${selected.size}", color = NB.text, fontSize = 14.sp, maxLines = 1,
                     modifier = Modifier.weight(1f))
+                TextButton(enabled = selected.isNotEmpty(), onClick = { genreFor = selected }) { Text("Género", color = NB.text) }
                 TextButton(enabled = selected.isNotEmpty(), onClick = { shelvesFor = selected }) { Text("Estantería", color = NB.text) }
                 TextButton(enabled = selected.isNotEmpty(), onClick = { statusFor = selected }) { Text("Estado", color = NB.text) }
-                TextButton(onClick = { endSelection() }) { Text("Listo", color = NB.text2) }
+                IconButton(onClick = { endSelection() }) { Icon(Icons.Filled.Close, "Terminar selección", tint = NB.text2) }
             }
         }
         LazyVerticalGrid(
@@ -321,6 +323,16 @@ fun LibraryScreen() {
 
     shelvesFor?.let { ids -> ShelvesDialog(ids, onDismiss = { shelvesFor = null; endSelection() }) }
     statusFor?.let { ids -> StatusManyDialog(ids, onDismiss = { statusFor = null; endSelection() }) }
+    // Género para varios a la vez: con él se forman solas las estanterías de género
+    genreFor?.let { ids ->
+        val scope = rememberCoroutineScope()
+        val common = books.filter { it.id in ids }.map { it.genre }.distinct().singleOrNull().orEmpty()
+        GenreDialog(common, onPick = { g ->
+            scope.launch { ids.forEach { id -> Library.update(id) { it.copy(genre = g) } } }
+            AppState.toast(if (g.isBlank()) "Género quitado de ${ids.size} libros" else "${ids.size} libros en «$g»")
+            genreFor = null; endSelection()
+        }, onDismiss = { genreFor = null })
+    }
     if (newShelf) NewShelfDialog { n -> newShelf = false; if (n != null) shelf = n }
     editShelf?.let { s -> EditShelfDialog(s) { n -> editShelf = null; if (shelf == s) shelf = n } }
     addToShelf?.let { s -> AddToShelfDialog(s, books) { addToShelf = null } }
