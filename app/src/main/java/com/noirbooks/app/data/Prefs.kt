@@ -310,7 +310,7 @@ object Prefs {
     /** Claves que son de este aparato y no viajan en las copias. */
     private val LOCAL_ONLY = setOf("timer_book", "timer_start", "reader_pending_reading", "updates_last_check",
         "errors_crash_seen_at", "updates_seen_version_code", "backup_last_at",
-        "drive_linked", "drive_last_backup", "data_changed_at", "app_lock", "onboarded", "view_mode")
+        "drive_linked", "drive_last_backup", "data_changed_at", "app_lock", "onboarded", "view_mode", "ai_key", "ai_month", "ai_used", "ai_spent", "ai_calls")
 
     fun setAppearance(v: String) {
         appearanceState.value = v
@@ -431,6 +431,31 @@ object Prefs {
     var shelfView: String
         get() = sp.getString("shelf_view", "spines") ?: "spines"
         set(v) { sp.edit().putString("shelf_view", v).apply() }
+
+    // ---- IA (pruebas) ----
+    /** Clave de OpenRouter para probar (solo se guarda en este móvil; no va en las copias). */
+    var aiKey: String
+        get() = sp.getString("ai_key", "") ?: ""
+        set(v) { sp.edit().putString("ai_key", v).apply() }
+    var aiModel: String
+        get() = sp.getString("ai_model", "google/gemini-3.5-flash-lite") ?: "google/gemini-3.5-flash-lite"
+        set(v) { sp.edit().putString("ai_model", v).apply() }
+    /** Que la IA busque en internet (conoce lo recién salido; cuesta algo más por consulta). */
+    var aiWeb: Boolean
+        get() = sp.getBoolean("ai_web", true)
+        set(v) { sp.edit().putBoolean("ai_web", v).apply() }
+    var aiMonth: String
+        get() = sp.getString("ai_month", "") ?: ""
+        set(v) { sp.edit().putString("ai_month", v).apply() }
+    var aiUsed: Int
+        get() = sp.getInt("ai_used", 0)
+        set(v) { sp.edit().putInt("ai_used", v).apply() }
+    var aiSpentUsd: Double
+        get() = sp.getFloat("ai_spent", 0f).toDouble()
+        set(v) { sp.edit().putFloat("ai_spent", v.toFloat()).apply() }
+    var aiCalls: Int
+        get() = sp.getInt("ai_calls", 0)
+        set(v) { sp.edit().putInt("ai_calls", v).apply() }
 
     /** Vista de la app (TEMPORAL, ver Edition): free, pro o dev. */
     var viewMode: String

@@ -69,6 +69,8 @@ fun DiscoverCard() {
             PillButton("Empezar", primary = true) { AppState.recommend.value = "quiz" }
             PillButton("Novedades para ti") { AppState.recommend.value = "news" }
         }
+        Spacer(Modifier.height(8.dp))
+        PillButton("✦ Pedir a la IA") { AppState.recommend.value = "ai" }
     }
 }
 
@@ -80,7 +82,11 @@ fun RecommendDialog(mode: String, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
         Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(16.dp))) {
-            if (mode == "news") NewsPane() else QuizPane()
+            when (mode) {
+                "news" -> NewsPane()
+                "ai" -> AiPane(null)
+                else -> QuizPane()
+            }
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) {
                 Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2)
             }
@@ -238,6 +244,10 @@ private fun QuizResult(a: Recommender.Answers, onRestart: () -> Unit) {
             }
         }
     }
+    Spacer(Modifier.height(18.dp))
+    var askAi by remember { mutableStateOf(false) }
+    if (!askAi) PillButton("✦ Que me recomiende la IA con estas respuestas") { askAi = true }
+    else AiBlock(a)
     // Fuera de tu biblioteca: novedades que encajan con lo elegido
     Spacer(Modifier.height(26.dp))
     Text("FUERA DE TU BIBLIOTECA", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium)
@@ -299,7 +309,7 @@ private fun SectionTitle(t: String) {
 }
 
 @Composable
-private fun NewRow(nb: Recommender.NewBook) {
+private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false) {
     val f = nb.found
     val scope = rememberCoroutineScope()
     var added by remember { mutableStateOf(false) }
@@ -311,7 +321,7 @@ private fun NewRow(nb: Recommender.NewBook) {
         Column(Modifier.weight(1f)) {
             Text(f.title, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(listOf(f.author.substringBefore(','), f.year).filter { it.isNotBlank() }.joinToString(" · "), color = NB.text2, fontSize = 12.sp, maxLines = 1)
-            Text(nb.why, color = NB.text3, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(nb.why, color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp, maxLines = if (wrapWhy) 4 else 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Text(if (added) "✓ Guardado" else "Lo quiero", color = if (added) NB.text2 else NB.onText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
@@ -327,5 +337,77 @@ private fun NewRow(nb: Recommender.NewBook) {
                         }.onFailure { added = false; AppState.toast("No se pudo guardar") }
                     }
                 }.padding(horizontal = 12.dp, vertical = 7.dp))
+    }
+}
+
+// ---------------- IA ----------------
+
+@Composable
+private fun AiPane(answers: Recommender.Answers?) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+        Spacer(Modifier.height(28.dp))
+        Text("Recomendación con IA", fontFamily = Playfair, fontSize = 28.sp, color = NB.text)
+        Spacer(Modifier.height(6.dp))
+        Text("Lee lo que has leído y cómo lo has puntuado, y busca en internet lo que acaba de salir. Cada libro se comprueba en el catálogo.",
+            color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
+        AiBlock(answers)
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AiBlock(answers: Recommender.Answers?) {
+    val books by Library.books
+    val scope = rememberCoroutineScope()
+    var wish by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var result by remember { mutableStateOf<com.noirbooks.app.data.AiRecommender.Result?>(null) }
+    val ai = com.noirbooks.app.data.AiRecommender
+    Spacer(Modifier.height(16.dp))
+    Text(when {
+        com.noirbooks.app.data.Edition.isDev -> "Sin límite (vista desarrollador)"
+        else -> "Te quedan ${ai.left()} de ${ai.limit()} este mes" + if (!com.noirbooks.app.data.Edition.isPro) " · con Pro, ${ai.PRO_PER_MONTH}" else ""
+    }, color = NB.text3, fontSize = 12.sp)
+    Spacer(Modifier.height(8.dp))
+    androidx.compose.material3.OutlinedTextField(
+        wish, { wish = it.take(200) }, modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text("¿Algo concreto? Ej.: «como La asistenta pero más corto»", color = NB.text3) },
+        shape = RoundedCornerShape(12.dp), maxLines = 3,
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+            focusedTextColor = NB.text, unfocusedTextColor = NB.text),
+    )
+    Spacer(Modifier.height(10.dp))
+    if (loading) Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(Modifier.size(16.dp), color = NB.text, strokeWidth = 2.dp)
+        Spacer(Modifier.width(10.dp))
+        Text("Pensando en tus libros…", color = NB.text2, fontSize = 14.sp)
+    } else PillButton(if (result == null) "Recomiéndame" else "Otra vez", primary = true) {
+        if (ai.left() <= 0) { AppState.showPro.value = true; return@PillButton }
+        loading = true; error = null
+        scope.launch {
+            runCatching { ai.recommend(books, wish, answers) }
+                .onSuccess { result = it }
+                .onFailure { error = it.message ?: "No se pudo pedir la recomendación"; com.noirbooks.app.data.ErrorLog.note("Recomendación IA", it) }
+            loading = false
+        }
+    }
+    error?.let { Text(it, color = NB.text2, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+    result?.let { r ->
+        Spacer(Modifier.height(8.dp))
+        if (r.items.isEmpty()) Text("La IA no devolvió libros válidos. Prueba otra vez.", color = NB.text3, fontSize = 13.sp)
+        r.items.forEach { s ->
+            val f = s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")
+            NewRow(Recommender.NewBook(f.copy(title = s.title, author = s.author.ifBlank { f.author }, year = s.year.ifBlank { f.year }),
+                s.why + if (s.found == null) " (no aparece en el catálogo)" else ""), wrapWhy = true)
+        }
+        // Coste de esta consulta (para calcular precios)
+        if (com.noirbooks.app.data.Edition.isDev) {
+            Spacer(Modifier.height(10.dp))
+            Text("${r.model.substringAfter('/')} · ${r.promptTokens}+${r.completionTokens} tokens · " +
+                "\$${"%.4f".format(r.costUsd)} esta consulta" + if (r.web) " · con internet" else "",
+                color = NB.text3, fontSize = 11.sp)
+        }
     }
 }

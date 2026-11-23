@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.89", "23 nov 2026", listOf(
+            "Recomendación con IA: lee tus libros leídos y tus notas, busca en internet lo recién salido y te propone 5 libros con el porqué; cada uno se comprueba en el catálogo",
+            "Se pide desde Inicio («✦ Pedir a la IA») o al final de «¿Qué leo ahora?» con tus respuestas. Cupo: 3 al mes, 20 con Pro",
+            "Vista desarrollador: clave de OpenRouter, modelo, con o sin internet, y lo gastado por consulta",
+        )),
         Entry("1.0.88", "23 nov 2026", listOf(
             "¿Qué leo ahora?: un cuestionario de pocos pasos (qué buscas, qué te apetece, conocido o nuevo, duración y cómo lo lees) que elige uno de tus pendientes y te dice por qué",
             "Novedades para ti: lo nuevo de tus autores favoritos, el siguiente de tus sagas y lo recién salido de tus géneros, con «Lo quiero» para guardarlo",

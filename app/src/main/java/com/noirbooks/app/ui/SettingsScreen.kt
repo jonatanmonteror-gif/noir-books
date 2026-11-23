@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -232,6 +234,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     if (mode == "dev") {
                         Spacer(Modifier.height(14.dp))
                         PillButton("Ver el asistente de bienvenida") { AppState.welcome.value = true }
+                        Spacer(Modifier.height(18.dp))
+                        AiTestSettings()
                     }
                 }
 
@@ -354,4 +358,46 @@ private fun ViewOption(title: String, subtitle: String, selected: Boolean, onCli
         Text(title, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text(subtitle, color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp)
     }
+}
+
+/** Pruebas de la IA: clave de OpenRouter, modelo, internet y lo gastado (para calcular el precio). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AiTestSettings() {
+    val P = com.noirbooks.app.data.Prefs
+    var key by remember { mutableStateOf(P.aiKey) }
+    var model by remember { mutableStateOf(P.aiModel) }
+    var web by remember { mutableStateOf(P.aiWeb) }
+    var calls by remember { mutableStateOf(P.aiCalls) }
+    var spent by remember { mutableStateOf(P.aiSpentUsd) }
+    Text("IA · pruebas de coste", color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(6.dp))
+    androidx.compose.material3.OutlinedTextField(
+        key, { key = it.trim(); P.aiKey = key }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+        label = { Text("Clave de OpenRouter (sk-or-…)") },
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        shape = RoundedCornerShape(12.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = NB.text2, unfocusedBorderColor = NB.line, cursorColor = NB.text,
+            focusedTextColor = NB.text, unfocusedTextColor = NB.text, focusedLabelColor = NB.text2, unfocusedLabelColor = NB.text3),
+    )
+    Text("Solo se guarda en este móvil y no va en las copias de seguridad.", color = NB.text3, fontSize = 11.sp)
+    Spacer(Modifier.height(10.dp))
+    Text("Modelo", color = NB.text2, fontSize = 13.sp)
+    Spacer(Modifier.height(6.dp))
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        com.noirbooks.app.data.AiRecommender.MODELS.forEach { (id, name) -> Chip(name, model == id) { model = id; P.aiModel = id } }
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Chip("Con internet", web) { web = true; P.aiWeb = true }
+        Chip("Sin internet", !web) { web = false; P.aiWeb = false }
+    }
+    Text("Con internet conoce lo recién salido, pero cada consulta cuesta algo más.", color = NB.text3, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+    Spacer(Modifier.height(10.dp))
+    Text(if (calls == 0) "Aún no has hecho consultas." else
+        "$calls consultas · \$${"%.4f".format(spent)} en total · \$${"%.4f".format(spent / calls)} de media",
+        color = NB.text2, fontSize = 13.sp)
+    if (calls > 0) Text("Poner a cero", color = NB.text3, fontSize = 13.sp,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { P.aiCalls = 0; P.aiSpentUsd = 0.0; calls = 0; spent = 0.0 }.padding(vertical = 6.dp))
 }
