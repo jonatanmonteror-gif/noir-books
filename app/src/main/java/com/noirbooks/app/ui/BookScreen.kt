@@ -92,7 +92,7 @@ fun BookScreen(bookId: String, onBack: () -> Unit) {
                 val meta = buildList {
                     if (b.genre.isNotBlank()) add(b.genre)
                     if (!b.isEpub) add(b.format.label)
-                    if (b.pages > 0) add(if (b.unit == ProgressUnit.Location && !b.isEpub) "${b.pages} posiciones" else if (b.isEpub) "${b.pages} páginas en papel" else "${b.pages} páginas")
+                    if (b.pages > 0) add(if (b.unit == ProgressUnit.Time && !b.isEpub) "dura ${com.noirbooks.app.data.hmLabel(b.pages)}" else if (b.unit == ProgressUnit.Location && !b.isEpub) "${b.pages} posiciones" else if (b.isEpub) "${b.pages} páginas en papel" else "${b.pages} páginas")
                     else if (b.isEpub) add("unas ${minutesLabel(b.totalChars, cpm)} de lectura")
                     if (b.year.isNotBlank()) add(b.year)
                     com.noirbooks.app.data.cleanPublisher(b.publisher).let { if (it.isNotBlank()) add(it) }

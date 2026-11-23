@@ -38,6 +38,7 @@ class MainActivity : FragmentActivity() {
         super.onStop()
         com.noirbooks.app.ui.AppLock.onStop()
         com.noirbooks.app.data.QuoteWidget.refresh(this)
+        com.noirbooks.app.data.NowWidget.refresh(this)
         com.noirbooks.app.data.Stats.flush()
         com.noirbooks.app.data.DriveBackup.autoBackup(this)
     }
@@ -51,6 +52,16 @@ class MainActivity : FragmentActivity() {
     /** "Abrir con" o "Compartir" un .epub desde otra app: se importa y, si es uno solo, se abre. */
     private fun handleIntent(intent: Intent?) {
         intent ?: return
+        // Widget «Leyendo ahora» y acceso directo del icono: apuntar o cronómetro sin buscar el libro
+        intent.getStringExtra(com.noirbooks.app.data.NowWidget.EXTRA_LOG)?.let { id ->
+            AppState.logSession.value = com.noirbooks.app.ui.LogRequest(id)
+            return
+        }
+        intent.getStringExtra(com.noirbooks.app.data.NowWidget.EXTRA_TIMER)?.let { id ->
+            if (AppState.timer.value?.first == id) AppState.stopTimer() else AppState.startTimer(id)
+            com.noirbooks.app.data.NowWidget.refresh(this)
+            return
+        }
         // Desde el widget: compartir la cita del día con el diseño para redes
         if (intent.getBooleanExtra(com.noirbooks.app.data.QuoteWidget.EXTRA_SHARE, false)) {
             AppState.screen.value = com.noirbooks.app.ui.Screen.Library

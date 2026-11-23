@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Noir Books</string>
     <string name="widget_quote_desc">Una de tus citas cada día</string>
+    <string name="widget_now_desc">Apunta lo que lees en papel o en audiolibro sin abrir la app</string>
 </resources>

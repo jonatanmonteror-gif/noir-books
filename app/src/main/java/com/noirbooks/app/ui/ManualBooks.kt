@@ -316,19 +316,25 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (
         Label("¿Dónde lo lees?")
         ChipRow(listOf(BookFormat.Kindle, BookFormat.Paper, BookFormat.Audio, BookFormat.Other), format, { it.label }) { f ->
             format = f
-            unit = if (f == BookFormat.Paper) ProgressUnit.Page else ProgressUnit.Percent
+            unit = when (f) { BookFormat.Paper -> ProgressUnit.Page; BookFormat.Audio -> ProgressUnit.Time; else -> ProgressUnit.Percent }
         }
         Spacer(Modifier.height(16.dp))
         Label("Cómo apuntas el progreso")
         ChipRow(ProgressUnit.entries.toList(), unit, { it.label }) { unit = it }
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
-            pages, { pages = it.filter(Char::isDigit).take(6) },
-            label = { Text(if (unit == ProgressUnit.Location) "Posiciones totales (opcional)" else "Páginas (opcional)") },
-            singleLine = true, colors = field(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            pages, { pages = it.filter { c -> c.isDigit() || (unit == ProgressUnit.Time && c in ":h ") }.take(7) },
+            label = { Text(when (unit) {
+                ProgressUnit.Location -> "Posiciones totales (opcional)"
+                ProgressUnit.Time -> "Duración total, h:mm (opcional)"
+                else -> "Páginas (opcional)"
+            }) },
+            singleLine = true, colors = field(),
+            keyboardOptions = KeyboardOptions(keyboardType = if (unit == ProgressUnit.Time) KeyboardType.Text else KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
         if (unit == ProgressUnit.Location) Text("En el Kindle: Ir a → Posición muestra el total.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        if (unit == ProgressUnit.Time) Text("Como en Audible: 11:30 son 11 horas y 30 minutos.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(16.dp))
         Label("¿Cuándo lo vas a leer?")
         WHEN_OPTIONS.chunked(2).forEach { row ->
@@ -342,7 +348,8 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (
             lastFormat = format; lastUnit = unit; lastStatus = status
             scope.launch {
                 val b = runCatching {
-                    Library.addManual(title, author, format, pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description, com.noirbooks.app.data.Genres.from(r.categories))
+                    Library.addManual(title, author, format,
+                        if (unit == ProgressUnit.Time) com.noirbooks.app.data.parseHm(pages) ?: 0 else pages.toIntOrNull() ?: 0, unit, r.coverUrl, r.isbn, r.publisher, r.year, status, r.description, com.noirbooks.app.data.Genres.from(r.categories))
                 }.getOrElse { ErrorLog.note("Añadir libro", it); null }
                 saving = false
                 if (b != null) { AppState.toast("Añadido: ${b.title}"); then(b) } else AppState.toast("No se pudo añadir")
@@ -435,10 +442,12 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
     var start by remember { mutableLongStateOf(if (r.start > 0) r.start else end - 30 * 60_000L) }
     val unit0 = if (b.isEpub) ProgressUnit.Percent else b.unit
     var unit by remember { mutableStateOf(unit0) }
-    var total by remember { mutableStateOf(if (b.pages > 0) b.pages.toString() else "") }
+    fun hm(min: Int) = "%d:%02d".format(min / 60, min % 60)
+    var total by remember { mutableStateOf(if (b.pages > 0) (if (unit0 == ProgressUnit.Time) hm(b.pages) else b.pages.toString()) else "") }
     fun valueOf(p: Float, u: ProgressUnit, t: Int): String = when {
         p <= 0f -> ""
         u == ProgressUnit.Percent -> ((p * 100).toInt()).toString()
+        u == ProgressUnit.Time && t > 0 -> hm((p * t).toInt())
         t > 0 -> ((p * t).toInt()).toString()
         else -> ""
     }
@@ -449,11 +458,12 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
     // Si la hora de fin es anterior a la de inicio, se entiende que empezó el día antes (leer de noche).
     val effStart = if (start > end) start - 24 * 3600_000L else start
     val seconds = ((end - effStart) / 1000).coerceIn(0, 16 * 3600)
-    val totalN = total.toIntOrNull() ?: 0
+    val totalN = if (unit == ProgressUnit.Time) com.noirbooks.app.data.parseHm(total) ?: 0 else total.toIntOrNull() ?: 0
     val newP: Float? = when {
         finished -> 1f
         value.isBlank() -> null
         unit == ProgressUnit.Percent -> (value.toFloatOrNull() ?: -1f) / 100f
+        unit == ProgressUnit.Time -> if (totalN > 0) (com.noirbooks.app.data.parseHm(value) ?: -1).toFloat() / totalN else null
         totalN > 0 -> (value.toFloatOrNull() ?: -1f) / totalN
         else -> null
     }?.takeIf { it in 0f..1f }
@@ -494,6 +504,15 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                 if (!r.onlyProgress) {
                     TapField("Día", dayFmt.format(Date(end)).replaceFirstChar { it.uppercase() }) { pickDate() }
                     Spacer(Modifier.height(8.dp))
+                    // Rápido: «he leído media hora» sin tocar relojes
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(15, 30, 45, 60, 90, 120).forEach { m ->
+                            Chip(if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60} h" else "${m / 60} h ${m % 60}", seconds == m * 60L) {
+                                start = end - m * 60_000L
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Row {
                         TapField("De", hm.format(Date(start)), Modifier.weight(1f)) { pickTime(start) { start = it } }
                         Spacer(Modifier.width(10.dp))
@@ -509,7 +528,7 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                 if (!b.isEpub) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ProgressUnit.entries.forEach { u ->
-                            Chip(when (u) { ProgressUnit.Percent -> "%"; ProgressUnit.Page -> "Página"; ProgressUnit.Location -> "Posición" }, unit == u) {
+                            Chip(unitShort(u), unit == u) {
                                 if (unit != u) { unit = u; value = valueOf(b.progress, u, totalN) }
                             }
                         }
@@ -518,24 +537,28 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
-                        value, { value = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.').take(7) },
-                        label = { Text(when (unit) { ProgressUnit.Percent -> "%"; ProgressUnit.Page -> "Página"; ProgressUnit.Location -> "Posición" }) },
+                        value, {
+                            value = if (unit == ProgressUnit.Time) it.filter { c -> c.isDigit() || c == ':' }.take(6)
+                            else it.filter { c -> c.isDigit() || c == '.' || c == ',' }.replace(',', '.').take(7)
+                        },
+                        label = { Text(if (unit == ProgressUnit.Time) "Voy por (h:mm)" else unitShort(unit)) },
                         singleLine = true, enabled = !finished, colors = field(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                        keyboardOptions = KeyboardOptions(keyboardType = if (unit == ProgressUnit.Time) KeyboardType.Text else KeyboardType.Decimal, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions.Default,
                         modifier = Modifier.weight(1f),
                     )
                     if (unit != ProgressUnit.Percent) {
                         Text("  de  ", color = NB.text3)
                         OutlinedTextField(
-                            total, { total = it.filter(Char::isDigit).take(6) },
-                            label = { Text("Total") }, singleLine = true, enabled = !finished, colors = field(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            total, { total = it.filter { c -> c.isDigit() || (unit == ProgressUnit.Time && c == ':') }.take(7) },
+                            label = { Text(if (unit == ProgressUnit.Time) "Dura (h:mm)" else "Total") }, singleLine = true, enabled = !finished, colors = field(),
+                            keyboardOptions = KeyboardOptions(keyboardType = if (unit == ProgressUnit.Time) KeyboardType.Text else KeyboardType.Number),
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
-                if (needTotal) Text("Pon el total para calcular el porcentaje.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                if (needTotal) Text(if (unit == ProgressUnit.Time) "Pon cuánto dura el audiolibro (p. ej. 11:30) para calcular el porcentaje."
+                    else "Pon el total para calcular el porcentaje.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                 Row(Modifier.fillMaxWidth().clickable { finished = !finished }.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(finished, { finished = it }, colors = CheckboxDefaults.colors(checkedColor = NB.text, checkmarkColor = NB.onText, uncheckedColor = NB.text3))
                     Text("Lo he terminado", color = NB.text, fontSize = 15.sp)
@@ -566,6 +589,10 @@ fun LogSessionDialog(r: LogRequest, onDismiss: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = NB.text2) } },
     )
+}
+
+private fun unitShort(u: ProgressUnit) = when (u) {
+    ProgressUnit.Percent -> "%"; ProgressUnit.Page -> "Página"; ProgressUnit.Location -> "Posición"; ProgressUnit.Time -> "Tiempo"
 }
 
 @Composable

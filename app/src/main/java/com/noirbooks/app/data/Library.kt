@@ -49,7 +49,9 @@ enum class BookFormat(val key: String, val label: String) {
 enum class ProgressUnit(val key: String, val label: String) {
     Percent("percent", "Porcentaje"),
     Page("page", "Página"),
-    Location("location", "Posición de Kindle");
+    Location("location", "Posición de Kindle"),
+    /** Audiolibros: horas y minutos. El total (en minutos) se guarda en [Book.pages]. */
+    Time("time", "Tiempo (audiolibro)");
 
     companion object {
         fun of(k: String?) = entries.firstOrNull { it.key == k } ?: Percent
@@ -186,10 +188,31 @@ data class Book(
     fun progressLabel(p: Float = progress): String = when {
         unit == ProgressUnit.Page && pages > 0 -> "p. ${(p * pages).toInt()} de $pages"
         unit == ProgressUnit.Location && pages > 0 -> "posición ${(p * pages).toInt()} de $pages"
+        unit == ProgressUnit.Time && pages > 0 -> "${hmLabel((p * pages).toInt())} de ${hmLabel(pages)}"
         else -> percentLabel(p)
     }
     val started: Boolean get() = lastOpened > 0L
     val timesRead: Int get() = readings.count { it.end > 0L }
+}
+
+/** Minutos como «4 h 20 min», «45 min», «11 h». */
+fun hmLabel(min: Int): String = when {
+    min < 60 -> "$min min"
+    min % 60 == 0 -> "${min / 60} h"
+    else -> "${min / 60} h ${min % 60} min"
+}
+
+/** «4:20», «4h20», «4 h 20 min» → 260 minutos; un número solo son horas («11» → 660). null si no se entiende. */
+fun parseHm(raw: String): Int? {
+    val s = raw.trim().lowercase().replace(" ", "")
+    if (s.isEmpty()) return null
+    Regex("""^(\d{1,3})[:h.,'](\d{1,2})(m|min)?$""").find(s)?.let { m ->
+        val h = m.groupValues[1].toInt(); val mi = m.groupValues[2].toInt()
+        return if (mi < 60) h * 60 + mi else null
+    }
+    Regex("""^(\d{1,3})h?$""").find(s)?.let { return it.groupValues[1].toInt() * 60 }
+    Regex("""^(\d{1,4})(m|min)$""").find(s)?.let { return it.groupValues[1].toInt() }
+    return null
 }
 
 /** Porcentaje con un decimal, a la española: "37,4 %". */

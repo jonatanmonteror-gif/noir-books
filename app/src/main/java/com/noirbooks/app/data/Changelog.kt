@@ -5,6 +5,12 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.86", "23 nov 2026", listOf(
+            "Audiolibros por tiempo: apunta «voy por 4:20 de 11:30», como en Audible. Al añadir un audiolibro se elige solo",
+            "Widget «Leyendo ahora»: el libro que lees con «Apuntar» y «Cronómetro», sin abrir la app",
+            "Mantén pulsado el icono de la app: «Apuntar lectura» del libro actual",
+            "Apuntar lectura más rápido: botones de 15 min, 30 min, 1 h… sin tocar relojes",
+        )),
         Entry("1.0.85", "22 nov 2026", listOf(
             "Ediciones agrupadas: al buscar un libro sale una sola vez, con «N ediciones» para elegir la tuya (editorial, año, páginas, idioma e ISBN)",
             "La cita del día se actualiza al momento si le cambias el color, la nota o las etiquetas (también en el widget)",
