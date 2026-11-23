@@ -134,7 +134,7 @@ private fun QuizPane() {
     val steps = buildList {
         add("tipo")
         if (!surprise) add("animo")
-        add("conocido"); add("duracion")
+        add("conocido"); add("novedad"); add("fama"); add("duracion")
         if (ways.size > 1) add("forma")
         add("resultado")
     }
@@ -164,6 +164,12 @@ private fun QuizPane() {
                     add(Opt(Known.Author.label, Known.Author.hint) { a = a.copy(known = Known.Author); next() })
                     add(Opt(Known.New.label, Known.New.hint) { a = a.copy(known = Known.New); next() })
                     add(Opt(Known.Any.label) { a = a.copy(known = Known.Any); next() })
+                })
+                "novedad" -> Question("¿Algo recién salido?", "", Recommender.Recency.entries.map { r ->
+                    Opt(r.label, r.hint) { a = a.copy(recency = r); next() }
+                })
+                "fama" -> Question("¿Famoso o por descubrir?", "", Recommender.Fame.entries.map { f ->
+                    Opt(f.label, f.hint) { a = a.copy(fame = f); next() }
                 })
                 "duracion" -> Question("¿Cuánto tiempo le vas a dar?", "", Length.entries.map { l ->
                     Opt(l.label, l.hint) { a = a.copy(length = l); next() }

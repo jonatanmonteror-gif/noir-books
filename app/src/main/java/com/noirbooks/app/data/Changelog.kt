@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.99", "23 nov 2026", listOf(
+            "«¿Qué leo ahora?» pregunta también si quieres lo último o algo con años, y si algo famoso o una joya menos conocida",
+            "Icono: la N un poco más pequeña",
+        )),
         Entry("1.0.98", "23 nov 2026", listOf(
             "Icono: la N queda centrada exacta",
         )),

@@ -87,6 +87,16 @@ object AiRecommender {
                 if (a.mood == null && a.fiction != null) append(if (a.fiction) "Quiero ficción. " else "Quiero no ficción. ")
                 if (a.known != Recommender.Known.Any) append("Preferencia: ${a.known.label}. ")
                 if (a.length != Recommender.Length.Any) append("Duración: ${a.length.hint}. ")
+                when (a.recency) {
+                    Recommender.Recency.New -> append("Quiero novedades: solo libros publicados en ${java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) - 1} o ${java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)} (búscalos en internet). ")
+                    Recommender.Recency.Classic -> append("Prefiero libros con unos años, ya asentados. ")
+                    else -> {}
+                }
+                when (a.fame) {
+                    Recommender.Fame.Popular -> append("Prefiero libros muy conocidos y comentados. ")
+                    Recommender.Fame.Hidden -> append("Prefiero joyas menos conocidas, nada de los superventas obvios. ")
+                    else -> {}
+                }
             }
             if (wish.isNotBlank()) append("Lo que pido: $wish")
         }.ifBlank { "Recomiéndame lo que más me pueda gustar ahora." }

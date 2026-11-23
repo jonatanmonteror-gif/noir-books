@@ -41,6 +41,20 @@ object Recommender {
         Any("Me da igual", "", 0, Int.MAX_VALUE),
     }
 
+    /** ¿Lo último o da igual cuándo salió? */
+    enum class Recency(val label: String, val hint: String) {
+        New("Lo último", "Publicado este año o el anterior"),
+        Classic("Con unos años", "Algo ya asentado, que ha aguantado el tiempo"),
+        Any("Me da igual", ""),
+    }
+
+    /** ¿Algo de lo que todo el mundo habla o una joya menos conocida? */
+    enum class Fame(val label: String, val hint: String) {
+        Popular("Lo que está en boca de todos", "Superventas y muy comentados"),
+        Hidden("Una joya menos conocida", "Algo que no te recomendaría cualquiera"),
+        Any("Me da igual", ""),
+    }
+
     enum class Way(val label: String) { App("En la app"), Paper("En papel"), Audio("Escuchándolo"), Ebook("En otro lector"), Any("Me da igual") }
 
     data class Answers(
@@ -49,6 +63,8 @@ object Recommender {
         val known: Known = Known.Any,
         val length: Length = Length.Any,
         val way: Way = Way.Any,
+        val recency: Recency = Recency.Any,
+        val fame: Fame = Fame.Any,
         /** Atajo por género (desde Inicio): solo libros de este género. */
         val genre: String? = null,
     ) {
@@ -150,6 +166,13 @@ object Recommender {
             } else if (a.known == Known.Author) score -= 2f
             if (a.known == Known.New) {
                 if (authorKey(b.author) !in readAuthors) { score += 3f; why += "Un autor nuevo para ti" } else score -= 2f
+            }
+            // ¿Lo último o con años? (por el año de publicación, si se sabe)
+            val y = b.year.take(4).toIntOrNull()
+            if (y != null && a.recency != Recency.Any) {
+                val now = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                val fresh = y >= now - 1
+                if ((a.recency == Recency.New) == fresh) { score += 2.5f; if (fresh) why += "Salió en $y" } else score -= 2f
             }
             // Duración
             val min = minutesOf(b)
