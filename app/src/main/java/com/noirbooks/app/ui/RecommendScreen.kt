@@ -379,6 +379,7 @@ private fun AiPane(answers: Recommender.Answers?) {
 @Composable
 private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
     val books by Library.books
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var wish by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
@@ -389,7 +390,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
         if (ai.left() <= 0) { AppState.showPro.value = true; return }
         loading = true; error = null
         scope.launch {
-            runCatching { ai.recommend(books, wish, answers) }
+            runCatching { ai.recommend(ctx, books, wish, answers) }
                 .onSuccess { result = it }
                 .onFailure { error = it.message ?: "No se pudo pedir la recomendación"; com.noirbooks.app.data.ErrorLog.note("Recomendación IA", it) }
             loading = false

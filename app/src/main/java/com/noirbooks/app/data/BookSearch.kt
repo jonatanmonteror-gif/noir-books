@@ -173,6 +173,21 @@ object BookSearch {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
+    /**
+     * Búsqueda rápida de un libro concreto (solo Google, una llamada): por ISBN si lo hay, si no por título y autor.
+     * Para las recomendaciones, que tienen que salir con portada al momento.
+     */
+    suspend fun quick(title: String, author: String, isbn: String = ""): FoundBook? = withContext(Dispatchers.IO) {
+        val code = isbn.filter { it.isDigit() || it == 'X' }
+        val t = key(title.substringBefore(':')).take(12)
+        fun ok(f: FoundBook) = key(f.title).startsWith(t.take(8)) || t.startsWith(key(f.title).take(8))
+        val byIsbn = if (code.length == 13 || code.length == 10) runCatching { google("isbn:$code") }.getOrDefault(emptyList()).firstOrNull() else null
+        if (byIsbn?.coverUrl != null) return@withContext byIsbn
+        val q = "intitle:${title.substringBefore(':').trim()}" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',').trim()}" else ""
+        val list = runCatching { google(q, "&langRestrict=es") }.getOrDefault(emptyList()).ifEmpty { runCatching { google(q) }.getOrDefault(emptyList()) }
+        list.filter(::ok).sortedBy { if (it.coverUrl != null) 0 else 1 }.firstOrNull() ?: byIsbn
+    }
+
     /** Lo más reciente en Google Books (para novedades). [lang] limita el idioma, p. ej. «es». */
     suspend fun newest(q: String, lang: String = "es"): List<FoundBook> = withContext(Dispatchers.IO) {
         runCatching { google(q, "&orderBy=newest" + if (lang.isNotBlank()) "&langRestrict=$lang" else "") }.getOrDefault(emptyList())

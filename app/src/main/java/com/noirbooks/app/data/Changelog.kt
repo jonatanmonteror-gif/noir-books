@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.92", "23 nov 2026", listOf(
+            "Recomendaciones: salen ya con su portada, todas a la vez, y más rápido",
+            "Cada recomendación cuesta bastante menos (búsqueda en internet más barata y respuesta más directa)",
+        )),
         Entry("1.0.91", "23 nov 2026", listOf(
             "Recomendaciones personalizadas: 1 al mes gratis y 10 con Pro",
             "Textos más sencillos en «¿Qué leo ahora?»",
