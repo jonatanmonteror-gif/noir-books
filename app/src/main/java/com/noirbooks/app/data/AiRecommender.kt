@@ -158,13 +158,14 @@ object AiRecommender {
                             (res as? coil.request.SuccessResult)?.drawable?.let { d -> (d as? android.graphics.drawable.BitmapDrawable)?.bitmap }
                         }.getOrNull()
                     }?.takeIf { it.width > 40 && it.height > 60 } // Amazon devuelve un punto de 1×1 si no la tiene
-                    val first = listOfNotNull(BookSearch.amazonCover(isbn), BookSearch.amazonCover(found?.isbn.orEmpty()), found?.coverUrl).distinct()
+                    // Solo ISBN confirmados por el catálogo (el que da la recomendación puede estar mal y traer otra portada)
+                    val first = listOfNotNull(BookSearch.amazonCover(found?.isbn.orEmpty()), found?.coverUrl).distinct()
                     var bmp: android.graphics.Bitmap? = null
                     var used: String? = null
                     for (u in first) { bmp = fetch(u); if (bmp != null) { used = u; break } }
                     if (bmp == null) {
                         val more = kotlinx.coroutines.withTimeoutOrNull(6000) {
-                            runCatching { BookSearch.coverCandidates(t, a, isbn.ifBlank { found?.isbn.orEmpty() }) }.getOrDefault(emptyList())
+                            runCatching { BookSearch.coverCandidates(t, a, found?.isbn.orEmpty()) }.getOrDefault(emptyList())
                         }.orEmpty().filter { it !in first }.take(6)
                         for (u in more) { bmp = fetch(u); if (bmp != null) { used = u; break } }
                     }

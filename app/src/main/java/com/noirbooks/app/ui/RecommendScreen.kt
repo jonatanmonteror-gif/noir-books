@@ -449,18 +449,20 @@ private fun FoundBookSheet(nb: Recommender.NewBook, cover: android.graphics.Bitm
                         Text("«${nb.why}»", color = NB.text, fontSize = 15.sp, lineHeight = 22.sp, fontFamily = Playfair,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
-                    Spacer(Modifier.height(22.dp))
+                    Spacer(Modifier.height(20.dp))
+                    WantButton(wanted, Modifier) {
+                        if (wanted) return@WantButton
+                        wanted = true
+                        scope.launch { if (!wantIt(f, coverUrl)) { wanted = false; AppState.toast("No se pudo guardar") } }
+                    }
+                    Spacer(Modifier.height(26.dp))
                     Text("SINOPSIS", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium,
                         modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(6.dp))
                     Text(synopsis.ifBlank { "Buscando la sinopsis…" }, color = if (synopsis.isBlank()) NB.text3 else NB.text2,
                         fontSize = 15.sp, lineHeight = 23.sp, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(24.dp))
-                }
-                WantButton(wanted, Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) {
-                    if (wanted) return@WantButton
-                    wanted = true
-                    scope.launch { if (!wantIt(f, coverUrl)) { wanted = false; AppState.toast("No se pudo guardar") } }
+                    // Aire al final para que el texto no quede bajo la barra del móvil
+                    Spacer(Modifier.height(96.dp))
                 }
             }
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) {

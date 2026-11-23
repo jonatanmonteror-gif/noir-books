@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.102", "23 nov 2026", listOf(
+            "Portadas: solo se ponen si el catálogo confirma que es el mismo libro (título y autor). Mejor sin portada que con la de otro",
+            "Ficha de una recomendación: «¡Lo quiero!» va justo debajo del título, siempre a la vista",
+        )),
         Entry("1.0.100", "23 nov 2026", listOf(
             "Ficha de una recomendación: la sinopsis sale al instante y el botón «¡Lo quiero!» ya no queda debajo de la barra del móvil",
             "Las recomendaciones que no aparecen en ningún catálogo se descartan (para no proponer libros que no existen)",

@@ -46,6 +46,21 @@ object BookSearch {
         }
     }
 
+    /**
+     * ¿Es el mismo libro? Título principal (sin subtítulo) igual, o uno empieza por el otro entero,
+     * y el apellido del autor coincide. Estricto a propósito: mejor sin portada que con la de otro libro.
+     */
+    fun sameBook(t1: String, a1: String, t2: String, a2: String): Boolean {
+        fun main(t: String) = key(t.substringBefore(':').substringBefore('(').substringBefore(" - ").substringBefore('.'))
+        val m1 = main(t1); val m2 = main(t2)
+        if (m1.length < 3 || m2.length < 3) return false
+        val titleOk = m1 == m2 || (m1.length >= 8 && m2.startsWith(m1)) || (m2.length >= 8 && m1.startsWith(m2))
+        if (!titleOk) return false
+        val s2 = key(a2.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
+        val s1 = key(a1)
+        return s2.length < 3 || s1.isBlank() || s1.contains(s2)
+    }
+
     /** ISBN-13 (978…) → ISBN-10, que en Amazon es el código del libro. */
     fun isbn10(code: String): String? {
         val c = code.filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
@@ -77,12 +92,15 @@ object BookSearch {
         }
         val code = isbn.filter { it.isDigit() || it == 'X' || it == 'x' }
         if (code.length == 10 || code.length == 13) {
-            isbns.add(code)
-            runCatching { google("isbn:$code") }.getOrNull()?.forEach { addGoogle(it.coverUrl) }
+            val byCode = runCatching { google("isbn:$code") }.getOrNull().orEmpty()
+            // Si el catálogo no confirma que ese ISBN es este libro, no se usa (podría dar la portada de otro)
+            if (byCode.any { sameBook(it.title, it.author, title, author) }) {
+                isbns.add(code); byCode.forEach { addGoogle(it.coverUrl) }
+            }
         }
         val t = key(title.substringBefore(':').substringBefore('(').substringBefore('.')).take(16)
         val surname = key(author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
-        fun matches(f: FoundBook) = t.length >= 3 && key(f.title).startsWith(t.take(10)) && (surname.length < 3 || key(f.author).contains(surname))
+        fun matches(f: FoundBook) = t.length >= 3 && sameBook(f.title, f.author, title, author)
         if (t.length >= 3) {
             val base = title.substringBefore(':').substringBefore('(').trim()
             val q = "intitle:$base" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
@@ -206,9 +224,10 @@ object BookSearch {
      */
     suspend fun quick(title: String, author: String, isbn: String = ""): FoundBook? = withContext(Dispatchers.IO) {
         val code = isbn.filter { it.isDigit() || it == 'X' }
-        val t = key(title.substringBefore(':')).take(12)
-        fun ok(f: FoundBook) = key(f.title).startsWith(t.take(8)) || t.startsWith(key(f.title).take(8))
-        val byIsbn = if (code.length == 13 || code.length == 10) runCatching { google("isbn:$code") }.getOrDefault(emptyList()).firstOrNull() else null
+        fun ok(f: FoundBook) = sameBook(f.title, f.author, title, author)
+        // El ISBN solo vale si ese libro es de verdad el mismo (título y autor); si no, era un ISBN equivocado
+        val byIsbn = if (code.length == 13 || code.length == 10)
+            runCatching { google("isbn:$code") }.getOrDefault(emptyList()).firstOrNull(::ok) else null
         if (byIsbn?.coverUrl != null) return@withContext byIsbn
         val q = "intitle:${title.substringBefore(':').trim()}" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',').trim()}" else ""
         val list = runCatching { google(q, "&langRestrict=es") }.getOrDefault(emptyList()).ifEmpty { runCatching { google(q) }.getOrDefault(emptyList()) }
