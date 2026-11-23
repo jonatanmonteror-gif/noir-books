@@ -5,6 +5,11 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.88", "23 nov 2026", listOf(
+            "¿Qué leo ahora?: un cuestionario de pocos pasos (qué buscas, qué te apetece, conocido o nuevo, duración y cómo lo lees) que elige uno de tus pendientes y te dice por qué",
+            "Novedades para ti: lo nuevo de tus autores favoritos, el siguiente de tus sagas y lo recién salido de tus géneros, con «Lo quiero» para guardarlo",
+            "Nueva sección en Inicio para las dos cosas (se puede ocultar o mover en Ajustes › Inicio)",
+        )),
         Entry("1.0.87", "23 nov 2026", listOf(
             "Añadir libro a mano: «Libro electrónico» en lugar de «Kindle», sin la opción «Otro lector», y «Posición» en lugar de «Posición de Kindle»",
         )),

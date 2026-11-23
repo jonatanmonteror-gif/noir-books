@@ -740,6 +740,9 @@ private fun HomePane(
                     }
                 }
                 }
+                "discover" -> {
+                    if (books.any { !it.inTrash }) DiscoverCard()
+                }
                 "resurface" -> {
                 resurfaceCandidate(books)?.let { r ->
                     Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp)) { ResurfaceCard(r) { onDetails(r) } }

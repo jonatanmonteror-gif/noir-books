@@ -53,4 +53,26 @@ object Genres {
         // Si "Novela" empata con algo más concreto, gana lo concreto.
         return score.firstOrNull { it.second == best.second }?.first ?: best.first
     }
+
+    /** Palabra de búsqueda en inglés para un género (los catálogos clasifican en inglés). */
+    fun subjectFor(genre: String): String = when (genre) {
+        "Misterio y thriller" -> "thriller"
+        "Ciencia ficción" -> "science fiction"
+        "Fantasía" -> "fantasy"
+        "Romántica" -> "romance"
+        "Novela histórica" -> "historical fiction"
+        "Terror" -> "horror"
+        "Juvenil" -> "young adult"
+        "Novela" -> "fiction"
+        "Autoayuda" -> "self-help"
+        "Psicología" -> "psychology"
+        "Negocios y economía" -> "business"
+        "Biografía y memorias" -> "biography"
+        "Historia" -> "history"
+        "Ciencia" -> "science"
+        "Filosofía" -> "philosophy"
+        "Ensayo" -> "essays"
+        "" -> ""
+        else -> genre.lowercase()
+    }
 }

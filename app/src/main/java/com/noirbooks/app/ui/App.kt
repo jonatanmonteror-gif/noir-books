@@ -57,6 +57,8 @@ object AppState {
     val welcome = mutableStateOf(false)
     /** Pantalla de Pro (al tocar algo con candado). */
     val showPro = mutableStateOf(false)
+    /** «¿Qué leo ahora?» («quiz») o «Novedades para ti» («news») abiertos. */
+    val recommend = mutableStateOf<String?>(null)
     /** Al abrir un libro desde una cita: ir directamente a esa cita. */
     val jumpTo = mutableStateOf<Pair<String, com.noirbooks.app.data.Highlight>?>(null)
     val resumeCount = mutableIntStateOf(0)
@@ -317,6 +319,7 @@ private fun AppContent() {
             AppState.logSession.value?.let { r -> LogSessionDialog(r, onDismiss = { AppState.logSession.value = null }) }
             AppState.shareQuote.value?.let { q -> QuoteShareDialog(q, onDismiss = { AppState.shareQuote.value = null }) }
             if (AppState.showPro.value) ProDialog { AppState.showPro.value = false }
+            AppState.recommend.value?.let { m -> RecommendDialog(m) { AppState.recommend.value = null } }
             UpdatePrompt()
             CrashReportPrompt()
             if (screen !is Screen.Reader) WhatsNewPrompt()

@@ -173,8 +173,13 @@ object BookSearch {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
-    private suspend fun google(q: String): List<FoundBook> {
-        val json = Http.get("https://www.googleapis.com/books/v1/volumes?q=${enc(q)}&maxResults=20&printType=books")
+    /** Lo más reciente en Google Books (para novedades). [lang] limita el idioma, p. ej. «es». */
+    suspend fun newest(q: String, lang: String = "es"): List<FoundBook> = withContext(Dispatchers.IO) {
+        runCatching { google(q, "&orderBy=newest" + if (lang.isNotBlank()) "&langRestrict=$lang" else "") }.getOrDefault(emptyList())
+    }
+
+    private suspend fun google(q: String, extra: String = ""): List<FoundBook> {
+        val json = Http.get("https://www.googleapis.com/books/v1/volumes?q=${enc(q)}&maxResults=20&printType=books$extra")
         val items = JSONObject(json).optJSONArray("items") ?: return emptyList()
         return (0 until items.length()).mapNotNull { i ->
             val v = items.optJSONObject(i)?.optJSONObject("volumeInfo") ?: return@mapNotNull null

@@ -448,14 +448,16 @@ object Prefs {
         set(v) { sp.edit().putBoolean("app_lock", v).apply() }
 
     /** Secciones de Inicio, en orden. Las ocultas van en [homeHidden]. */
-    val HOME_SECTIONS = listOf("continue" to "Seguir leyendo", "resurface" to "Retomar abandonados", "recent" to "Recientes",
+    val HOME_SECTIONS = listOf("continue" to "Seguir leyendo", "discover" to "¿Qué leo ahora?", "resurface" to "Retomar abandonados", "recent" to "Recientes",
         "status" to "Por estado", "shelves" to "Tus estanterías")
     val homeOrder = mutableStateOf(HOME_SECTIONS.map { it.first })
     val homeHidden = mutableStateOf(emptySet<String>())
     private fun loadHome() {
         val saved = sp.getString("home_order", "").orEmpty().split(',').filter { k -> HOME_SECTIONS.any { it.first == k } }
         // Las secciones nuevas que aún no estaban guardadas se añaden al final
-        homeOrder.value = saved + HOME_SECTIONS.map { it.first }.filter { it !in saved }
+        val order = saved.toMutableList()
+        HOME_SECTIONS.forEachIndexed { i, (k, _) -> if (k !in order) order.add(i.coerceAtMost(order.size), k) }
+        homeOrder.value = order
         homeHidden.value = sp.getString("home_hidden", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
     }
     fun setHome(order: List<String>, hidden: Set<String>) {
