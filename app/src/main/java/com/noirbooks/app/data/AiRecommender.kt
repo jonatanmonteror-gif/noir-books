@@ -32,7 +32,7 @@ object AiRecommender {
 
     /** [cover]: la portada ya descargada, para pintarla al instante junto al texto. */
     data class Suggestion(val title: String, val author: String, val year: String, val why: String, val found: FoundBook?,
-                          val cover: android.graphics.Bitmap? = null)
+                          val cover: android.graphics.Bitmap? = null, val coverUrl: String? = null)
     data class Result(
         val items: List<Suggestion>, val model: String, val promptTokens: Int, val completionTokens: Int,
         val costUsd: Double, val web: Boolean,
@@ -147,14 +147,15 @@ object AiRecommender {
                     }?.takeIf { it.width > 40 && it.height > 60 } // Amazon devuelve un punto de 1×1 si no la tiene
                     val first = listOfNotNull(BookSearch.amazonCover(isbn), BookSearch.amazonCover(found?.isbn.orEmpty()), found?.coverUrl).distinct()
                     var bmp: android.graphics.Bitmap? = null
-                    for (u in first) { bmp = fetch(u); if (bmp != null) break }
+                    var used: String? = null
+                    for (u in first) { bmp = fetch(u); if (bmp != null) { used = u; break } }
                     if (bmp == null) {
                         val more = kotlinx.coroutines.withTimeoutOrNull(6000) {
                             runCatching { BookSearch.coverCandidates(t, a, isbn.ifBlank { found?.isbn.orEmpty() }) }.getOrDefault(emptyList())
                         }.orEmpty().filter { it !in first }.take(6)
-                        for (u in more) { bmp = fetch(u); if (bmp != null) break }
+                        for (u in more) { bmp = fetch(u); if (bmp != null) { used = u; break } }
                     }
-                    Suggestion(t, a, o.optString("year"), o.optString("why"), found, bmp)
+                    Suggestion(t, a, o.optString("year"), o.optString("why"), found, bmp, used)
                 }
             }.map { it.await() }
         }

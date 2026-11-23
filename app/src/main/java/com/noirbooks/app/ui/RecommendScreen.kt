@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -330,44 +331,154 @@ private fun SectionTitle(t: String) {
     Spacer(Modifier.height(4.dp))
 }
 
+/** ¿Ya está en tu biblioteca (por título)? */
+private fun inLibrary(title: String) = Library.books.value.any { !it.inTrash && fold(it.title).take(24) == fold(title).take(24) }
+
+/** Guarda un libro de fuera en «Lo quiero» (con su portada). */
+private suspend fun wantIt(f: FoundBook, coverUrl: String?): Boolean = runCatching {
+    val b = Library.addManual(f.title, f.author, BookFormat.Paper, f.pages,
+        if (f.pages > 0) ProgressUnit.Page else ProgressUnit.Percent, coverUrl ?: f.coverUrl, f.isbn, f.publisher, f.year,
+        BookStatus.ToRead, f.description, Genres.from(f.categories))
+    Library.update(b.id) { it.copy(wish = true) }
+    true
+}.getOrDefault(false)
+
 @Composable
-private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false, cover: android.graphics.Bitmap? = null) {
-    val f = nb.found
-    val scope = rememberCoroutineScope()
-    var added by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(48.dp).height(72.dp).clip(RoundedCornerShape(4.dp)).background(NB.surface2)) {
-            when {
-                // Portada ya descargada: sale al instante, junto al texto
-                cover != null -> androidx.compose.foundation.Image(cover.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                f.coverUrl != null -> AsyncImage(f.coverUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                // Sin portada en ningún catálogo: una tapa con el título, mejor que un hueco gris
-                else -> Box(Modifier.fillMaxSize().background(NB.text).padding(4.dp), contentAlignment = Alignment.Center) {
-                    Text(f.title, color = NB.onText, fontSize = 8.sp, lineHeight = 9.sp, fontFamily = Playfair, maxLines = 5,
-                        overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                }
+private fun CoverBox(f: FoundBook, cover: android.graphics.Bitmap?, coverUrl: String?, modifier: Modifier, small: Boolean = true) {
+    Box(modifier.clip(RoundedCornerShape(if (small) 4.dp else 8.dp)).background(NB.surface2)) {
+        val url = coverUrl ?: f.coverUrl
+        when {
+            cover != null -> androidx.compose.foundation.Image(cover.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            url != null -> AsyncImage(url, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            // Sin portada en ningún catálogo: una tapa con el título, mejor que un hueco gris
+            else -> Box(Modifier.fillMaxSize().background(NB.text).padding(if (small) 4.dp else 14.dp), contentAlignment = Alignment.Center) {
+                Text(f.title, color = NB.onText, fontSize = if (small) 8.sp else 18.sp, lineHeight = if (small) 9.sp else 22.sp, fontFamily = Playfair,
+                    maxLines = 6, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
+    }
+}
+
+/**
+ * Fila de un libro de fuera. Todas miden lo mismo que la portada (el porqué se corta a 2 líneas),
+ * así la lista queda pareja. Al tocarla se abre la ficha grande.
+ */
+@Composable
+private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false, cover: android.graphics.Bitmap? = null, coverUrl: String? = null) {
+    val f = nb.found
+    var open by remember { mutableStateOf(false) }
+    val wanted = inLibrary(f.title)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).height(76.dp).clip(RoundedCornerShape(10.dp)).clickable { open = true },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CoverBox(f, cover, coverUrl, Modifier.width(50.dp).height(76.dp))
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(f.title, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(listOf(f.author.substringBefore(','), f.year).filter { it.isNotBlank() }.joinToString(" · "), color = NB.text2, fontSize = 12.sp, maxLines = 1)
-            Text(nb.why, color = NB.text3, fontSize = 12.sp, lineHeight = 16.sp, maxLines = if (wrapWhy) 4 else 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+            Text(f.title, color = NB.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(f.author.substringBefore(','), f.year).filter { it.isNotBlank() }.joinToString(" · "), color = NB.text2, fontSize = 12.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(nb.why, color = NB.text3, fontSize = 12.sp, lineHeight = 15.sp, maxLines = if (wrapWhy) 2 else 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.width(8.dp))
-        Text(if (added) "✓ Guardado" else "Lo quiero", color = if (added) NB.text2 else NB.onText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(if (added) NB.surface else NB.text)
-                .clickable(enabled = !added) {
-                    added = true
-                    scope.launch {
-                        runCatching {
-                            val b = Library.addManual(f.title, f.author, BookFormat.Paper, f.pages,
-                                if (f.pages > 0) ProgressUnit.Page else ProgressUnit.Percent, f.coverUrl, f.isbn, f.publisher, f.year,
-                                BookStatus.ToRead, f.description, Genres.from(f.categories))
-                            Library.update(b.id) { it.copy(wish = true) }
-                        }.onFailure { added = false; AppState.toast("No se pudo guardar") }
+        if (wanted) Text("♥", color = NB.text, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 8.dp))
+        else Text("›", color = NB.text3, fontSize = 22.sp, modifier = Modifier.padding(horizontal = 8.dp))
+    }
+    if (open) FoundBookSheet(nb, cover, coverUrl) { open = false }
+}
+
+/** Ficha grande de un libro de fuera: portada, datos, el porqué, sinopsis y «¡Lo quiero!». */
+@Composable
+private fun FoundBookSheet(nb: Recommender.NewBook, cover: android.graphics.Bitmap?, coverUrl: String?, onDismiss: () -> Unit) {
+    val f = nb.found
+    val scope = rememberCoroutineScope()
+    var synopsis by remember { mutableStateOf(f.description) }
+    var wanted by remember { mutableStateOf(inLibrary(f.title)) }
+    LaunchedEffect(f.title) {
+        if (synopsis.isBlank()) synopsis = runCatching { BookSearch.description(f.title, f.author, f.isbn) }.getOrDefault("")
+    }
+    val navH = activityNavBarHeight()
+    val statusH = activityStatusBarHeight()
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        FullScreenDialogWindow()
+        Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(16.dp))) {
+            Column(Modifier.fillMaxSize()) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(44.dp))
+                    CoverBox(f, cover, coverUrl, Modifier.width(150.dp).height(225.dp), small = false)
+                    Spacer(Modifier.height(20.dp))
+                    Text(f.title, fontFamily = Playfair, fontSize = 24.sp, lineHeight = 30.sp, color = NB.text,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    if (f.author.isNotBlank()) Text(f.author, color = NB.text2, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
+                    val info = listOf(f.year, f.publisher, if (f.pages > 0) "${f.pages} págs." else "").filter { it.isNotBlank() }.joinToString(" · ")
+                    if (info.isNotBlank()) Text(info, color = NB.text3, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                    if (nb.why.isNotBlank()) {
+                        Spacer(Modifier.height(18.dp))
+                        Text("«${nb.why}»", color = NB.text, fontSize = 15.sp, lineHeight = 22.sp, fontFamily = Playfair,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
-                }.padding(horizontal = 12.dp, vertical = 7.dp))
+                    Spacer(Modifier.height(22.dp))
+                    Text("SINOPSIS", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(6.dp))
+                    Text(synopsis.ifBlank { "Buscando la sinopsis…" }, color = if (synopsis.isBlank()) NB.text3 else NB.text2,
+                        fontSize = 15.sp, lineHeight = 23.sp, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(24.dp))
+                }
+                WantButton(wanted, Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) {
+                    if (wanted) return@WantButton
+                    wanted = true
+                    scope.launch { if (!wantIt(f, coverUrl)) { wanted = false; AppState.toast("No se pudo guardar") } }
+                }
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) {
+                Icon(Icons.Filled.Close, "Cerrar", tint = NB.text2)
+            }
+        }
+    }
+}
+
+/**
+ * «¡Lo quiero!»: el corazón late, se llena y suelta un pequeño destello; el botón pasa a «En tu lista».
+ * Con alegría, pero sin estridencias.
+ */
+@Composable
+private fun WantButton(wanted: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val heart = remember { androidx.compose.animation.core.Animatable(1f) }
+    val burst = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(wanted) {
+        if (wanted) {
+            launch { burst.snapTo(0f); burst.animateTo(1f, androidx.compose.animation.core.tween(650)) }
+            heart.animateTo(1.45f, androidx.compose.animation.core.tween(140))
+            heart.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = 300f))
+        }
+    }
+    val bg by androidx.compose.animation.animateColorAsState(if (wanted) NB.surface else NB.text, label = "want")
+    Box(
+        modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(50)).background(bg)
+            .border(1.dp, if (wanted) NB.line else NB.text, RoundedCornerShape(50))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.Center) {
+                // Destello: un anillo de puntitos que se abre y se desvanece
+                if (burst.value in 0.01f..0.99f) androidx.compose.foundation.Canvas(Modifier.size(44.dp)) {
+                    val r = size.minDimension / 2f * (0.35f + burst.value * 0.65f)
+                    val a = (1f - burst.value)
+                    repeat(8) { k ->
+                        val ang = Math.toRadians(k * 45.0)
+                        drawCircle(NB.text.copy(alpha = a), radius = 2.2.dp.toPx() * (1f - burst.value * 0.5f),
+                            center = androidx.compose.ui.geometry.Offset(center.x + r * kotlin.math.cos(ang).toFloat(), center.y + r * kotlin.math.sin(ang).toFloat()))
+                    }
+                }
+                Text(if (wanted) "♥" else "♡", color = if (wanted) NB.text else NB.onText, fontSize = 20.sp,
+                    modifier = Modifier.graphicsLayer(scaleX = heart.value, scaleY = heart.value))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(if (wanted) "¡En tu lista «Lo quiero»!" else "¡Lo quiero!", color = if (wanted) NB.text else NB.onText,
+                fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -434,7 +545,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
         r.items.forEach { s ->
             val f = s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")
             NewRow(Recommender.NewBook(f.copy(title = s.title, author = s.author.ifBlank { f.author }, year = s.year.ifBlank { f.year }),
-                s.why + if (s.found == null) " (no aparece en el catálogo)" else ""), wrapWhy = true, cover = s.cover)
+                s.why), wrapWhy = true, cover = s.cover, coverUrl = s.coverUrl)
         }
         // Coste de esta consulta (para calcular precios)
         if (com.noirbooks.app.data.Edition.isDev) {
