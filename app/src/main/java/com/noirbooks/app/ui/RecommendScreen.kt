@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -330,13 +331,22 @@ private fun SectionTitle(t: String) {
 }
 
 @Composable
-private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false) {
+private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false, cover: android.graphics.Bitmap? = null) {
     val f = nb.found
     val scope = rememberCoroutineScope()
     var added by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(48.dp).height(72.dp).clip(RoundedCornerShape(4.dp)).background(NB.surface2)) {
-            if (f.coverUrl != null) AsyncImage(f.coverUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            when {
+                // Portada ya descargada: sale al instante, junto al texto
+                cover != null -> androidx.compose.foundation.Image(cover.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                f.coverUrl != null -> AsyncImage(f.coverUrl, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                // Sin portada en ningún catálogo: una tapa con el título, mejor que un hueco gris
+                else -> Box(Modifier.fillMaxSize().background(NB.text).padding(4.dp), contentAlignment = Alignment.Center) {
+                    Text(f.title, color = NB.onText, fontSize = 8.sp, lineHeight = 9.sp, fontFamily = Playfair, maxLines = 5,
+                        overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -424,7 +434,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
         r.items.forEach { s ->
             val f = s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")
             NewRow(Recommender.NewBook(f.copy(title = s.title, author = s.author.ifBlank { f.author }, year = s.year.ifBlank { f.year }),
-                s.why + if (s.found == null) " (no aparece en el catálogo)" else ""), wrapWhy = true)
+                s.why + if (s.found == null) " (no aparece en el catálogo)" else ""), wrapWhy = true, cover = s.cover)
         }
         // Coste de esta consulta (para calcular precios)
         if (com.noirbooks.app.data.Edition.isDev) {

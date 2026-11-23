@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.93", "23 nov 2026", listOf(
+            "Recomendaciones: las portadas se descargan antes de enseñar el resultado y salen a la vez que el texto. Si Google no la tiene, se busca en Open Library; si no hay ninguna, sale una tapa con el título",
+        )),
         Entry("1.0.92", "23 nov 2026", listOf(
             "Recomendaciones: salen ya con su portada, todas a la vez, y más rápido",
             "Cada recomendación cuesta bastante menos (búsqueda en internet más barata y respuesta más directa)",

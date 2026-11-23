@@ -30,7 +30,9 @@ object AiRecommender {
         "google/gemini-3.8-flash" to "Gemini 3.8 Flash (mejor, más caro)",
     )
 
-    data class Suggestion(val title: String, val author: String, val year: String, val why: String, val found: FoundBook?)
+    /** [cover]: la portada ya descargada, para pintarla al instante junto al texto. */
+    data class Suggestion(val title: String, val author: String, val year: String, val why: String, val found: FoundBook?,
+                          val cover: android.graphics.Bitmap? = null)
     data class Result(
         val items: List<Suggestion>, val model: String, val promptTokens: Int, val completionTokens: Int,
         val costUsd: Double, val web: Boolean,
@@ -133,13 +135,30 @@ object AiRecommender {
             raw5.map { o ->
                 async {
                     val t = o.optString("title").trim(); val a = o.optString("author").trim()
-                    val found = kotlinx.coroutines.withTimeoutOrNull(6000) { runCatching { BookSearch.quick(t, a, o.optString("isbn")) }.getOrNull() }
-                    found?.coverUrl?.let { url ->
-                        kotlinx.coroutines.withTimeoutOrNull(4000) {
-                            runCatching { loader.execute(coil.request.ImageRequest.Builder(ctx).data(url).build()) }
-                        }
+                    val isbn = o.optString("isbn").filter { it.isDigit() || it == 'X' }
+                    val found = kotlinx.coroutines.withTimeoutOrNull(6000) { runCatching { BookSearch.quick(t, a, isbn) }.getOrNull() }
+                    // Portada: la del catálogo, si no por ISBN en Open Library, y si no buscando por título y autor.
+                    // Se descarga aquí, así sale a la vez que el texto (sin cargas después).
+                    val urls = buildList {
+                        found?.coverUrl?.let { add(it.replace("&zoom=1", "&zoom=1")) }
+                        val code = found?.isbn?.ifBlank { null } ?: isbn
+                        if (code.length == 13 || code.length == 10) add("https://covers.openlibrary.org/b/isbn/$code-M.jpg?default=false")
                     }
-                    Suggestion(t, a, o.optString("year"), o.optString("why"), found)
+                    suspend fun fetch(u: String): android.graphics.Bitmap? = kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        runCatching {
+                            val res = loader.execute(coil.request.ImageRequest.Builder(ctx).data(u).allowHardware(false).size(300, 450).build())
+                            (res as? coil.request.SuccessResult)?.drawable?.let { d -> (d as? android.graphics.drawable.BitmapDrawable)?.bitmap }
+                        }.getOrNull()
+                    }?.takeIf { it.width > 40 && it.height > 60 }
+                    var bmp: android.graphics.Bitmap? = null
+                    for (u in urls) { bmp = fetch(u); if (bmp != null) break }
+                    if (bmp == null) {
+                        val more = kotlinx.coroutines.withTimeoutOrNull(5000) {
+                            runCatching { BookSearch.coverCandidates(t, a, isbn) }.getOrDefault(emptyList())
+                        }.orEmpty().filter { it !in urls }.take(3)
+                        for (u in more) { bmp = fetch(u); if (bmp != null) break }
+                    }
+                    Suggestion(t, a, o.optString("year"), o.optString("why"), found, bmp)
                 }
             }.map { it.await() }
         }
