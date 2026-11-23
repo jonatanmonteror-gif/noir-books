@@ -18,8 +18,8 @@ import java.util.Calendar
  * consultas tienen que ir por un servidor propio (la clave no puede ir en el móvil de cada usuario).
  */
 object AiRecommender {
-    const val FREE_PER_MONTH = 3
-    const val PRO_PER_MONTH = 20
+    const val FREE_PER_MONTH = 1
+    const val PRO_PER_MONTH = 10
 
     /** Modelos para probar costes (id de OpenRouter → nombre). */
     val MODELS = listOf(
@@ -74,8 +74,8 @@ object AiRecommender {
 
     suspend fun recommend(books: List<Book>, wish: String, answers: Recommender.Answers?): Result = withContext(Dispatchers.IO) {
         val key = Prefs.aiKey.trim()
-        if (key.isBlank()) throw IllegalStateException("Falta la clave de OpenRouter (Ajustes › Vista de la app · temporal)")
-        if (left() <= 0) throw IllegalStateException("Ya has usado tus ${limit()} recomendaciones de este mes")
+        if (key.isBlank()) throw IllegalStateException("Las recomendaciones no están disponibles ahora mismo")
+        if (left() <= 0) throw IllegalStateException("Ya has usado tus recomendaciones de este mes (${limit()})")
         val year = Calendar.getInstance().get(Calendar.YEAR)
         val ask = buildString {
             answers?.let { a ->

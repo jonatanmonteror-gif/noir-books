@@ -63,7 +63,7 @@ fun DiscoverCard() {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(NB.surface).padding(16.dp)) {
         Text("¿QUÉ LEO AHORA?", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(4.dp))
-        Text("Unas preguntas rápidas y la IA te recomienda qué leer, también lo recién salido.", color = NB.text, fontSize = 15.sp, lineHeight = 20.sp)
+        Text("Unas preguntas rápidas y te recomiendo qué leer, también lo recién salido.", color = NB.text, fontSize = 15.sp, lineHeight = 20.sp)
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PillButton("Empezar", primary = true) { AppState.recommend.value = "quiz" }
@@ -205,7 +205,7 @@ private fun QuizResult(a: Recommender.Answers, onRestart: () -> Unit) {
     }
     if (com.noirbooks.app.data.Prefs.aiKey.isNotBlank() && ai.left() <= 0) {
         Spacer(Modifier.height(20.dp))
-        Text("Has usado tus ${ai.limit()} recomendaciones con IA de este mes. Te propongo de lo que ya tienes.",
+        Text("Has usado tus recomendaciones de este mes (${ai.limit()}). Te propongo de lo que ya tienes.",
             color = NB.text2, fontSize = 13.sp, lineHeight = 18.sp)
         if (!com.noirbooks.app.data.Edition.isPro) Text("Con Pro tienes ${ai.PRO_PER_MONTH} al mes", color = NB.text, fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { AppState.showPro.value = true }.padding(vertical = 4.dp))
@@ -367,9 +367,9 @@ private fun NewRow(nb: Recommender.NewBook, wrapWhy: Boolean = false) {
 private fun AiPane(answers: Recommender.Answers?) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(28.dp))
-        Text("Recomendación con IA", fontFamily = Playfair, fontSize = 28.sp, color = NB.text)
+        Text("Recomendaciones para ti", fontFamily = Playfair, fontSize = 28.sp, color = NB.text)
         Spacer(Modifier.height(6.dp))
-        Text("Lee lo que has leído y cómo lo has puntuado, y busca en internet lo que acaba de salir. Cada libro se comprueba en el catálogo.",
+        Text("A partir de lo que has leído y cómo lo has puntuado, incluido lo que acaba de salir.",
             color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
         AiBlock(answers)
         Spacer(Modifier.height(24.dp))
@@ -399,7 +399,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
     Spacer(Modifier.height(16.dp))
     Text(when {
         com.noirbooks.app.data.Edition.isDev -> "Sin límite (vista desarrollador)"
-        else -> "Te quedan ${ai.left()} de ${ai.limit()} este mes" + if (!com.noirbooks.app.data.Edition.isPro) " · con Pro, ${ai.PRO_PER_MONTH}" else ""
+        else -> "Te quedan ${ai.left()} de ${ai.limit()} recomendaciones este mes" + if (!com.noirbooks.app.data.Edition.isPro) " · con Pro, ${ai.PRO_PER_MONTH}" else ""
     }, color = NB.text3, fontSize = 12.sp)
     Spacer(Modifier.height(8.dp))
     androidx.compose.material3.OutlinedTextField(
@@ -419,7 +419,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
     error?.let { Text(it, color = NB.text2, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
     result?.let { r ->
         Spacer(Modifier.height(8.dp))
-        if (r.items.isEmpty()) Text("La IA no devolvió libros válidos. Prueba otra vez.", color = NB.text3, fontSize = 13.sp)
+        if (r.items.isEmpty()) Text("No he encontrado recomendaciones esta vez. Prueba otra vez.", color = NB.text3, fontSize = 13.sp)
         r.items.forEach { s ->
             val f = s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")
             NewRow(Recommender.NewBook(f.copy(title = s.title, author = s.author.ifBlank { f.author }, year = s.year.ifBlank { f.year }),

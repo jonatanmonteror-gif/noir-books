@@ -27,6 +27,7 @@ object Edition {
         "Tema automático: claro de día y oscuro de noche",
         "Pie de página a tu gusto: tiempo del capítulo, %, páginas, hora y batería",
         "Perfil de lectura «Verde», listo para usar",
+        "10 recomendaciones personalizadas al mes (sin Pro, 1)",
     )
 
     /** Temas de lectura gratis; el resto son Pro. */
