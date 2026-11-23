@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.90", "23 nov 2026", listOf(
+            "«¿Qué leo ahora?» termina con la recomendación de la IA según tus respuestas, y debajo lo que encaja de tus pendientes. Ya no hay botón aparte para la IA",
+        )),
         Entry("1.0.89", "23 nov 2026", listOf(
             "Recomendación con IA: lee tus libros leídos y tus notas, busca en internet lo recién salido y te propone 5 libros con el porqué; cada uno se comprueba en el catálogo",
             "Se pide desde Inicio («✦ Pedir a la IA») o al final de «¿Qué leo ahora?» con tus respuestas. Cupo: 3 al mes, 20 con Pro",
