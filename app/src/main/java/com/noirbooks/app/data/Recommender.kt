@@ -49,7 +49,13 @@ object Recommender {
         val known: Known = Known.Any,
         val length: Length = Length.Any,
         val way: Way = Way.Any,
-    )
+        /** Atajo por género (desde Inicio): solo libros de este género. */
+        val genre: String? = null,
+    ) {
+        /** Géneros que se piden: los del ánimo elegido o el del atajo. */
+        val genres: Set<String>? get() = mood?.genres ?: genre?.let { setOf(it) }
+        val wantLabel: String? get() = mood?.label ?: genre
+    }
 
     data class Pick(val book: Book, val score: Float, val reasons: List<String>)
 
@@ -116,10 +122,9 @@ object Recommender {
             var score = 0f
             val why = mutableListOf<String>()
             val g = b.genre
-            val mood = a.mood
-            // Lo que te apetece
-            if (mood != null) {
-                if (g in mood.genres) { score += 6f; why += "Es ${g.lowercase()}, justo lo que te apetece" }
+            val want = a.genres
+            if (want != null) {
+                if (g in want) { score += 6f; why += "Es ${g.lowercase()}, justo lo que te apetece" }
                 else if (g.isNotBlank()) score -= 4f
             } else if (a.fiction != null && g.isNotBlank()) {
                 val isFiction = Mood.entries.filter { it.fiction }.any { g in it.genres }

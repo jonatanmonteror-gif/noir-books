@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.96", "23 nov 2026", listOf(
+            "«Directo por género» en Inicio: tus géneros más leídos (thriller, autoayuda…) con recomendación al momento, sin preguntas",
+        )),
         Entry("1.0.95", "23 nov 2026", listOf(
             "Toca un libro recomendado o una novedad para verlo en grande: portada, datos, por qué te lo recomiendo y sinopsis",
             "Nuevo botón «¡Lo quiero!»: el corazón late y se llena al guardarlo",

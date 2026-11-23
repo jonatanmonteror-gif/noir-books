@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -71,6 +72,20 @@ fun DiscoverCard() {
             PillButton("Empezar", primary = true) { AppState.recommend.value = "quiz" }
             PillButton("Novedades para ti") { AppState.recommend.value = "news" }
         }
+        // Atajos por género: tus géneros más leídos, recomendación directa sin preguntas
+        val books by Library.books
+        val top = remember(books) {
+            books.filter { !it.inTrash && it.genre.isNotBlank() && (it.status == BookStatus.Read || it.status == BookStatus.Reading) }
+                .groupingBy { it.genre }.eachCount().entries.sortedByDescending { it.value }.take(6).map { it.key }
+        }
+        if (top.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Text("Directo por género", color = NB.text3, fontSize = 12.sp)
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                top.forEach { g -> Chip(g, false) { AppState.recommend.value = "genre:$g" } }
+            }
+        }
 
     }
 }
@@ -83,9 +98,13 @@ fun RecommendDialog(mode: String, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
         Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(16.dp))) {
-            when (mode) {
-                "news" -> NewsPane()
-                "ai" -> AiPane(null)
+            when {
+                mode.startsWith("genre:") -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+                    QuizResult(Recommender.Answers(genre = mode.removePrefix("genre:"))) { AppState.recommend.value = "quiz" }
+                    Spacer(Modifier.height(24.dp))
+                }
+                mode == "news" -> NewsPane()
+                mode == "ai" -> AiPane(null)
                 else -> QuizPane()
             }
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) {
@@ -190,11 +209,11 @@ private fun QuizResult(a: Recommender.Answers, onRestart: () -> Unit) {
     // Con IA disponible (clave puesta y cupo), el resultado lo da la IA; si no, se elige entre tus pendientes
     if (com.noirbooks.app.data.Prefs.aiKey.isNotBlank() && ai.left() > 0) {
         Spacer(Modifier.height(28.dp))
-        Text("Para ti, hoy", fontFamily = Playfair, fontSize = 28.sp, color = NB.text)
+        Text(if (a.genre != null) a.genre else "Para ti, hoy", fontFamily = Playfair, fontSize = 28.sp, color = NB.text)
         AiBlock(a, auto = true)
         val books by Library.books
         val own = remember(a) { Recommender.pick(books, a).filter { p ->
-            a.mood == null || p.book.genre in a.mood.genres || p.book.genre.isBlank() } .take(3) }
+            a.genres == null || p.book.genre in a.genres!! || p.book.genre.isBlank() } .take(3) }
         if (own.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
             Text("DE LO QUE YA TIENES", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium)
@@ -216,10 +235,10 @@ private fun QuizResult(a: Recommender.Answers, onRestart: () -> Unit) {
     val picks = remember(a) { Recommender.pick(books, a) }
     val top = picks.firstOrNull()
     // «Encaja» si cumple lo principal que pediste
-    val fits = top != null && (a.mood == null || top.book.genre in a.mood.genres || top.book.genre.isBlank())
+    val fits = top != null && (a.genres == null || top.book.genre in a.genres!! || top.book.genre.isBlank())
     Spacer(Modifier.height(28.dp))
     if (top == null || !fits) {
-        Text(if (picks.isEmpty()) "No tienes libros pendientes" else "Entre tus pendientes no hay ${a.mood?.label?.lowercase() ?: "nada que encaje"}",
+        Text(if (picks.isEmpty()) "No tienes libros pendientes" else "Entre tus pendientes no hay ${a.wantLabel?.lowercase() ?: "nada que encaje"}",
             fontFamily = Playfair, fontSize = 26.sp, lineHeight = 32.sp, color = NB.text)
         Spacer(Modifier.height(8.dp))
         Text("Mira abajo las novedades que encajan con lo que buscas; puedes guardarlas en «Lo quiero».", color = NB.text2, fontSize = 14.sp, lineHeight = 20.sp)
@@ -274,7 +293,7 @@ private fun QuizResult(a: Recommender.Answers, onRestart: () -> Unit) {
     // Fuera de tu biblioteca: novedades que encajan con lo elegido
     Spacer(Modifier.height(26.dp))
     Text("FUERA DE TU BIBLIOTECA", fontSize = 11.sp, letterSpacing = 1.4.sp, color = NB.silver, fontWeight = FontWeight.Medium)
-    NewsList(a.mood?.genres, limit = 5)
+    NewsList(a.genres, limit = 5)
     Spacer(Modifier.height(18.dp))
     Text("Volver a empezar", color = NB.text2, fontSize = 14.sp,
         modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onRestart).padding(vertical = 8.dp))

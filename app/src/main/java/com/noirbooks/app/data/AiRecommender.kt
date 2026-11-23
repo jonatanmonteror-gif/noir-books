@@ -83,6 +83,7 @@ object AiRecommender {
         val ask = buildString {
             answers?.let { a ->
                 a.mood?.let { append("Me apetece: ${it.label} (${it.hint}). ") }
+                a.genre?.let { append("Quiero algo de este género: $it. Básate sobre todo en lo que he leído y puntuado de ese género. ") }
                 if (a.mood == null && a.fiction != null) append(if (a.fiction) "Quiero ficción. " else "Quiero no ficción. ")
                 if (a.known != Recommender.Known.Any) append("Preferencia: ${a.known.label}. ")
                 if (a.length != Recommender.Length.Any) append("Duración: ${a.length.hint}. ")
