@@ -35,7 +35,8 @@ enum class BookStatus(val key: String, val label: String) {
 enum class BookFormat(val key: String, val label: String) {
     Epub("epub", "EPUB en la app"),
     Pdf("pdf", "PDF en la app"),
-    Kindle("kindle", "Kindle"),
+    /** Cualquier lector electrónico o app (Kindle, Kobo, Apple Books…). La clave sigue siendo «kindle» por compatibilidad. */
+    Kindle("kindle", "Libro electrónico"),
     Paper("paper", "Papel"),
     Audio("audio", "Audiolibro"),
     Other("other", "Otro lector");
@@ -49,7 +50,7 @@ enum class BookFormat(val key: String, val label: String) {
 enum class ProgressUnit(val key: String, val label: String) {
     Percent("percent", "Porcentaje"),
     Page("page", "Página"),
-    Location("location", "Posición de Kindle"),
+    Location("location", "Posición"),
     /** Audiolibros: horas y minutos. El total (en minutos) se guarda en [Book.pages]. */
     Time("time", "Tiempo (audiolibro)");
 

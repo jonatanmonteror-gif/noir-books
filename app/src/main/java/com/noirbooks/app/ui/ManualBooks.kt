@@ -314,7 +314,7 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (
         }
         Spacer(Modifier.height(18.dp))
         Label("¿Dónde lo lees?")
-        ChipRow(listOf(BookFormat.Kindle, BookFormat.Paper, BookFormat.Audio, BookFormat.Other), format, { it.label }) { f ->
+        ChipRow(listOf(BookFormat.Kindle, BookFormat.Paper, BookFormat.Audio), format, { it.label }) { f ->
             format = f
             unit = when (f) { BookFormat.Paper -> ProgressUnit.Page; BookFormat.Audio -> ProgressUnit.Time; else -> ProgressUnit.Percent }
         }
@@ -333,7 +333,7 @@ private fun ConfirmBook(r: FoundBook, onSaved: (Book) -> Unit, onSavedAndScan: (
             keyboardOptions = KeyboardOptions(keyboardType = if (unit == ProgressUnit.Time) KeyboardType.Text else KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
-        if (unit == ProgressUnit.Location) Text("En el Kindle: Ir a → Posición muestra el total.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        if (unit == ProgressUnit.Location) Text("En el lector: en «Ir a» suele salir la posición total.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         if (unit == ProgressUnit.Time) Text("Como en Audible: 11:30 son 11 horas y 30 minutos.", color = NB.text3, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(16.dp))
         Label("¿Cuándo lo vas a leer?")

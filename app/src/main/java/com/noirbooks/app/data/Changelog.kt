@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.87", "23 nov 2026", listOf(
+            "Añadir libro a mano: «Libro electrónico» en lugar de «Kindle», sin la opción «Otro lector», y «Posición» en lugar de «Posición de Kindle»",
+        )),
         Entry("1.0.86", "23 nov 2026", listOf(
             "Audiolibros por tiempo: apunta «voy por 4:20 de 11:30», como en Audible. Al añadir un audiolibro se elige solo",
             "Widget «Leyendo ahora»: el libro que lees con «Apuntar» y «Cronómetro», sin abrir la app",
