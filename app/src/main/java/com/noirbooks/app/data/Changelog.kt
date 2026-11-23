@@ -5,6 +5,9 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.97", "23 nov 2026", listOf(
+            "Nuevo icono de la app: la N sobre negro con un marcapáginas rojo. Ahora es adaptativo, así que llena el círculo o el cuadrado como el resto de apps",
+        )),
         Entry("1.0.96", "23 nov 2026", listOf(
             "«Directo por género» en Inicio: tus géneros más leídos (thriller, autoayuda…) con recomendación al momento, sin preguntas",
         )),
