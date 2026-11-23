@@ -3,6 +3,7 @@ package com.noirbooks.app.ui
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.filled.Close
 import android.content.ClipData
 import android.content.ClipboardManager
