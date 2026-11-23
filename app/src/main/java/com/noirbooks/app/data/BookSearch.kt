@@ -46,36 +46,63 @@ object BookSearch {
         }
     }
 
+    /** ISBN-13 (978…) → ISBN-10, que en Amazon es el código del libro. */
+    fun isbn10(code: String): String? {
+        val c = code.filter { it.isDigit() || it == 'X' || it == 'x' }.uppercase()
+        if (c.length == 10) return c
+        if (c.length != 13 || !c.startsWith("978")) return null
+        val body = c.substring(3, 12)
+        val sum = body.mapIndexed { i, ch -> (10 - i) * (ch - '0') }.sum()
+        val check = (11 - sum % 11) % 11
+        return body + if (check == 10) "X" else check.toString()
+    }
+
+    /** Portada de Amazon por ISBN (la misma que sale primero al buscar el libro en imágenes). */
+    fun amazonCover(isbn: String): String? = isbn10(isbn)?.let { "https://images-na.ssl-images-amazon.com/images/P/$it.01.LZZZZZZZ.jpg" }
+
     /**
-     * Direcciones de portada para un libro, de la más fiable a la menos: por ISBN (Open Library y Google)
-     * y, si no, buscando título y autor y quedándose solo con resultados que coincidan de verdad.
+     * Direcciones de portada para un libro, de la más fiable a la menos:
+     * 1) Amazon por ISBN (de la edición española primero), 2) Google Books en grande, 3) Open Library.
+     * Los ISBN salen del que se sepa y de buscar el título y autor en Google Books y Open Library.
      */
     suspend fun coverCandidates(title: String, author: String, isbn: String): List<String> = withContext(Dispatchers.IO) {
-        val out = LinkedHashSet<String>()
+        val isbns = LinkedHashSet<String>()
+        val google = LinkedHashSet<String>()
+        val ol = LinkedHashSet<String>()
         fun addGoogle(u: String?) {
             if (u.isNullOrBlank()) return
             val https = u.replace("http://", "https://").replace("&edge=curl", "")
-            // Google da miniaturas pequeñas: se pide primero una versión grande
-            if ("books.google" in https) out.add(https.replace(Regex("&zoom=\\d"), "") + "&fife=w800-h1200")
-            out.add(https)
+            if ("books.google" in https) google.add(https.replace(Regex("&zoom=\\d"), "") + "&fife=w800-h1200")
+            google.add(https)
         }
         val code = isbn.filter { it.isDigit() || it == 'X' || it == 'x' }
         if (code.length == 10 || code.length == 13) {
-            out.add("https://covers.openlibrary.org/b/isbn/$code-L.jpg?default=false")
+            isbns.add(code)
             runCatching { google("isbn:$code") }.getOrNull()?.forEach { addGoogle(it.coverUrl) }
         }
         val t = key(title.substringBefore(':').substringBefore('(').substringBefore('.')).take(16)
         val surname = key(author.substringBefore(',').substringBefore('&').trim().split(' ').lastOrNull().orEmpty())
-        fun matches(f: FoundBook) = t.length >= 3 && key(f.title).startsWith(t) && (surname.length < 3 || key(f.author).contains(surname))
+        fun matches(f: FoundBook) = t.length >= 3 && key(f.title).startsWith(t.take(10)) && (surname.length < 3 || key(f.author).contains(surname))
         if (t.length >= 3) {
             val base = title.substringBefore(':').substringBefore('(').trim()
             val q = "intitle:$base" + if (author.isNotBlank()) " inauthor:${author.substringBefore(',')}" else ""
-            val g = runCatching { google(q) }.getOrDefault(emptyList()).filter(::matches)
-            // Primero las ediciones en español
-            g.sortedBy { if (it.language.startsWith("es")) 0 else 1 }.forEach { addGoogle(it.coverUrl) }
-            runCatching { openLibrary("$base ${author.substringBefore(',')}".trim()) }.getOrDefault(emptyList())
-                .filter(::matches).forEach { f -> f.coverUrl?.let { out.add(it.replace("http://", "https://")) } }
+            coroutineScope {
+                val g = async { runCatching { google(q) }.getOrDefault(emptyList()).filter(::matches) }
+                val o = async { runCatching { openLibrary("$base ${author.substringBefore(',')}".trim()) }.getOrDefault(emptyList()).filter(::matches) }
+                // Ediciones en español primero
+                g.await().sortedBy { if (isSpanish(it)) 0 else 1 }.forEach { f ->
+                    if (f.isbn.isNotBlank()) isbns.add(f.isbn); addGoogle(f.coverUrl)
+                }
+                o.await().forEach { f ->
+                    if (f.isbn.isNotBlank()) isbns.add(f.isbn); f.coverUrl?.let { ol.add(it.replace("http://", "https://")) }
+                }
+            }
         }
+        val out = LinkedHashSet<String>()
+        isbns.take(4).forEach { i -> amazonCover(i)?.let(out::add) }
+        out.addAll(google)
+        isbns.take(2).forEach { i -> out.add("https://covers.openlibrary.org/b/isbn/$i-L.jpg?default=false") }
+        out.addAll(ol)
         out.toList()
     }
 

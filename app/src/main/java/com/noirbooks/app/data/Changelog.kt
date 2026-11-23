@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.94", "23 nov 2026", listOf(
+            "Portadas mucho más fáciles de encontrar: se usa la portada de Amazon por ISBN (la misma que sale al buscar el libro), y si no, Google Books u Open Library",
+            "Vale para las recomendaciones, «Buscar portadas que faltan» y lo que importas",
+        )),
         Entry("1.0.93", "23 nov 2026", listOf(
             "Recomendaciones: las portadas se descargan antes de enseñar el resultado y salen a la vez que el texto. Si Google no la tiene, se busca en Open Library; si no hay ninguna, sale una tapa con el título",
         )),

@@ -137,25 +137,21 @@ object AiRecommender {
                     val t = o.optString("title").trim(); val a = o.optString("author").trim()
                     val isbn = o.optString("isbn").filter { it.isDigit() || it == 'X' }
                     val found = kotlinx.coroutines.withTimeoutOrNull(6000) { runCatching { BookSearch.quick(t, a, isbn) }.getOrNull() }
-                    // Portada: la del catálogo, si no por ISBN en Open Library, y si no buscando por título y autor.
-                    // Se descarga aquí, así sale a la vez que el texto (sin cargas después).
-                    val urls = buildList {
-                        found?.coverUrl?.let { add(it.replace("&zoom=1", "&zoom=1")) }
-                        val code = found?.isbn?.ifBlank { null } ?: isbn
-                        if (code.length == 13 || code.length == 10) add("https://covers.openlibrary.org/b/isbn/$code-M.jpg?default=false")
-                    }
-                    suspend fun fetch(u: String): android.graphics.Bitmap? = kotlinx.coroutines.withTimeoutOrNull(5000) {
+                    // Portada: Amazon por ISBN (como al buscar el libro en imágenes), Google Books u Open Library.
+                    // Se descarga aquí, así sale a la vez que el texto.
+                    suspend fun fetch(u: String): android.graphics.Bitmap? = kotlinx.coroutines.withTimeoutOrNull(4000) {
                         runCatching {
                             val res = loader.execute(coil.request.ImageRequest.Builder(ctx).data(u).allowHardware(false).size(300, 450).build())
                             (res as? coil.request.SuccessResult)?.drawable?.let { d -> (d as? android.graphics.drawable.BitmapDrawable)?.bitmap }
                         }.getOrNull()
-                    }?.takeIf { it.width > 40 && it.height > 60 }
+                    }?.takeIf { it.width > 40 && it.height > 60 } // Amazon devuelve un punto de 1×1 si no la tiene
+                    val first = listOfNotNull(BookSearch.amazonCover(isbn), BookSearch.amazonCover(found?.isbn.orEmpty()), found?.coverUrl).distinct()
                     var bmp: android.graphics.Bitmap? = null
-                    for (u in urls) { bmp = fetch(u); if (bmp != null) break }
+                    for (u in first) { bmp = fetch(u); if (bmp != null) break }
                     if (bmp == null) {
-                        val more = kotlinx.coroutines.withTimeoutOrNull(5000) {
-                            runCatching { BookSearch.coverCandidates(t, a, isbn) }.getOrDefault(emptyList())
-                        }.orEmpty().filter { it !in urls }.take(3)
+                        val more = kotlinx.coroutines.withTimeoutOrNull(6000) {
+                            runCatching { BookSearch.coverCandidates(t, a, isbn.ifBlank { found?.isbn.orEmpty() }) }.getOrDefault(emptyList())
+                        }.orEmpty().filter { it !in first }.take(6)
                         for (u in more) { bmp = fetch(u); if (bmp != null) break }
                     }
                     Suggestion(t, a, o.optString("year"), o.optString("why"), found, bmp)
