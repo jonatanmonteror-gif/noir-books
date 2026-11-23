@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,7 +98,8 @@ fun RecommendDialog(mode: String, onDismiss: () -> Unit) {
     val statusH = activityStatusBarHeight()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
-        Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(16.dp))) {
+        Box(Modifier.fillMaxSize().background(NB.bg)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars).padding(top = 4.dp, bottom = 10.dp)) {
             when {
                 mode.startsWith("genre:") -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
                     QuizResult(Recommender.Answers(genre = mode.removePrefix("genre:"))) { AppState.recommend.value = "quiz" }
@@ -419,13 +421,17 @@ private fun FoundBookSheet(nb: Recommender.NewBook, cover: android.graphics.Bitm
     var synopsis by remember { mutableStateOf(f.description) }
     var wanted by remember { mutableStateOf(inLibrary(f.title)) }
     LaunchedEffect(f.title) {
-        if (synopsis.isBlank()) synopsis = runCatching { BookSearch.description(f.title, f.author, f.isbn) }.getOrDefault("")
+        if (synopsis.isBlank()) {
+            synopsis = kotlinx.coroutines.withTimeoutOrNull(4000) { runCatching { BookSearch.description(f.title, f.author, f.isbn) }.getOrNull() }
+                .orEmpty().ifBlank { "Sin sinopsis en los catálogos." }
+        }
     }
     val navH = activityNavBarHeight()
     val statusH = activityStatusBarHeight()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
-        Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(16.dp))) {
+        Box(Modifier.fillMaxSize().background(NB.bg)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars).padding(top = 4.dp, bottom = 10.dp)) {
             Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
@@ -568,7 +574,7 @@ private fun AiBlock(answers: Recommender.Answers?, auto: Boolean = false) {
         Spacer(Modifier.height(8.dp))
         if (r.items.isEmpty()) Text("No he encontrado recomendaciones esta vez. Prueba otra vez.", color = NB.text3, fontSize = 13.sp)
         r.items.forEach { s ->
-            val f = s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")
+            val f = (s.found ?: FoundBook(s.title, s.author, null, 0, "", "", s.year, "", "IA")).copy(description = s.synopsis)
             NewRow(Recommender.NewBook(f.copy(title = s.title, author = s.author.ifBlank { f.author }, year = s.year.ifBlank { f.year }),
                 s.why), wrapWhy = true, cover = s.cover, coverUrl = s.coverUrl)
         }

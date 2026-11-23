@@ -32,7 +32,8 @@ object AiRecommender {
 
     /** [cover]: la portada ya descargada, para pintarla al instante junto al texto. */
     data class Suggestion(val title: String, val author: String, val year: String, val why: String, val found: FoundBook?,
-                          val cover: android.graphics.Bitmap? = null, val coverUrl: String? = null)
+                          val cover: android.graphics.Bitmap? = null, val coverUrl: String? = null,
+                          val synopsis: String = "", val verified: Boolean = true)
     data class Result(
         val items: List<Suggestion>, val model: String, val promptTokens: Int, val completionTokens: Int,
         val costUsd: Double, val web: Boolean,
@@ -106,9 +107,10 @@ object AiRecommender {
             - Recomienda 5 libros concretos que NO estén en su lista (ni leídos, ni pendientes, ni abandonados).
             - Que estén publicados en español (da el título de la edición española si existe).
             - Nada genérico: cada recomendación debe apoyarse en libros concretos que ha puntuado alto o en lo que pide.
+            - Solo libros que existan de verdad: si no estás seguro, no lo incluyas.
             - Incluye al menos uno publicado en ${year - 1} o $year si encaja (si no estás seguro de que exista, no lo inventes).
             - Evita lo que se parezca a lo que abandonó o puntuó bajo.
-            Responde SOLO con JSON: {"items":[{"title":"","author":"","year":"","isbn":"ISBN-13 de la edición española si lo sabes, si no vacío","why":"una frase concreta, máx. 25 palabras, en español, citando sus libros"}]}
+            Responde SOLO con JSON: {"items":[{"title":"","author":"","year":"","isbn":"ISBN-13 de la edición española si lo sabes, si no vacío","synopsis":"sinopsis real en 2 o 3 frases, en español","why":"una frase concreta, máx. 25 palabras, en español, citando sus libros"}]}
         """.trimIndent()
         val user = profile(books) + "\nPETICIÓN: " + ask
         val model = Prefs.aiModel
@@ -166,15 +168,24 @@ object AiRecommender {
                         }.orEmpty().filter { it !in first }.take(6)
                         for (u in more) { bmp = fetch(u); if (bmp != null) { used = u; break } }
                     }
-                    Suggestion(t, a, o.optString("year"), o.optString("why"), found, bmp, used)
+                    // Sinopsis lista ya (la del catálogo o, si no hay, la que da la recomendación): sin esperas al abrir la ficha
+                    val syn = found?.description?.takeIf { it.isNotBlank() }
+                        ?: kotlinx.coroutines.withTimeoutOrNull(3500) { runCatching { BookSearch.description(t, a, found?.isbn ?: isbn) }.getOrNull() }?.takeIf { it.isNotBlank() }
+                        ?: o.optString("synopsis")
+                    val f2 = (found ?: FoundBook(t, a, null, 0, isbn, "", o.optString("year"), "", "IA")).copy(description = syn)
+                    Suggestion(t, a, o.optString("year"), o.optString("why"), if (found != null || bmp != null) f2 else null, bmp, used,
+                        synopsis = syn, verified = found != null || bmp != null)
                 }
             }.map { it.await() }
         }
+        // Fuera lo que no aparece en ningún catálogo (la IA a veces se inventa libros); si quedan muy pocos, se dejan
+        val checked = list.filter { it.verified }
+        val final = if (checked.size >= 2) checked else list
         countOne()
         val cost = usage?.optDouble("cost", 0.0) ?: 0.0
         Prefs.aiSpentUsd = Prefs.aiSpentUsd + cost
         Prefs.aiCalls = Prefs.aiCalls + 1
-        Result(list, model, usage?.optInt("prompt_tokens") ?: 0, usage?.optInt("completion_tokens") ?: 0, cost, web)
+        Result(final, model, usage?.optInt("prompt_tokens") ?: 0, usage?.optInt("completion_tokens") ?: 0, cost, web)
     }
 
     private fun norm(s: String) = java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD)

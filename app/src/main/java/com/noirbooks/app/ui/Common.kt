@@ -2,6 +2,7 @@ package com.noirbooks.app.ui
 
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.filled.Close
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -309,6 +310,8 @@ fun FullScreenDialogWindow() {
         }
         window.attributes = a
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        // La ventana empieza en lo alto de la pantalla (no debajo de la barra de estado), así no se sale por abajo
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
         @Suppress("DEPRECATION")
         run { window.statusBarColor = android.graphics.Color.TRANSPARENT; window.navigationBarColor = android.graphics.Color.TRANSPARENT }
     }
@@ -391,7 +394,8 @@ fun ProDialog(onDismiss: () -> Unit) {
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         FullScreenDialogWindow()
-        Box(Modifier.fillMaxSize().background(NB.bg).padding(top = statusH + 4.dp, bottom = navH.coerceAtLeast(20.dp) + 6.dp)) {
+        Box(Modifier.fillMaxSize().background(NB.bg)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars).padding(top = 4.dp, bottom = 12.dp)) {
             Column(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 // Arriba: marca y frase (el espacio libre se reparte para que todo quepa sin desplazar)
                 Spacer(Modifier.weight(0.6f))

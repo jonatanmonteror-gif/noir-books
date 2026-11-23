@@ -5,6 +5,10 @@ object Changelog {
     data class Entry(val version: String, val date: String, val items: List<String>)
 
     val entries = listOf(
+        Entry("1.0.100", "23 nov 2026", listOf(
+            "Ficha de una recomendación: la sinopsis sale al instante y el botón «¡Lo quiero!» ya no queda debajo de la barra del móvil",
+            "Las recomendaciones que no aparecen en ningún catálogo se descartan (para no proponer libros que no existen)",
+        )),
         Entry("1.0.99", "23 nov 2026", listOf(
             "«¿Qué leo ahora?» pregunta también si quieres lo último o algo con años, y si algo famoso o una joya menos conocida",
             "Icono: la N un poco más pequeña",
